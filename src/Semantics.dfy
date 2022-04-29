@@ -1,7 +1,6 @@
 include "CompilerCommon.dfy"
 
-module Interp {
-module Value {
+module Values {
   import Ty = DafnyCompilerCommon.AST.Type
 
   datatype T =
@@ -46,17 +45,17 @@ module Value {
   // FIXME how do we define the interpreter to support :| without committing to a single interpretation of :|?
 }
 
+module Interp {
   import opened DafnyCompilerCommon.AST
   import opened DafnyCompilerCommon.Predicates
   type Expr = AST.Expr.Expr
   type Type = AST.Type.Type
-  import V = Value
+  import V = Values
   // FIXME reduce indirection
 
   datatype Result =
-    | OK(v: Value.Value)
+    | OK(v: V.Value)
     | TypeError(e: Expr, t: Type) // FIXME rule out type errors through Wf predicate
-
 
   predicate method Pure1(e: Expr) {
     match e {
