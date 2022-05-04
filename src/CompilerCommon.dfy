@@ -1,6 +1,7 @@
 include "CSharpDafnyASTModel.dfy"
 include "CSharpInterop.dfy"
 include "CSharpDafnyInterop.dfy"
+include "CSharpDafnyASTInterop.dfy"
 include "Library.dfy"
 include "StrTree.dfy"
 
@@ -36,7 +37,6 @@ module Types {
     | Bool
     | Char
     | Int
-    | Nat
     | Real
     | BigOrdinal
     | BitVector(width: nat)
@@ -251,6 +251,7 @@ module Translator {
   import opened CSharpInterop.System
   import opened CSharpDafnyInterop
   import opened CSharpDafnyInterop.Microsoft
+  import opened CSharpDafnyASTInterop
   import C = CSharpDafnyASTModel
   import D = AST
   import DE = AST.Exprs
@@ -283,6 +284,7 @@ module Translator {
     reads *
     decreases TypeHeight(ty)
   {
+    var ty := TypeUtils.NormalizeExpand(ty);
     if ty is C.BoolType then
       Success(DT.Bool)
     else if ty is C.CharType then
