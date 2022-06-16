@@ -131,7 +131,7 @@ module BinaryOps {
     ProperMultiSubset | ProperMultiSuperset | MultisetDisjoint | InMultiset |
     NotInMultiset | MultisetUnion | MultisetIntersection | MultisetDifference |
     MultisetSelect // Separate node in DafnyAST.cs
-  datatype Maps =
+  datatype Maps = // TODO: MapSubtraction -> MapSubstraction? (with an "s"?)
     MapEq | MapNeq | InMap | NotInMap | MapMerge | MapSubtraction |
     MapSelect // Separate node in DafnyAST.cs
   datatype Datatypes =
