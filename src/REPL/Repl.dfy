@@ -6,7 +6,7 @@ include "../Library.dfy"
 include "../CSharpInterop.dfy"
 include "../CSharpDafnyASTModel.dfy"
 include "../CSharpDafnyInterop.dfy"
-include "../../AutoExtern/CSharpModel.dfy"
+include "../CSharpModel.dfy"
 
 import DafnyCompilerCommon.AST
 import DafnyCompilerCommon.Translator

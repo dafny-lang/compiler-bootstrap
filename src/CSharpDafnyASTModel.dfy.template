@@ -1,4 +1,4 @@
-include "../AutoExtern/CSharpModel.dfy"
+include "CSharpModel.dfy"
 include "CSharpInterop.dfy"
 include "CSharpDafnyInterop.dfy"
 

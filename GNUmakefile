@@ -64,8 +64,9 @@ dfy_entry_points := $(repl)/Repl.dfy $(csharp)/Compiler.dfy
 cs_entry_points := $(dfy_entry_points:.dfy=.cs)
 
 # Model files (contain traits that give type signatures of existing C# and Dafny/Boogie classes)
+csharp_model := src/CSharpModel.dfy
 ast_model := src/CSharpDafnyASTModel.dfy
-dfy_models := $(AutoExtern)/CSharpModel.dfy src/CSharpDafnyModel.dfy src/CSharpDafnyASTModel.dfy
+dfy_models := $(csharp_model) src/CSharpDafnyModel.dfy $(ast_model)
 
 # Interop files (contain Dafny functions implemented in C# that help interop with the models)
 dfy_interop := src/CSharpInterop.dfy src/CSharpDafnyInterop.dfy src/CSharpDafnyASTInterop.dfy
@@ -83,6 +84,10 @@ $(ast_model): $(DafnyPipeline).csproj $(DafnyAST).cs $(ast_model).template $(Aut
 	dotnet run --project $(AutoExtern)/AutoExtern.csproj -- \
 		$(DafnyPipeline).csproj $(DafnyAST).cs "Microsoft.Dafny" "$(ast_model).template" \
 		"" "$@"
+
+# Copy basic C# model into current directory (to make it easier to refer to it from Dafny)
+$(csharp_model): $(AutoExtern)/CSharpModel.dfy
+	cp "$<" "$@"
 
 # Translate the compiler from Dafny to C#
 $(csharp)/Compiler.cs: $(csharp)/Compiler.dfy $(dfy_models) $(dfy_interop) $(DafnyRuntime)

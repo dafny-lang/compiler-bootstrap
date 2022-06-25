@@ -1,4 +1,4 @@
-include "../AutoExtern/CSharpModel.dfy"
+include "CSharpModel.dfy"
 
 module {:extern "CSharpInterop"} CSharpInterop {
   import System
