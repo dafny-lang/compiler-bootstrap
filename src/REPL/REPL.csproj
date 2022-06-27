@@ -6,8 +6,14 @@
     <Nullable>disable</Nullable>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <DAFNY_ROOT Condition="'$(DAFNY_ROOT)' == ''">
+      ..\..\..\..\
+    </DAFNY_ROOT>
+  </PropertyGroup>
+
   <ItemGroup>
-    <ProjectReference Include="..\..\Dafny\DafnyPipeline.csproj" />
+    <ProjectReference Include="$(DAFNY_ROOT)\Source\Dafny\DafnyPipeline.csproj" />
     <Compile Include="..\CSharpInterop.cs" />
     <Compile Include="..\CSharpDafnyInterop.cs" />
     <Compile Include="..\CSharpDafnyASTInterop.cs" />
