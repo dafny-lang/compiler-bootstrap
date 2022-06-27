@@ -64,6 +64,8 @@ dlls := $(plugin_dll) $(repl_dll)
 # Entry points
 dfy_entry_points := $(repl)/Repl.dfy $(csharp)/Compiler.dfy
 cs_entry_points := $(dfy_entry_points:.dfy=.cs)
+cs_roots := $(dir $(cs_entry_points))
+cs_objs := $(cs_roots:=bin) $(cs_roots:=obj)
 
 # Model files (contain traits that give type signatures of existing C# and Dafny/Boogie classes)
 csharp_model := src/CSharpModel.dfy
@@ -112,7 +114,7 @@ $(repl)/Repl.cs: $(repl)/Repl.dfy $(ast_model) $(dfy_models) $(dfy_interop) $(Da
 	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
 	rm "$@.bak"
 
-$(repl_dll): $(repl)/Repl.cs $(repl)/ReplInterop.cs $(cs_interop)
+$(repl_dll): $(repl)/Repl.cs $(repl)/REPLInterop.cs $(cs_interop)
 	dotnet build --configuration=Release $(repl)/REPL.csproj
 
 # Entry points
@@ -132,4 +134,4 @@ verify:
 build: $(dlls)
 
 clean:
-	rm -f $(cs_entry_points) $(ast_model)
+	rm -fr $(cs_entry_points) $(ast_model) $(cs_objs)
