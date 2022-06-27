@@ -3,7 +3,9 @@
 
 # Where to find the main Dafny repository.
 DAFNY_ROOT ?= ../..
+DAFNY_ROOT := $(realpath $(DAFNY_ROOT))
 dafny_Source := $(DAFNY_ROOT)/Source
+export DAFNY_ROOT
 
 # Sanity checks
 # =============
