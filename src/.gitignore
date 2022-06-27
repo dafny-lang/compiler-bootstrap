@@ -1,2 +1,4 @@
 CSharpModel.dfy
 CSharpDafnyASTModel.dfy
+**/obj/
+**/bin/
