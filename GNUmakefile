@@ -58,7 +58,7 @@ repl := src/REPL
 
 # Binaries
 plugin_dll := $(csharp)/bin/Debug/net6.0/CSharpCompiler.dll
-repl_dll := $(repl)/bin/Release/net6.0/Repl.dll
+repl_dll := $(repl)/bin/Release/net6.0/REPL.dll
 dlls := $(plugin_dll) $(repl_dll)
 
 # Entry points
