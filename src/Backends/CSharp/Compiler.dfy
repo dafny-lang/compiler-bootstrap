@@ -3,6 +3,7 @@ include "../../Interop/CSharpInterop.dfy"
 include "../../Interop/CSharpDafnyInterop.dfy"
 include "../../AST/Translator.dfy"
 include "../../CompilerRewriter.dfy"
+include "../../Passes/EliminateNegatedBinops.dfy"
 include "../../Utils/Library.dfy"
 include "../../Utils/StrTree.dfy"
 
@@ -14,7 +15,7 @@ module {:extern "Bootstrap.Backends.CSharp"} Bootstrap.Backends.CSharp {
   import AST.Predicates
   import AST.Translator
   import CompilerRewriter.Rewriter
-  import CompilerRewriter.EliminateNegatedBinops
+  import Passes.EliminateNegatedBinops
   import opened AST.Predicates.Deep
 
   module Compiler {
@@ -23,7 +24,7 @@ module {:extern "Bootstrap.Backends.CSharp"} Bootstrap.Backends.CSharp {
     import opened AST.Syntax
     import AST.Predicates
     import CompilerRewriter.Rewriter
-    import CompilerRewriter.EliminateNegatedBinops
+    import Passes.EliminateNegatedBinops
     import opened AST.Predicates.Deep
 
     function method CompileType(t: Type): StrTree {
