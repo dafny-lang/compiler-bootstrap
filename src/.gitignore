@@ -1,4 +1,4 @@
-CSharpModel.dfy
-CSharpDafnyASTModel.dfy
 **/obj/
 **/bin/
+Interop/CSharpModel.dfy
+Interop/CSharpDafnyASTModel.dfy

@@ -41,7 +41,7 @@ Project hierarchy
       Dafny runtime values
     ``Printer.dfy``
       Converter from values to strings
-    ``Interp.dfy``
+    ``Interpreter.dfy``
       Operational semantics for the pure subset of Dafny
   ``Transforms/``
     ``Generic.dfy``
@@ -56,7 +56,7 @@ Project hierarchy
       Driver for a REPL build on top of ``Interp/``
     ``REPLInterop.cs``
       Helper functions for ``Repl.dfy``
-  ``Compilers/``
+  ``Backends/``
     ``CSharp/``
       ``Compiler.dfy``
         C# compiler
@@ -79,13 +79,15 @@ Project hierarchy
       Template used by ``AutoExtern`` to generate a Dafny model from ``DafnyAST.cs``
     ``CSharpDafnyModel.dfy``
       Extern declarations for existing C# functions from Dafny's codebase
+    ``CSharpModel.dfy``
+      Extern declarations for C#'s standard library (automatically copied from ``AutoExtern``)
   ``Utils/``
     ``Library.dfy``
       Utility functions (should move to shared library)
     ``StrTree.dfy``
       Tree of strings (for efficient concatenation).
-  ``Makefile``
-    Build configuration
+``GNUmakefile``
+  Build configuration
 
 .. |Compiler.dfy| replace:: ``src/CSharp/Compiler.dfy``
 .. _Compiler.dfy: ./src/CSharp/Compiler.dfy
