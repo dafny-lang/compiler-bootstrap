@@ -1,5 +1,5 @@
 using System.Collections.ObjectModel;
-using DafnyInDafny.CSharp;
+using Bootstrap.Backends.CSharp;
 
 namespace Microsoft.Dafny.Compilers.SelfHosting.CSharp;
 

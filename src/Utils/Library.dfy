@@ -1,4 +1,4 @@
-module Lib {
+module Utils.Lib {
   module ControlFlow {
     function method Unreachable<A>() : A
       requires false

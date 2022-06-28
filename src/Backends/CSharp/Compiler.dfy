@@ -1,30 +1,30 @@
-include "../CSharpDafnyASTModel.dfy"
-include "../CSharpInterop.dfy"
-include "../CSharpDafnyInterop.dfy"
-include "../Translator.dfy"
-include "../CompilerRewriter.dfy"
-include "../Library.dfy"
-include "../StrTree.dfy"
+include "../../Interop/CSharpDafnyASTModel.dfy"
+include "../../Interop/CSharpInterop.dfy"
+include "../../Interop/CSharpDafnyInterop.dfy"
+include "../../AST/Translator.dfy"
+include "../../CompilerRewriter.dfy"
+include "../../Utils/Library.dfy"
+include "../../Utils/StrTree.dfy"
 
-module {:extern "DafnyInDafny.CSharp"} CSharpDafnyCompiler {
-  import CSharpDafnyASTModel
-  import opened CSharpDafnyInterop
+module {:extern "Bootstrap.Backends.CSharp"} Bootstrap.Backends.CSharp {
+  import Interop.CSharpDafnyASTModel
+  import opened Interop.CSharpDafnyInterop
   import opened Microsoft.Dafny
-  import StrTree
-  import DafnyCompilerCommon.Predicates
-  import DafnyCompilerCommon.Translator
+  import Utils.StrTree
+  import AST.Predicates
+  import AST.Translator
   import CompilerRewriter.Rewriter
   import CompilerRewriter.EliminateNegatedBinops
-  import opened Predicates.Deep
+  import opened AST.Predicates.Deep
 
   module Compiler {
-    import opened StrTree_ = StrTree
-    import opened CSharpDafnyInterop
-    import opened DafnyCompilerCommon.AST
-    import DafnyCompilerCommon.Predicates
+    import opened StrTree_ = Utils.StrTree
+    import opened Interop.CSharpDafnyInterop
+    import opened AST.Syntax
+    import AST.Predicates
     import CompilerRewriter.Rewriter
     import CompilerRewriter.EliminateNegatedBinops
-    import opened Predicates.Deep
+    import opened AST.Predicates.Deep
 
     function method CompileType(t: Type): StrTree {
       match t {

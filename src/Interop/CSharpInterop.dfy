@@ -1,6 +1,6 @@
 include "CSharpModel.dfy"
 
-module {:extern "CSharpInterop"} CSharpInterop {
+module {:extern "CSharpInterop"} Bootstrap.Interop.CSharpInterop {
   import System
   import opened System.Collections.Generic
 
