@@ -43,6 +43,8 @@ Project hierarchy
       Converter from values to strings
     ``Interp.dfy``
       Operational semantics for the pure subset of Dafny
+    ``Equiv.dfy``
+      Definition of program equivalence based on ``Interp.dfy``
   ``Transforms/``
     ``Generic.dfy``
       Basic definitions for AST transformers

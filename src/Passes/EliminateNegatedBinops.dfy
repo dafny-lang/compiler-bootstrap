@@ -5,11 +5,12 @@ include "../Interop/CSharpDafnyASTInterop.dfy"
 include "../Utils/Library.dfy"
 include "../Utils/StrTree.dfy"
 include "../Semantics/Interp.dfy"
+include "../Semantics/Equiv.dfy"
 include "../Transforms/Generic.dfy"
 include "../CompilerRewriter.dfy"
 
 module Bootstrap.Passes.EliminateNegatedBinops {
-  // TODO(@SMH): I don't manage to make ``EliminateNegatedBinops`` refine ``Pass``
+    // TODO(SMH): I don't manage to make ``EliminateNegatedBinops`` refine ``Pass``
     // This module implements a simple pass, by which we decompose the "negated" binops
     // into a negation of the "original" binop.
     //
@@ -28,8 +29,9 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     import opened AST.Predicates
     import opened Semantics.Interp
     import opened Semantics.Values
+    import opened Semantics.Equiv
     import opened Transforms.Generic
-    import opened CompilerRewriter.Equiv
+    import opened CompilerEquiv_ = CompilerRewriter.Equiv
 
     type Expr = Syntax.Expr
 

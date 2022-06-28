@@ -39,4 +39,8 @@ module Bootstrap.Transforms.Generic {
       witness *
 
     type ExprTransformer = Transformer<Expr, Expr>
+
+    predicate RelIsTransitive<T(!new)>(rel: (T, T) -> bool) {
+      forall x0, x1, x2 | rel(x0, x1) && rel(x1, x2) :: rel(x0, x2)
+    }
 }
