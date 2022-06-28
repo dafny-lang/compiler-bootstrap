@@ -6,8 +6,7 @@ include "../Utils/Library.dfy"
 include "../Utils/StrTree.dfy"
 include "../Semantics/Interp.dfy"
 include "../Semantics/Equiv.dfy"
-include "../Transforms/Generic.dfy"
-include "../CompilerRewriter.dfy"
+include "../Transforms/BottomUp.dfy"
 
 module Bootstrap.Passes.EliminateNegatedBinops {
     // TODO(SMH): I don't manage to make ``EliminateNegatedBinops`` refine ``Pass``
@@ -23,7 +22,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     import Utils.Lib
     import Utils.Lib.Debug
     import opened Utils.Lib.Datatypes
-    import opened CompilerRewriter.Rewriter.BottomUp
+    import opened Transforms.BottomUp
 
     import opened AST.Syntax
     import opened AST.Predicates
@@ -31,7 +30,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     import opened Semantics.Values
     import opened Semantics.Equiv
     import opened Transforms.Generic
-    import opened CompilerEquiv_ = CompilerRewriter.Equiv
+    import opened Transforms.Proofs.BottomUp_
 
     type Expr = Syntax.Expr
 

@@ -2,8 +2,8 @@ include "../../Interop/CSharpDafnyASTModel.dfy"
 include "../../Interop/CSharpInterop.dfy"
 include "../../Interop/CSharpDafnyInterop.dfy"
 include "../../AST/Translator.dfy"
-include "../../CompilerRewriter.dfy"
 include "../../Passes/EliminateNegatedBinops.dfy"
+include "../../Transforms/BottomUp.dfy"
 include "../../Utils/Library.dfy"
 include "../../Utils/StrTree.dfy"
 
@@ -14,7 +14,7 @@ module {:extern "Bootstrap.Backends.CSharp"} Bootstrap.Backends.CSharp {
   import Utils.StrTree
   import AST.Predicates
   import AST.Translator
-  import CompilerRewriter.Rewriter
+  import Transforms.BottomUp
   import Passes.EliminateNegatedBinops
   import opened AST.Predicates.Deep
 
@@ -23,7 +23,6 @@ module {:extern "Bootstrap.Backends.CSharp"} Bootstrap.Backends.CSharp {
     import opened Interop.CSharpDafnyInterop
     import opened AST.Syntax
     import AST.Predicates
-    import CompilerRewriter.Rewriter
     import Passes.EliminateNegatedBinops
     import opened AST.Predicates.Deep
 
