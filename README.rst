@@ -16,7 +16,7 @@ Overview
 
 - Then we write a compiler in Dafny against this interface in |Compiler.dfy|_.
 
-- Then we compile that to C# using the existing compiler, and link it with a `wrapper <./src/CSharp/EntryPoint.cs>`__ to get a Dafny compiler plugin.
+- Then we compile that to C# using the existing compiler, and link it with a `wrapper <./src/Backends/CSharp/EntryPoint.cs>`__ to get a Dafny compiler plugin.
 
 Design notes
 ============
@@ -93,8 +93,8 @@ Project hierarchy
 ``GNUmakefile``
   Build configuration
 
-.. |Compiler.dfy| replace:: ``src/CSharp/Compiler.dfy``
-.. _Compiler.dfy: ./src/CSharp/Compiler.dfy
+.. |Compiler.dfy| replace:: ``src/Backends/CSharp/Compiler.dfy``
+.. _Compiler.dfy: ./src/Backends/CSharp/Compiler.dfy
 
 .. |DafnyAst.cs| replace:: ``DafnyAst.cs``
 .. _DafnyAst.cs: https://github.com/dafny-lang/dafny/blob/dind/Source/Dafny/AST/DafnyAst.cs
