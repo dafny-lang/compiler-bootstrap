@@ -5,49 +5,9 @@ include "Interop/CSharpDafnyASTInterop.dfy"
 include "Utils/Library.dfy"
 include "Utils/StrTree.dfy"
 include "Semantics/Interp.dfy"
+include "Transforms/Generic.dfy"
 
 module Bootstrap.CompilerRewriter {
-module Transformer {
-  import opened AST.Syntax
-
-  function IsMap<T(!new), T'>(f: T --> T') : T' -> bool {
-    y => exists x | f.requires(x) :: y == f(x)
-  }
-
-  lemma Map_All_IsMap<A, B>(f: A --> B, xs: seq<A>)
-    requires forall a | a in xs :: f.requires(a)
-    ensures Seq.All(IsMap(f), Seq.Map(f, xs))
-  {}
-
-  // FIXME(CPC): Move
-  predicate All_Rel_Forall<A, B>(rel: (A,B) -> bool, xs: seq<A>, ys: seq<B>)
-  {
-    && |xs| == |ys|
-    && forall i | 0 <= i < |xs| :: rel(xs[i], ys[i])
-  }
-
-  datatype Transformer_<!A(!new), !B> = // FIXME(CPC): Remove rel
-    TR(f: A --> B, ghost post: B -> bool, ghost rel: (A,B) -> bool)
-  {
-    predicate HasValidPost() {
-      forall a: A | f.requires(a) :: post(f(a))
-    }
-
-    predicate HasValidRel() {
-      forall a: A | f.requires(a) :: rel(a, f(a))
-    }
-
-    predicate Valid?() {
-      forall a | f.requires(a) :: HasValidPost() && HasValidRel()
-    }
-  }
-
-  type Transformer<!A(!new), !B> = tr: Transformer_<A, B> | tr.Valid?()
-    witness *
-
-  type ExprTransformer = Transformer<Expr, Expr>
-}
-
 module Rewriter {
   import Utils.Lib
   import opened AST.Syntax
@@ -59,7 +19,7 @@ module Shallow {
   import opened Utils.Lib
   import opened AST.Syntax
   import opened AST.Predicates
-  import opened Transformer
+  import opened Transforms.Generic
 
   function method {:opaque} Map_Method(m: Method, tr: ExprTransformer) : (m': Method)
     requires Shallow.All_Method(m, tr.f.requires)
@@ -87,7 +47,7 @@ module BottomUp {
   import opened AST.Syntax
   import opened Utils.Lib
   import opened AST.Predicates
-  import opened Transformer
+  import opened Transforms.Generic
   import Shallow
 
   predicate MapChildrenPreservesPre(f: Expr --> Expr, post: Expr -> bool)
@@ -208,20 +168,20 @@ module BottomUp {
       case Abs(vars, body) => Expr.Abs(vars, Map_Expr(body, tr))
       case Apply(aop, exprs) =>
         var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
-        Transformer.Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
         var e' := Expr.Apply(aop, exprs');
         assert Exprs.ConstructorsMatch(e, e');
         e'
       case Block(exprs) =>
         var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
-        Transformer.Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
         var e' := Expr.Block(exprs');
         assert Exprs.ConstructorsMatch(e, e');
         e'
       case Bind(vars, vals, body) =>
         assume TODO();
         var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
-        Transformer.Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
+        Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
         var e' := Expr.Bind(vars, vals', Map_Expr(body, tr));
         assert Exprs.ConstructorsMatch(e, e');
         e'
@@ -323,7 +283,7 @@ module Equiv {
   import opened Rewriter.BottomUp
 
   import opened AST.Predicates
-  import opened Transformer
+  import opened Transforms.Generic
   import opened Semantics.Interp
   import opened Semantics.Values
 
