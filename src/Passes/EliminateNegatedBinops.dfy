@@ -5,6 +5,7 @@ include "../Interop/CSharpDafnyASTInterop.dfy"
 include "../Utils/Library.dfy"
 include "../Utils/StrTree.dfy"
 include "../Semantics/Interp.dfy"
+include "../Transforms/Generic.dfy"
 include "../CompilerRewriter.dfy"
 
 module Bootstrap.Passes.EliminateNegatedBinops {
@@ -27,8 +28,8 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     import opened AST.Predicates
     import opened Semantics.Interp
     import opened Semantics.Values
+    import opened Transforms.Generic
     import opened CompilerRewriter.Equiv
-    import opened CompilerRewriter.Transformer
 
     type Expr = Syntax.Expr
 
