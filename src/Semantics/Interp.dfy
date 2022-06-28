@@ -1,19 +1,20 @@
-include "Library.dfy"
-include "AST.dfy"
-include "Predicates.dfy"
+include "../Utils/Library.dfy"
+include "../AST/Syntax.dfy"
+include "../AST/Predicates.dfy"
 include "Values.dfy"
 
-module Interp {
-  import Lib.Math
-  import Lib.Debug
-  import Lib.Seq
+module Bootstrap.Semantics.Interp {
+  import Utils.Lib.Math
+  import Utils.Lib.Debug
+  import Utils.Lib.Seq
 
   import V = Values
-  import DafnyCompilerCommon.AST.Types
-  import DafnyCompilerCommon.AST.Exprs
+  import AST.Syntax
+  import AST.Syntax.Types
+  import AST.Syntax.Exprs
 
-  import opened Lib.Datatypes
-  import opened DafnyCompilerCommon.Predicates
+  import opened Utils.Lib.Datatypes
+  import opened AST.Predicates
 
   // FIXME move
   predicate method Pure1(e: Exprs.T) {
@@ -56,7 +57,7 @@ module Interp {
   }
 
   predicate method SupportsInterp1(e: Exprs.T) {
-    AST.Exprs.WellFormed(e) &&
+    Exprs.WellFormed(e) &&
     match e {
       case Var(_) => true
       case Literal(lit) => true
@@ -389,7 +390,7 @@ module Interp {
       Success(Return([v] + vs, ctx))
   }
 
-  function method {:opaque} InterpLiteral(a: AST.Exprs.Literal) : (v: Value)
+  function method {:opaque} InterpLiteral(a: Exprs.Literal) : (v: Value)
     ensures HasEqValue(v)
   {
     match a
@@ -463,7 +464,7 @@ module Interp {
     reveal InterpLazy_Eagerly();
   }
 
-  function method {:opaque} InterpUnaryOp(expr: Expr, op: AST.UnaryOp, v0: Value)
+  function method {:opaque} InterpUnaryOp(expr: Expr, op: Syntax.UnaryOp, v0: Value)
     : PureInterpResult<Value>
     requires !op.MemberSelect?
   {
@@ -482,7 +483,7 @@ module Interp {
         Success(V.Int(|v0.m|))
   }
 
-  function method {:opaque} InterpBinaryOp(expr: Expr, bop: AST.BinaryOp, v0: Value, v1: Value)
+  function method {:opaque} InterpBinaryOp(expr: Expr, bop: Syntax.BinaryOp, v0: Value, v1: Value)
     : PureInterpResult<Value>
     requires !bop.BV? && !bop.Datatypes?
   {
@@ -521,7 +522,7 @@ module Interp {
     if b then Fail(DivisionByZero) else Pass
   }
 
-  function method InterpBinaryInt(expr: Expr, bop: AST.BinaryOps.Numeric, x1: int, x2: int)
+  function method InterpBinaryInt(expr: Expr, bop: Syntax.BinaryOps.Numeric, x1: int, x2: int)
     : PureInterpResult<Value>
   {
     match bop {
@@ -542,7 +543,7 @@ module Interp {
     Success(x)
   }
 
-  function method InterpBinaryNumericChar(expr: Expr, bop: AST.BinaryOps.Numeric, x1: char, x2: char)
+  function method InterpBinaryNumericChar(expr: Expr, bop: Syntax.BinaryOps.Numeric, x1: char, x2: char)
     : PureInterpResult<Value>
   {
     match bop { // FIXME: These first four cases are not used (see InterpBinaryChar instead)
@@ -558,7 +559,7 @@ module Interp {
     }
   }
 
-  function method InterpBinaryReal(expr: Expr, bop: AST.BinaryOps.Numeric, x1: real, x2: real)
+  function method InterpBinaryReal(expr: Expr, bop: Syntax.BinaryOps.Numeric, x1: real, x2: real)
     : PureInterpResult<Value>
   {
     match bop {
@@ -583,7 +584,7 @@ module Interp {
         Success(V.Bool(v0.b <==> v1.b))
   }
 
-  function method InterpBinaryChar(expr: Expr, op: AST.BinaryOps.Char, v0: Value, v1: Value)
+  function method InterpBinaryChar(expr: Expr, op: Syntax.BinaryOps.Char, v0: Value, v1: Value)
     : PureInterpResult<Value>
   { // FIXME eliminate distinction between GtChar and GT?
     :- Need(v0.Char? && v1.Char?, Invalid(expr));
@@ -763,7 +764,7 @@ module Interp {
         Success(v0.m[v1])
   }
 
-  function method {:opaque} InterpTernaryOp(expr: Expr, top: AST.TernaryOp, v0: Value, v1: Value, v2: Value)
+  function method {:opaque} InterpTernaryOp(expr: Expr, top: Syntax.TernaryOp, v0: Value, v1: Value, v2: Value)
     : PureInterpResult<Value>
   {
     match top
@@ -791,7 +792,7 @@ module Interp {
       case fail => fail
   }
 
-  function method InterpTernarySequences(expr: Expr, op: AST.TernaryOps.Sequences, v0: Value, v1: Value, v2: Value)
+  function method InterpTernarySequences(expr: Expr, op: Syntax.TernaryOps.Sequences, v0: Value, v1: Value, v2: Value)
     : PureInterpResult<Value>
   {
     match op
@@ -805,7 +806,7 @@ module Interp {
         Success(V.Seq(v0.sq[v1.i..v2.i]))
   }
 
-  function method InterpTernaryMultisets(expr: Expr, op: AST.TernaryOps.Multisets, v0: Value, v1: Value, v2: Value)
+  function method InterpTernaryMultisets(expr: Expr, op: Syntax.TernaryOps.Multisets, v0: Value, v1: Value, v2: Value)
     : PureInterpResult<Value>
   {
     match op
@@ -816,7 +817,7 @@ module Interp {
         Success(V.Multiset(v0.ms[v1 := v2.i]))
   }
 
-  function method InterpTernaryMaps(expr: Expr, op: AST.TernaryOps.Maps, v0: Value, v1: Value, v2: Value)
+  function method InterpTernaryMaps(expr: Expr, op: Syntax.TernaryOps.Maps, v0: Value, v1: Value, v2: Value)
     : PureInterpResult<Value>
   {
     match op

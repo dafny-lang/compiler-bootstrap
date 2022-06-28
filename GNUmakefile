@@ -44,7 +44,7 @@ DafnyPipeline = $(dafny_Source)/Dafny/DafnyPipeline
 DafnyAST = $(dafny_Source)/Dafny/AST/DafnyAst
 DafnyRuntime := $(dafny_Source)/DafnyRuntime/DafnyRuntime.cs
 
-dafny := dotnet run --project $(DafnyDriver).csproj --
+dafny := dotnet run --no-build --project $(DafnyDriver).csproj --
 dafny_codegen := $(dafny) -spillTargetCode:3 -compile:0 -noVerify
 dafny_typecheck := $(dafny) -dafnyVerify:0
 dafny_verify := $(dafny) -compile:0  -trace -verifyAllModules -showSnippets:1 -vcsCores:8
@@ -53,7 +53,7 @@ dafny_verify := $(dafny) -compile:0  -trace -verifyAllModules -showSnippets:1 -v
 # =============
 
 # Subprojects
-csharp := src/CSharp
+csharp := src/Backends/CSharp
 repl := src/REPL
 
 # Binaries
@@ -68,12 +68,13 @@ cs_roots := $(dir $(cs_entry_points))
 cs_objs := $(cs_roots:=bin) $(cs_roots:=obj)
 
 # Model files (contain traits that give type signatures of existing C# and Dafny/Boogie classes)
-csharp_model := src/CSharpModel.dfy
-ast_model := src/CSharpDafnyASTModel.dfy
-dfy_models := $(csharp_model) src/CSharpDafnyModel.dfy $(ast_model)
+interop := src/Interop
+csharp_model := $(interop)/CSharpModel.dfy
+ast_model := $(interop)/CSharpDafnyASTModel.dfy
+dfy_models := $(csharp_model) $(interop)/CSharpDafnyModel.dfy $(ast_model)
 
 # Interop files (contain Dafny functions implemented in C# that help interop with the models)
-dfy_interop := src/CSharpInterop.dfy src/CSharpDafnyInterop.dfy src/CSharpDafnyASTInterop.dfy
+dfy_interop := $(interop)/CSharpInterop.dfy $(interop)/CSharpDafnyInterop.dfy $(interop)/CSharpDafnyASTInterop.dfy
 cs_interop := $(dfy_interop:.dfy=.cs)
 
 # Test files (regular Dafny files compiled to C#)

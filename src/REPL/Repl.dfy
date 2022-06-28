@@ -1,22 +1,28 @@
-include "../Interp.dfy"
-include "../AST.dfy"
-include "../Translator.dfy"
-include "../Printer.dfy"
-include "../Library.dfy"
-include "../CSharpInterop.dfy"
-include "../CSharpDafnyASTModel.dfy"
-include "../CSharpDafnyInterop.dfy"
-include "../CSharpModel.dfy"
+include "../Semantics/Interp.dfy"
+include "../AST/Syntax.dfy"
+include "../AST/Translator.dfy"
+include "../Semantics/Printer.dfy"
+include "../Utils/Library.dfy"
+include "../Interop/CSharpInterop.dfy"
+include "../Interop/CSharpDafnyASTModel.dfy"
+include "../Interop/CSharpDafnyInterop.dfy"
+include "../Interop/CSharpModel.dfy"
 
-import DafnyCompilerCommon.AST
-import DafnyCompilerCommon.Translator
-import opened Lib.Datatypes
-import opened CSharpDafnyInterop
-import C = CSharpDafnyASTModel
+module Bootstrap.REPL {
+  import System
+  import Semantics
+  import Semantics.Interp
+  import AST.Syntax
+  import AST.Translator
+  import opened Utils.Lib
+  import opened Utils.Lib.Datatypes
+  import opened Interop.CSharpDafnyInterop
+  import C = Interop.CSharpDafnyASTModel
 
 module {:extern "REPLInterop"} {:compile false} REPLInterop {
+  // BUG(TODO)
   import System
-  import C = CSharpDafnyASTModel
+  import C = Interop.CSharpDafnyASTModel
 
   class {:compile false} {:extern} Utils {
     constructor {:extern} () requires false
@@ -89,7 +95,7 @@ datatype REPLError =
   | ResolutionError(rmsg: string)
   | TranslationError(te: Translator.TranslationError)
   | InterpError(ie: Interp.InterpError)
-  | Unsupported(e: AST.Expr)
+  | Unsupported(e: Syntax.Expr)
 {
   function method ToString() : string {
     match this
@@ -180,17 +186,17 @@ class REPL {
   }
 
   function method AbsOfFunction(fn: C.Function)
-    : Result<AST.Expr, Translator.TranslationError>
+    : Result<Syntax.Expr, Translator.TranslationError>
     reads *
   {
     var inParams := Lib.Seq.MapFilter(CSharpInterop.ListUtils.ToSeq(fn.Formals), (f: C.Formal) reads * =>
       if f.InParam then Some(TypeConv.AsString(f.Name)) else None);
     var body :- Translator.TranslateExpression(fn.Body);
-    Success(AST.Exprs.Abs(inParams, body))
+    Success(Syntax.Exprs.Abs(inParams, body))
   }
 
   function method TranslateBody(input: REPLInterop.UserInput)
-    : Result<AST.Expr, Translator.TranslationError>
+    : Result<Syntax.Expr, Translator.TranslationError>
     reads *
   {
     if input is REPLInterop.MemberDeclInput then
@@ -310,9 +316,10 @@ method Main()
       case Success(results) =>
         for idx := 0 to |results| {
           var Named(_, shortName, val) := results[idx];
-          print shortName, " := ", Interp.Printer.ToString(val);
+          print shortName, " := ", Semantics.Printer.ToString(val);
         }
     }
     print "\n";
   }
+}
 }

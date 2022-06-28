@@ -28,7 +28,7 @@ Project hierarchy
 
 ``src/``
   ``AST/``
-    ``Expressions.dfy``
+    ``Syntax.dfy``
       Dafny expressions and statements
     ``Entities.dfy`` (TODO)
       Dafny classes, modules, methods, and functions
@@ -41,7 +41,7 @@ Project hierarchy
       Dafny runtime values
     ``Printer.dfy``
       Converter from values to strings
-    ``Interpreter.dfy``
+    ``Interp.dfy``
       Operational semantics for the pure subset of Dafny
   ``Transforms/``
     ``Generic.dfy``

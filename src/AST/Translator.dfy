@@ -1,23 +1,23 @@
-include "CSharpDafnyASTModel.dfy"
-include "CSharpInterop.dfy"
-include "CSharpDafnyInterop.dfy"
-include "CSharpDafnyASTInterop.dfy"
-include "Library.dfy"
-include "AST.dfy"
+include "../Interop/CSharpDafnyASTModel.dfy"
+include "../Interop/CSharpInterop.dfy"
+include "../Interop/CSharpDafnyInterop.dfy"
+include "../Interop/CSharpDafnyASTInterop.dfy"
+include "../Utils/Library.dfy"
+include "Syntax.dfy"
 include "Predicates.dfy"
 
-module DafnyCompilerCommon.Translator {
-  import opened Lib
-  import opened Lib.Datatypes
-  import opened CSharpInterop
-  import opened CSharpInterop.System
-  import opened CSharpDafnyInterop
-  import opened CSharpDafnyInterop.Microsoft
-  import opened CSharpDafnyASTInterop
-  import C = CSharpDafnyASTModel
-  import D = AST
-  import DE = AST.Exprs
-  import DT = AST.Types
+module Bootstrap.AST.Translator {
+  import opened Utils.Lib
+  import opened Utils.Lib.Datatypes
+  import opened Interop.CSharpInterop
+  import opened Interop.CSharpInterop.System
+  import opened Interop.CSharpDafnyInterop
+  import opened Interop.CSharpDafnyInterop.Microsoft
+  import opened Interop.CSharpDafnyASTInterop
+  import C = Interop.CSharpDafnyASTModel
+  import D = Syntax
+  import DE = Syntax.Exprs
+  import DT = Syntax.Types
   import P = Predicates.Deep
 
   datatype TranslationError =

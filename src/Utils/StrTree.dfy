@@ -1,6 +1,6 @@
-include "Library.dfy"
+include "../Utils/Library.dfy"
 
-module StrTree {
+module Utils.StrTree {
   import Lib
   import opened Lib.Datatypes
 

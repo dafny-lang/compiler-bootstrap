@@ -1,6 +1,6 @@
 include "CSharpDafnyASTModel.dfy"
 
-module {:extern "CSharpDafnyASTInterop"} CSharpDafnyASTInterop {
+module {:extern "CSharpDafnyASTInterop"} Bootstrap.Interop.CSharpDafnyASTInterop {
   import CSharpDafnyASTModel
 
   function {:axiom} TypeHeight(t: CSharpDafnyASTModel.Type) : nat

@@ -1,11 +1,9 @@
-include "AST.dfy"
+include "Syntax.dfy"
 
-module DafnyCompilerCommon.Predicates {
-  import opened AST
-
+module Bootstrap.AST.Predicates {
 module Shallow {
-  import opened Lib
-  import opened AST
+  import opened Utils.Lib
+  import opened Syntax
 
   function method All_Method(m: Method, P: Expr -> bool) : bool {
     match m {
@@ -26,8 +24,8 @@ module Shallow {
 
 module DeepImpl {
 abstract module Base {
-  import opened Lib
-  import opened AST
+  import opened Utils.Lib
+  import opened Syntax
   import Shallow
 
   //
@@ -180,7 +178,7 @@ module NonRec refines Base {
 module Equiv {
   import Rec
   import NonRec
-  import opened AST
+  import opened Syntax
 
   lemma AllChildren_Expr(e: Expr, P: Expr -> bool)
     decreases e.Depth(), 0

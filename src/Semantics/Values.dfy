@@ -1,15 +1,15 @@
-include "AST.dfy"
-include "Library.dfy"
+include "../AST/Syntax.dfy"
+include "../Utils/Library.dfy"
 
-module Values {
-  import Lib.Math
-  import opened Lib.Datatypes
-  import DafnyCompilerCommon.AST.Exprs
-  import DafnyCompilerCommon.AST.Types
+module Bootstrap.Semantics.Values {
+  import Utils.Lib.Math
+  import opened Utils.Lib.Datatypes
+  import AST.Syntax.Exprs
+  import AST.Syntax.Types
 
   type Context = map<string, Value>
 
-  datatype Value = 
+  datatype Value =
     | Bool(b: bool)
     | Char(c: char)
     | Int(i: int)
@@ -111,4 +111,6 @@ module Values {
   // NOTE: Maybe tag each syntactic :| with a distinct color and add the color somehow into the Dafny-side :| used to implement it.  Pro: it allows inlining.
 }
 
-type Value = Values.T
+module Bootstrap.Semantics { // DISCUSS: How do I add types to the parent module?  This works because I have only one
+  type Value = Values.T
+}

@@ -2,7 +2,7 @@ include "CSharpModel.dfy"
 include "CSharpDafnyModel.dfy"
 include "CSharpInterop.dfy"
 
-module {:extern "CSharpDafnyInterop"} CSharpDafnyInterop {
+module {:extern "CSharpDafnyInterop"} Bootstrap.Interop.CSharpDafnyInterop {
   import Microsoft
   import opened CSharpInterop
 

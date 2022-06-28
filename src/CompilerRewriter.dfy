@@ -1,15 +1,14 @@
-include "CSharpDafnyASTModel.dfy"
-include "CSharpInterop.dfy"
-include "CSharpDafnyInterop.dfy"
-include "CSharpDafnyASTInterop.dfy"
-include "Library.dfy"
-include "StrTree.dfy"
-include "Interp.dfy"
+include "Interop/CSharpDafnyASTModel.dfy"
+include "Interop/CSharpInterop.dfy"
+include "Interop/CSharpDafnyInterop.dfy"
+include "Interop/CSharpDafnyASTInterop.dfy"
+include "Utils/Library.dfy"
+include "Utils/StrTree.dfy"
+include "Semantics/Interp.dfy"
 
-module CompilerRewriter {
+module Bootstrap.CompilerRewriter {
 module Transformer {
-  import DCC = DafnyCompilerCommon
-  import opened DCC.AST
+  import opened AST.Syntax
 
   function IsMap<T(!new), T'>(f: T --> T') : T' -> bool {
     y => exists x | f.requires(x) :: y == f(x)
@@ -50,18 +49,16 @@ module Transformer {
 }
 
 module Rewriter {
-  import DCC = DafnyCompilerCommon
-  import Lib
-  import opened DCC.AST
-  import opened StrTree
-  import opened Lib.Datatypes
-  import opened CSharpInterop
+  import Utils.Lib
+  import opened AST.Syntax
+  import opened Utils.StrTree
+  import opened Utils.Lib.Datatypes
+  import opened Interop.CSharpInterop
 
 module Shallow {
-  import DCC = DafnyCompilerCommon
-  import opened Lib
-  import opened DCC.AST
-  import opened DCC.Predicates
+  import opened Utils.Lib
+  import opened AST.Syntax
+  import opened AST.Predicates
   import opened Transformer
 
   function method {:opaque} Map_Method(m: Method, tr: ExprTransformer) : (m': Method)
@@ -87,10 +84,9 @@ module Shallow {
 }
 
 module BottomUp {
-  import DCC = DafnyCompilerCommon
-  import opened DCC.AST
-  import opened Lib
-  import opened DCC.Predicates
+  import opened AST.Syntax
+  import opened Utils.Lib
+  import opened AST.Predicates
   import opened Transformer
   import Shallow
 
@@ -320,19 +316,18 @@ module Equiv {
   // This module introduces the relations we use to describe values and expressions
   // as equivalent, and which we use to state that our compilation passes are sound.
 
-  import DCC = DafnyCompilerCommon
-  import Lib
-  import Lib.Debug
-  import opened DCC.AST
-  import opened Lib.Datatypes
+  import Utils.Lib
+  import Utils.Lib.Debug
+  import opened AST.Syntax
+  import opened Utils.Lib.Datatypes
   import opened Rewriter.BottomUp
 
-  import opened DCC.Predicates
+  import opened AST.Predicates
   import opened Transformer
-  import opened Interp
-  import opened Values
+  import opened Semantics.Interp
+  import opened Semantics.Values
 
-  type Expr = AST.Expr
+  type Expr = Syntax.Expr
   type WV = Interp.Value // FIXME
   type EqWV = Interp.EqWV // FIXME
   type Context = Values.Context
@@ -1918,7 +1913,7 @@ module Equiv {
 abstract module Pass {
   // Abstract module describing a compiler pass.
 
-  import opened DafnyCompilerCommon.AST
+  import opened AST.Syntax
   import opened Equiv
 
   // The precondition of the transformation
@@ -1948,20 +1943,19 @@ module EliminateNegatedBinops {
   // x !in set    ~~>   !(x in set)
   // ```
 
-  import DCC = DafnyCompilerCommon
-  import Lib
-  import Lib.Debug
-  import opened Lib.Datatypes
+  import Utils.Lib
+  import Utils.Lib.Debug
+  import opened Utils.Lib.Datatypes
   import opened Rewriter.BottomUp
 
-  import opened DafnyCompilerCommon.AST
-  import opened DCC.Predicates
+  import opened AST.Syntax
+  import opened AST.Predicates
   import opened Transformer
-  import opened Interp
-  import opened Values
+  import opened Semantics.Interp
+  import opened Semantics.Values
   import opened Equiv
 
-  type Expr = AST.Expr
+  type Expr = Syntax.Expr
 
   function method FlipNegatedBinop_Aux(op: BinaryOps.BinaryOp)
     : (op': BinaryOps.BinaryOp)

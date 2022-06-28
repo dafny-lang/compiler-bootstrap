@@ -1,11 +1,11 @@
 include "Values.dfy"
-include "Library.dfy"
-include "CSharpDafnyInterop.dfy"
+include "../Utils/Library.dfy"
+include "../Interop/CSharpDafnyInterop.dfy"
 
-module Interp.Printer {
+module Bootstrap.Semantics.Printer {
   import Values
-  import opened Lib
-  import Interop = CSharpDafnyInterop
+  import opened Utils.Lib
+  import Interop = Interop.CSharpDafnyInterop
 
   function method ToString(v: Values.T) : string {
     match v

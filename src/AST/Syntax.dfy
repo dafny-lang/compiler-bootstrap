@@ -1,14 +1,14 @@
-include "CSharpDafnyASTModel.dfy"
-include "Library.dfy"
+include "../Interop/CSharpDafnyASTModel.dfy"
+include "../Utils/Library.dfy"
 
-module DafnyCompilerCommon.AST {
-  import Lib.Math
-  import Lib.Seq
+module Bootstrap.AST.Syntax {
+  import Utils.Lib.Math
+  import Utils.Lib.Seq
   import Microsoft.Boogie
-  import C = CSharpDafnyASTModel
+  import C = Interop.CSharpDafnyASTModel
 
 module Types {
-  import C = CSharpDafnyASTModel
+  import C = Interop.CSharpDafnyASTModel
 
   type Path = seq<string>
 
@@ -179,14 +179,14 @@ module UnaryOps {
   type UnaryOp = UnaryOps.T
 
 module Exprs {
-  import Lib.Math
-  import Lib.Seq
+  import Utils.Lib.Math
+  import Utils.Lib.Seq
 
   import Types
   import UnaryOps
   import BinaryOps
   import TernaryOps
-  import C = CSharpDafnyASTModel
+  import C = Interop.CSharpDafnyASTModel
 
   // FIXME should literals just be Values.T?
   datatype Literal =

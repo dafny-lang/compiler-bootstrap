@@ -1,4 +1,5 @@
 include "CSharpModel.dfy"
+
 module {:extern "Microsoft.BaseTypes"} {:compile false} Microsoft.BaseTypes {
   class {:extern} {:compile false} BigDec {}
 }
