@@ -1,28 +1,21 @@
-include "Interop/CSharpDafnyASTModel.dfy"
-include "Interop/CSharpInterop.dfy"
-include "Interop/CSharpDafnyInterop.dfy"
-include "Interop/CSharpDafnyASTInterop.dfy"
-include "Utils/Library.dfy"
-include "Utils/StrTree.dfy"
-include "Semantics/Interp.dfy"
-include "Semantics/Equiv.dfy"
-include "Transforms/Generic.dfy"
-include "Transforms/Shallow.dfy"
+include "../Interop/CSharpDafnyASTModel.dfy"
+include "../Interop/CSharpInterop.dfy"
+include "../Interop/CSharpDafnyInterop.dfy"
+include "../Interop/CSharpDafnyASTInterop.dfy"
+include "../Utils/Library.dfy"
+include "../Utils/StrTree.dfy"
+include "../Semantics/Interp.dfy"
+include "../Semantics/Equiv.dfy"
+include "../Transforms/Generic.dfy"
+include "../Transforms/Shallow.dfy"
 
-module Bootstrap.CompilerRewriter {
-module Rewriter {
-  import Utils.Lib
-  import opened AST.Syntax
-  import opened Utils.StrTree
-  import opened Utils.Lib.Datatypes
-  import opened Interop.CSharpInterop
-
-module BottomUp {
+module Bootstrap.Transforms.BottomUp {
   import opened AST.Syntax
   import opened Utils.Lib
   import opened AST.Predicates
-  import opened Transforms.Generic
-  import Transforms.Shallow
+  import opened Semantics.Equiv
+  import opened Generic
+  import Shallow
 
   predicate MapChildrenPreservesPre(f: Expr --> Expr, post: Expr -> bool)
   // This predicate gives us the conditions for which, if we deeply apply `f` to all
@@ -241,23 +234,21 @@ module BottomUp {
     Shallow.Map_Program(p, Map_Expr_Transformer(tr))
   }
 }
-}
 
-module Equiv {
-  // This module introduces the relations we use to describe values and expressions
-  // as equivalent, and which we use to state that our compilation passes are sound.
-
+module Bootstrap.Transforms.Proofs.BottomUp_ {
+  // BUG(https://github.com/dafny-lang/dafny/issues/2012)
   import Utils.Lib
   import Utils.Lib.Debug
   import opened AST.Syntax
   import opened Utils.Lib.Datatypes
-  import opened Rewriter.BottomUp
+  import opened BottomUp
 
   import opened AST.Predicates
-  import opened Transforms.Generic
+  import opened Generic
   import opened Semantics.Interp
   import opened Semantics.Values
   import opened Semantics.Equiv
+
 
   type Expr = Syntax.Expr
   type WV = Interp.Value // FIXME
@@ -967,28 +958,4 @@ module Equiv {
       else {}
     }
   }
-
-}
-
-abstract module Pass {
-  // Abstract module describing a compiler pass.
-
-  import opened AST.Syntax
-  import opened Semantics.Equiv
-
-  // The precondition of the transformation
-  predicate Tr_Pre(p: Program)
-
-  // The postcondition of the transformation
-  predicate Tr_Post(p: Program)
-
-  // The transformation itself.
-  //
-  // For now, we enforce the use of ``EqInterp`` as the binary relation between
-  // the input and the output.
-  function method Apply(p: Program) : (p': Program)
-    requires Tr_Pre(p)
-    ensures Tr_Post(p)
-    ensures EqInterp(p.mainMethod.methodBody, p'.mainMethod.methodBody)
-}
 }

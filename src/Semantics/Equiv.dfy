@@ -17,7 +17,6 @@ module Bootstrap.Semantics.Equiv {
   import opened Utils.Lib.Datatypes
 
   import opened AST.Predicates
-  import opened Transforms.Generic
   import opened Interp
   import opened Values
 
@@ -639,6 +638,12 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
+  predicate All_Rel_Forall<A, B>(rel: (A,B) -> bool, xs: seq<A>, ys: seq<B>)
+  {
+    && |xs| == |ys|
+    && forall i | 0 <= i < |xs| :: rel(xs[i], ys[i])
+  }
+
   lemma EqInterp_Seq_Refl_Lem(es: seq<Exprs.T>)
     ensures All_Rel_Forall(EqInterp, es, es)
   {
@@ -672,6 +677,10 @@ module Bootstrap.Semantics.Equiv {
       }
     }
     else {}
+  }
+
+  predicate RelIsTransitive<T(!new)>(rel: (T, T) -> bool) {
+    forall x0, x1, x2 | rel(x0, x1) && rel(x1, x2) :: rel(x0, x2)
   }
 
   lemma EqInterp_IsTransitive_Lem()

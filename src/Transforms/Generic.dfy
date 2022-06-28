@@ -12,13 +12,6 @@ module Bootstrap.Transforms.Generic {
     ensures Seq.All(IsMap(f), Seq.Map(f, xs))
   {}
 
-  // FIXME(CPC): Move
-  predicate All_Rel_Forall<A, B>(rel: (A,B) -> bool, xs: seq<A>, ys: seq<B>)
-  {
-    && |xs| == |ys|
-    && forall i | 0 <= i < |xs| :: rel(xs[i], ys[i])
-  }
-
   datatype Transformer_<!A(!new), !B> = // FIXME(CPC): Remove rel
     TR(f: A --> B, ghost post: B -> bool, ghost rel: (A,B) -> bool)
   {
@@ -39,8 +32,4 @@ module Bootstrap.Transforms.Generic {
     witness *
 
   type ExprTransformer = Transformer<Expr, Expr>
-
-  predicate RelIsTransitive<T(!new)>(rel: (T, T) -> bool) {
-    forall x0, x1, x2 | rel(x0, x1) && rel(x1, x2) :: rel(x0, x2)
-  }
 }
