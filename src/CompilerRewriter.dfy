@@ -6,6 +6,7 @@ include "Utils/Library.dfy"
 include "Utils/StrTree.dfy"
 include "Semantics/Interp.dfy"
 include "Transforms/Generic.dfy"
+include "Transforms/Shallow.dfy"
 
 module Bootstrap.CompilerRewriter {
 module Rewriter {
@@ -15,40 +16,12 @@ module Rewriter {
   import opened Utils.Lib.Datatypes
   import opened Interop.CSharpInterop
 
-module Shallow {
-  import opened Utils.Lib
-  import opened AST.Syntax
-  import opened AST.Predicates
-  import opened Transforms.Generic
-
-  function method {:opaque} Map_Method(m: Method, tr: ExprTransformer) : (m': Method)
-    requires Shallow.All_Method(m, tr.f.requires)
-    ensures Shallow.All_Method(m', tr.post) // FIXME Deep
-    ensures tr.rel(m.methodBody, m'.methodBody)
-  {
-    match m {
-      case Method(CompileName, methodBody) =>
-        Method (CompileName, tr.f(methodBody))
-    }
-  }
-
-  function method {:opaque} Map_Program(p: Program, tr: ExprTransformer) : (p': Program)
-    requires Shallow.All_Program(p, tr.f.requires)
-    ensures Shallow.All_Program(p', tr.post)
-    ensures tr.rel(p.mainMethod.methodBody, p'.mainMethod.methodBody)
-  {
-    match p {
-      case Program(mainMethod) => Program(Map_Method(mainMethod, tr))
-    }
-  }
-}
-
 module BottomUp {
   import opened AST.Syntax
   import opened Utils.Lib
   import opened AST.Predicates
   import opened Transforms.Generic
-  import Shallow
+  import Transforms.Shallow
 
   predicate MapChildrenPreservesPre(f: Expr --> Expr, post: Expr -> bool)
   // This predicate gives us the conditions for which, if we deeply apply `f` to all
@@ -83,6 +56,7 @@ module BottomUp {
       Deep.All_Expr(f(e), post)
   }
 
+  // FIXME(CPC) move?
   predicate TransformerShallowPreservesRel(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
   // `f` relates its input and its output with `rel`.
   {
