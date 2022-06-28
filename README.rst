@@ -49,8 +49,10 @@ Project hierarchy
     ``Generic.dfy``
       Basic definitions for AST transformers
     ``BottomUp.dfy``
-      Generic bottom-up transformer
+      Bottom-up rewriter
   ``Passes/``
+    ``Pass.dfy``
+      Definition of a compiler pass
     ``EliminateNegatedBinops.dfy``
       Simple demo pass
   ``REPL/``
