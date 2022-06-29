@@ -18,8 +18,14 @@ Overview
 
 - Then we compile that to C# using the existing compiler, and link it with a `wrapper <./src/Backends/CSharp/EntryPoint.cs>`__ to get a Dafny compiler plugin.
 
+Supported language
+------------------
+
+Our initial target is the purely functional subset of Dafny (aka non-ghost functions).  This is also the subset that the compiler is written on (our first large application will be bootstrapping the compiler itself).
+The Dafny-in-Dafny AST is defined in ``src/AST.dfy``.  We have operational semantics for most of it in ``src/Semantics/Interp.dfy``.  The C# backend is in ``src/Backends/CSharp/Compiler.dfy``, but it is not up-to-date (we are focusing on the language and the semantics).
+
 Design notes
-============
+------------
 
 For details on how we interop with the existing C# codebase, read through https://github.com/dafny-lang/dafny/pull/1769.
 
