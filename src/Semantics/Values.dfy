@@ -10,6 +10,7 @@ module Bootstrap.Semantics.Values {
   type Context = map<string, Value>
 
   datatype Value =
+    | Unit
     | Bool(b: bool)
     | Char(c: char)
     | Int(i: int)
@@ -25,6 +26,7 @@ module Bootstrap.Semantics.Values {
     predicate method HasType(ty: Types.T) {
       this.WellFormed1() &&
       match (this, ty) // FIXME tests on other side
+        case (Unit, Unit) => true
         case (Bool(b), Bool()) => true
         case (Char(c), Char()) => true
         case (Int(i), Int()) => true
@@ -44,6 +46,7 @@ module Bootstrap.Semantics.Values {
           true // FIXME: Need a typing relation on terms, not just values
 
         // DISCUSS: Better way to write this?  Need exhaustivity checking
+        case (Unit, _) => false
         case (Bool(b), _) => false
         case (Char(c), _) => false
         case (Int(i), _) => false
@@ -61,6 +64,7 @@ module Bootstrap.Semantics.Values {
       ensures forall c | c in cs :: c < this
     {
       match this
+        case Unit => {}
         case Bool(b) => {}
         case Char(c) => {}
         case Int(i) => {}

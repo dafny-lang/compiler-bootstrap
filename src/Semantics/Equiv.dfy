@@ -10,6 +10,8 @@ include "../Transforms/Shallow.dfy"
 module Bootstrap.Semantics.Equiv {
     // This module introduces the relations we use to describe values and expressions
     // as equivalent, and which we use to state that our compilation passes are sound.
+    //
+    // TODO(SMH): use ``Expr`` instead of ``Exprs.T`` and remove the requirements about ``SupportsInterp``?
 
     import Utils.Lib
     import Utils.Lib.Debug
@@ -111,6 +113,7 @@ module Bootstrap.Semantics.Equiv {
     // to be a valid option.
     {
       match (v, v') {
+        case (Unit, Unit) => true
         case (Bool(b), Bool(b')) => b == b'
         case (Char(c), Char(c')) => c == c'
         case (Int(i), Int(i')) => i == i'
@@ -138,6 +141,7 @@ module Bootstrap.Semantics.Equiv {
           EqValue_Closure(v, v')
 
         // DISCUSS: Better way to write this?  Need exhaustivity checking
+        case (Unit, _) => false
         case (Bool(b), _) => false
         case (Char(c), _) => false
         case (Int(i), _) => false
@@ -229,7 +233,6 @@ module Bootstrap.Semantics.Equiv {
       }
     }
 
-    // TODO: move
     lemma EqInterp_Expr_EqState_Lem(e: Exprs.T, env: Environment, ctx: State, ctx': State)
       requires SupportsInterp(e)
       requires EqState(ctx, ctx')
@@ -245,6 +248,7 @@ module Bootstrap.Semantics.Equiv {
       decreases v, 1
     {
       match v {
+        case Unit => {}
         case Bool(_) => {}
         case Char(_) => {}
         case Int(_) => {}
@@ -351,29 +355,27 @@ module Bootstrap.Semantics.Equiv {
       decreases ValueTypeHeight(v0), 1
     {
       match v0 {
+        case Unit => {}
         case Bool(_) => {}
         case Char(_) => {}
         case Int(_) => {}
         case Real(_) => {}
         case BigOrdinal(_) => {}
         case BitVector(_, _) => {}
-        case Map(m0) => {
+        case Map(m0) =>
           ValueTypeHeight_Children_Lem(v0); // For termination
           forall x | x in m0 ensures EqValue(v0.m[x], v2.m[x]) {
             EqValue_Trans_Lem(v0.m[x], v1.m[x], v2.m[x]);
           }
-        }
         case Multiset(ms) => {}
-        case Seq(sq) => {
+        case Seq(sq) =>
           ValueTypeHeight_Children_Lem(v0); // For termination
           forall i | 0 <= i < |sq| ensures EqValue(v0.sq[i], v2.sq[i]) {
             EqValue_Trans_Lem(v0.sq[i], v1.sq[i], v2.sq[i]);
           }
-        }
         case Set(st) => {}
-        case Closure(ctx, vars, body) => {
+        case Closure(ctx, vars, body) =>
           EqValue_Closure_Trans_Lem(v0, v1, v2);
-        }
       }
     }
 

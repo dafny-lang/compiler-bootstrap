@@ -10,6 +10,8 @@ include "../Transforms/BottomUp.dfy"
 
 module Bootstrap.Passes.EliminateNegatedBinops {
     // TODO(SMH): I don't manage to make ``EliminateNegatedBinops`` refine ``Pass``
+    // TODO(SMH): the above refactoring might actually hurt, as ``SimplifyEmptyBlocks`` actually
+    // reuses some of the proofs of ``EliminateNegatedBinops``.
     // This module implements a simple pass, by which we decompose the "negated" binops
     // into a negation of the "original" binop.
     //
@@ -40,7 +42,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
       // Without this there is a loop between the ``requires`` of
       // FlipNegatedBinop and the body of ``IsNegatedBinop``.
     {
-      match op {
+      match op
         case Eq(NeqCommon) => BinaryOps.Eq(BinaryOps.EqCommon)
         case Sequences(SeqNeq) => BinaryOps.Sequences(BinaryOps.SeqEq)
         case Sequences(NotInSeq) => BinaryOps.Sequences(BinaryOps.InSeq)
@@ -51,9 +53,9 @@ module Bootstrap.Passes.EliminateNegatedBinops {
         case Maps(MapNeq) => BinaryOps.Maps(BinaryOps.MapEq)
         case Maps(NotInMap) => BinaryOps.Maps(BinaryOps.InMap)
         case _ => op
-      }
     }
 
+    // TODO(SMH): add a "_Single" prefix
     function method FlipNegatedBinop(op: BinaryOps.BinaryOp)
       : (op': BinaryOps.BinaryOp)
       ensures !IsNegatedBinop(op')
@@ -278,10 +280,27 @@ module Bootstrap.Passes.EliminateNegatedBinops {
       forall e' | e' in e.Children() { Tr_Pre_Expr_IsTrue(e'); }
     }
 
+    function method Apply_Method(m: Method) : (m': Method)
+      ensures Deep.All_Method(m', Tr_Expr_Post)
+      ensures Tr_Expr_Rel(m.methodBody, m'.methodBody)
+      // Apply the transformation to a method.
+      //
+      // We need it on a temporary basis, so that we can apply the transformation
+      // to all the methods in a program (we haven't defined modules, classes,
+      // etc. yet). When the `Program` definition is complete enough, we will
+      // remove this definition and exclusively use `Apply`.
+    {
+      
+      Tr_Pre_Expr_IsTrue(m.methodBody);
+      assert Deep.All_Method(m, Tr_Expr.f.requires);
+      Map_Method(m, Tr_Expr)
+    }
+
     function method Apply(p: Program) : (p': Program)
       requires Tr_Pre(p)
       ensures Tr_Post(p')
       ensures Tr_Expr_Rel(p.mainMethod.methodBody, p'.mainMethod.methodBody)
+      // Apply the transformation to a program.
     {
       Tr_Pre_Expr_IsTrue(p.mainMethod.methodBody);
       assert Deep.All_Program(p, Tr_Expr.f.requires);
