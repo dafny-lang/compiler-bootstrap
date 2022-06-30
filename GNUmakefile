@@ -87,8 +87,8 @@ cs_tests := $(dfy_tests:.dfy=.cs)
 # Auto-generate a model of DafnyAST.cs
 $(ast_model): $(DafnyPipeline).csproj $(DafnyAST).cs $(ast_model).template $(AutoExtern)/Program.cs
 	dotnet run --project $(AutoExtern)/AutoExtern.csproj -- \
-		$(DafnyPipeline).csproj $(DafnyAST).cs "Microsoft.Dafny" "$(ast_model).template" \
-		"" "$@"
+		$(DafnyPipeline).csproj "Microsoft.Dafny" "$(ast_model).template" "" "$@" \
+		$(DafnyAST).cs
 
 # Copy basic C# model into current directory (to make it easier to refer to it from Dafny)
 $(csharp_model): $(AutoExtern)/CSharpModel.dfy
