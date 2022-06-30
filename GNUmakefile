@@ -7,6 +7,9 @@ DAFNY_ROOT := $(realpath $(DAFNY_ROOT))
 dafny_Source := $(DAFNY_ROOT)/Source
 export DAFNY_ROOT
 
+# Additional flags for `dotnet run`
+DAFNY_DOTNET_RUN_FLAGS ?=
+
 # Sanity checks
 # =============
 
@@ -44,7 +47,7 @@ DafnyPipeline = $(dafny_Source)/Dafny/DafnyPipeline
 DafnyAST = $(dafny_Source)/Dafny/AST/DafnyAst
 DafnyRuntime := $(dafny_Source)/DafnyRuntime/DafnyRuntime.cs
 
-dafny := dotnet run --no-build --project $(DafnyDriver).csproj --
+dafny := dotnet run --project $(DafnyDriver).csproj $(DAFNY_DOTNET_RUN_FLAGS) --
 dafny_codegen := $(dafny) -spillTargetCode:3 -compile:0 -noVerify -useRuntimeLib
 dafny_typecheck := $(dafny) -dafnyVerify:0
 dafny_verify := $(dafny) -compile:0  -trace -verifyAllModules -showSnippets:1 -vcsCores:8
