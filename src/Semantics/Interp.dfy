@@ -65,7 +65,7 @@ module Bootstrap.Semantics.Interp {
       case Apply(Lazy(op), args) => true
       case Apply(Eager(op), args) => EagerOpSupportsInterp(op)
       case Bind(vars, vals, body) => true
-      case Block(stmts) => Debug.TODO(false)
+      case Block(stmts) => true
       case If(cond, thn, els) => true
     }
   }
@@ -95,6 +95,7 @@ module Bootstrap.Semantics.Interp {
   // a decidable equality.
   {
     match v {
+      case Unit => true
       case Bool(b) => true
       case Char(c) => true
       case Int(i) => true
@@ -128,6 +129,7 @@ module Bootstrap.Semantics.Interp {
   // support one.
   {
     match v {
+      case Unit => true
       case Bool(b) => true
       case Char(c) => true
       case Int(i) => true
@@ -288,6 +290,8 @@ module Bootstrap.Semantics.Interp {
       case Bind(vars, exprs: seq<Expr>, body: Expr) =>
         var Return(vals, ctx) :- InterpExprs(exprs, env, ctx);
         InterpBind(e, env, ctx, vars, vals, body)
+      case Block(stmts) =>
+        InterpBlock(stmts, env, ctx)
       case If(cond, thn, els) =>
         var Return(condv, ctx) :- InterpExprWithType(cond, Type.Bool, env, ctx);
         if condv.b then InterpExpr(thn, env, ctx) else InterpExpr(els, env, ctx)
@@ -379,7 +383,7 @@ module Bootstrap.Semantics.Interp {
 
   function method {:opaque} InterpExprs(es: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<seq<Value>>)
-    decreases env.fuel, es
+    decreases env.fuel, es, 0
     ensures r.Success? ==> |r.value.ret| == |es|
   { // TODO generalize into a FoldResult function
     reveal SupportsInterp();
@@ -394,6 +398,7 @@ module Bootstrap.Semantics.Interp {
     ensures HasEqValue(v)
   {
     match a
+      case LitUnit => V.Unit
       case LitBool(b: bool) => V.Bool(b)
       case LitInt(i: int) => V.Int(i)
       case LitReal(r: real) => V.Real(r)
@@ -887,6 +892,27 @@ module Bootstrap.Semantics.Interp {
     var ctx := State(locals := AugmentContext(fn.ctx, fn.vars, argvs));
     var Return(val, ctx) :- InterpExpr(fn.body, env.(fuel := env.fuel - 1), ctx);
     Success(val)
+  }
+
+  function method {:opaque} InterpBlock_Exprs(es: seq<Expr>, env: Environment, ctx: State)
+    : (r: InterpResult<Value>)
+    decreases env.fuel, es, 0
+  { // TODO generalize into a FoldResult function
+    if es == [] then Success(Return(V.Unit, ctx))
+    else
+      // Evaluate the first expression.
+      var Return(val, ctx) :- InterpExpr(es[0], env, ctx);
+      // This expression must actually evaluate to `Unit`
+      :- Need(val == V.Unit, TypeError(es[0], val, Types.Unit));
+      // Evaluate the remaining expressions
+      InterpBlock_Exprs(es[1..], env, ctx)
+  }
+
+  function method {:opaque} InterpBlock(stmts: seq<Expr>, env: Environment, ctx: State)
+    : (r: InterpResult<Value>)
+    decreases env.fuel, stmts, 1
+  {
+    InterpBlock_Exprs(stmts, env, ctx)
   }
 
   function method InterpBind(e: Expr, env: Environment, ctx: State, vars: seq<string>, vals: seq<Value>, body: Expr)

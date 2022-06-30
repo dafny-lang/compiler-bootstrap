@@ -190,6 +190,7 @@ module Exprs {
 
   // FIXME should literals just be Values.T?
   datatype Literal =
+    | LitUnit
     | LitBool(b: bool)
     | LitInt(i: int)
     | LitReal(r: real)

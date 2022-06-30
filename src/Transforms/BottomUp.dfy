@@ -262,8 +262,8 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     && EqState(ctx, ctx')
     && Exprs.ConstructorsMatch(e, e')
     && All_Rel_Forall(EqInterp, e.Children(), e'.Children())
-    && SupportsInterp(e)
-    && SupportsInterp(e')
+    && SupportsInterp(e) // TODO: remove (`Expr` is now a subset type)
+    && SupportsInterp(e') // TODO: remove (`Expr` is now a subset type)
   }
 
   // TODO: maybe not necessary to make this opaque
@@ -311,6 +311,9 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       }
       case Bind(_, _, _) => {
         assume TODO();
+      }
+      case Block(_) => {
+        EqInterp_Expr_Block_CanBeMapLifted_Lem(e, e', env, ctx, ctx');
       }
       case _ => {
         // Unsupported branch
@@ -929,6 +932,82 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     else {
       // Trivial
     }
+  }
+
+  // We can't use the type `seq<Interp.Expr>` for `es` and `es'`, because then Dafny is unable to
+  // prove the requires clauses.
+  lemma EqInterp_Expr_BlockExprs_CanBeMapLifted_Lem(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, ctx: State, ctx': State)
+    requires EqState(ctx, ctx')
+    requires All_Rel_Forall(EqInterp, es, es')
+    requires forall e | e in es :: SupportsInterp(e)
+    requires forall e | e in es' :: SupportsInterp(e)
+    ensures EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es', env, ctx'))
+    decreases es, env, 0
+    // Auxiliary lifting lemma for the ``Block`` case
+  {
+    reveal EqInterp_CanBeMapLifted_Pre();
+    reveal EqInterp_CanBeMapLifted_Post();
+
+    reveal SupportsInterp();
+    reveal InterpBlock_Exprs();
+
+    var res := InterpBlock_Exprs(es, env, ctx);
+    var res' := InterpBlock_Exprs(es', env, ctx');
+
+    if es == [] {
+      // Trivial 
+    }
+    else {
+      // Evaluate the first expression
+      var res0 := InterpExpr(es[0], env, ctx);
+      var res0' := InterpExpr(es'[0], env, ctx');
+      EqInterp_Lem(es[0], es'[0], env, ctx, ctx');
+
+      // Evaluate the remaining expressions
+      if res0.Success? && res0.value.ret == V.Unit {
+        var Return(_, ctx0) := res0.value;
+        var Return(_, ctx0') := res0'.value;
+        
+        var res1 := InterpBlock_Exprs(es[1..], env, ctx0);
+        var res1' := InterpBlock_Exprs(es'[1..], env, ctx0');
+
+        assert res1 == res;
+        assert res1' == res';
+
+        EqInterp_Expr_BlockExprs_CanBeMapLifted_Lem(es[1..], es'[1..], env, ctx0, ctx0');
+      }
+      else {
+        // Trivial
+      }
+    }
+  }
+
+
+
+  lemma EqInterp_Expr_Block_CanBeMapLifted_Lem(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
+    requires e.Block?
+    requires e'.Block?
+    requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
+    ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
+    decreases e, env, 0
+  {
+    reveal EqInterp_CanBeMapLifted_Pre();
+    reveal EqInterp_CanBeMapLifted_Post();
+
+    reveal InterpExpr();
+    reveal InterpBlock();
+    reveal SupportsInterp();
+
+    var es := e.stmts;
+    var es' := e'.stmts;
+    EqInterp_Expr_BlockExprs_CanBeMapLifted_Lem(es, es', env, ctx, ctx');
+
+    var res := InterpExpr(e, env, ctx);
+    var res' := InterpExpr(e', env, ctx');
+
+    // Doesn't work without those assertions, for some reason
+    assert res == InterpBlock(es, env, ctx);
+    assert res' == InterpBlock(es', env, ctx');
   }
 
   lemma EqInterp_CanBeMapLifted_Lem()
