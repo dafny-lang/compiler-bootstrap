@@ -199,13 +199,13 @@ public class REPLState {
     var defaultModule = cloner.CloneModuleDefinition(prog.DefaultModuleDef, prog.DefaultModuleDef.Name);
     var defaultModuleDecl = new LiteralModuleDecl(defaultModule, null);
     // FIXME: Clone builtins (the code below loses builtins created by the parser)
-    return new Program(prog.FullName, defaultModuleDecl, new BuiltIns(), prog.reporter);
+    return new Program(prog.FullName, defaultModuleDecl, new BuiltIns(), prog.Reporter);
   }
 
   public Program CloneUnresolvedProgram() {
     return Clone(UnresolvedProgram);
-  } 
-  
+  }
+
   public ParseResult TryParse(string input) {
     return new REPLInputParser(this, input.TrimEnd()).TryParse();
   }
