@@ -957,6 +957,14 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     if es == [] {
       // Trivial 
     }
+    else if |es| == 1 {
+      assert es == [es[0]];
+      assert es' == [es'[0]];
+
+      var res0 := InterpExpr(es[0], env, ctx);
+      var res0' := InterpExpr(es'[0], env, ctx');
+      EqInterp_Lem(es[0], es'[0], env, ctx, ctx');
+    }
     else {
       // Evaluate the first expression
       var res0 := InterpExpr(es[0], env, ctx);

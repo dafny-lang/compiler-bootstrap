@@ -693,6 +693,7 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
+  // TODO(SHM): rename to ``InterpExprs1_Strong_Eq``
   lemma InterpExprs1_Strong_Lem(e: Expr, env: Environment, ctx: State)
     requires SupportsInterp(e)
     ensures forall e' | e' in [e] :: SupportsInterp(e')
