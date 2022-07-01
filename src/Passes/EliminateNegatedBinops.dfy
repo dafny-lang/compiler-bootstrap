@@ -105,7 +105,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
       e'
     }
 
-    lemma FlipNegatedBinop_Binop_Rel_Lem(
+    lemma FlipNegatedBinop_Binop_Rel(
       e: Interp.Expr, e': Interp.Expr, op: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
     )
       requires IsNegatedBinop(op)
@@ -125,11 +125,11 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     {
       assume TODO();
       reveal InterpBinaryOp();
-      EqValue_HasEqValue_Eq_Lem(v0, v0');
-      EqValue_HasEqValue_Eq_Lem(v1, v1');
+      EqValue_HasEqValue_Eq(v0, v0');
+      EqValue_HasEqValue_Eq(v1, v1');
     }
 
-    lemma FlipNegatedBinop_Expr_Rel_Lem(op: BinaryOp, args: seq<Expr>)
+    lemma FlipNegatedBinop_Expr_Rel(op: BinaryOp, args: seq<Expr>)
       requires IsNegatedBinop(op)
       ensures (
         var e := Exprs.Apply(Exprs.Eager(Exprs.BinaryOp(op)), args);
@@ -158,12 +158,12 @@ module Bootstrap.Passes.EliminateNegatedBinops {
 
           var args_res := InterpExprs(args, env, ctx);
           var args_res' := InterpExprs(args, env, ctx');
-          EqInterp_Seq_Refl_Lem(args);
-          InterpExprs_EqInterp_Lem(args, args, env, ctx, ctx');
+          EqInterp_Seq_Refl(args);
+          InterpExprs_EqInterp_Inst(args, args, env, ctx, ctx');
           assert EqInterpResultSeqValue(args_res, args_res');
 
           var flipped := Exprs.Apply(Exprs.Eager(bop'), args);
-          InterpExprs1_Strong_Lem(flipped, env, ctx');
+          InterpExprs1_Strong_Eq(flipped, env, ctx');
 
           if args_res.Success? {
             assert args_res'.Success?;
@@ -173,7 +173,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
 
             var res1 := InterpBinaryOp(e, op, vs[0], vs[1]);
             var res1' := InterpBinaryOp(e', FlipNegatedBinop(op), vs'[0], vs'[1]);
-            FlipNegatedBinop_Binop_Rel_Lem(e, e', op, vs[0], vs[1], vs'[0], vs'[1]);
+            FlipNegatedBinop_Binop_Rel(e, e', op, vs[0], vs[1], vs'[0], vs'[1]);
 
             assert res1.Success? == res1'.Success?;
             if res1.Success? {
@@ -206,12 +206,12 @@ module Bootstrap.Passes.EliminateNegatedBinops {
       ensures Tr_Expr_Post(e')
       ensures Tr_Expr_Rel(e, e')
     {
-      EqInterp_Refl_Lem(e);
+      EqInterp_Refl(e);
       match e {
         case Apply(Eager(BinaryOp(op)), args) =>
           if IsNegatedBinop(op) then
             var e' := FlipNegatedBinop_Expr(op, args);
-            FlipNegatedBinop_Expr_Rel_Lem(op, args);
+            FlipNegatedBinop_Expr_Rel(op, args);
             e'
           else
             e
@@ -227,7 +227,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
       ensures MapChildrenPreservesPre(Tr_Expr_Shallow,Tr_Expr_Post)
     {}
 
-    lemma TransformationAndRel_Lift_Lem(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
+    lemma TransformationAndRel_Lift(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
       requires RelIsTransitive(rel)
       requires RelCanBeMapLifted(rel)
       requires TransformerShallowPreservesRel(f, rel)
@@ -240,9 +240,9 @@ module Bootstrap.Passes.EliminateNegatedBinops {
       var f := Tr_Expr_Shallow;
       var rel := Tr_Expr_Rel;
 
-      EqInterp_IsTransitive_Lem();
-      EqInterp_CanBeMapLifted_Lem();
-      TransformationAndRel_Lift_Lem(f, rel);
+      EqInterp_IsTransitive();
+      EqInterp_CanBeMapLifted();
+      TransformationAndRel_Lift(f, rel);
     }
 
     const Tr_Expr : BottomUpTransformer :=
