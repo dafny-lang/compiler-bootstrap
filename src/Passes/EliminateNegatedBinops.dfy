@@ -249,10 +249,8 @@ module Bootstrap.Passes.EliminateNegatedBinops {
   const Tr_Expr : BottomUpTransformer :=
     ( TrMatchesPrePost();
       TrPreservesPre();
-      TrPreservesRel();
       TR(Tr_Expr_Single,
-         Tr_Expr_Post,
-         Tr_Expr_Rel))
+         Tr_Expr_Post))
 
 
   predicate Tr_Pre(p: Program) {
@@ -291,9 +289,11 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     // etc. yet). When the `Program` definition is complete enough, we will
     // remove this definition and exclusively use `Apply`.
   {
-    
+
     Tr_Pre_Expr_IsTrue(m.methodBody);
     assert Deep.All_Method(m, Tr_Expr.f.requires);
+    TrPreservesRel();
+    Map_Method_PreservesRel(m, Tr_Expr, Tr_Expr_Rel);
     Map_Method(m, Tr_Expr)
   }
 
@@ -305,6 +305,8 @@ module Bootstrap.Passes.EliminateNegatedBinops {
   {
     Tr_Pre_Expr_IsTrue(p.mainMethod.methodBody);
     assert Deep.All_Program(p, Tr_Expr.f.requires);
+    TrPreservesRel();
+    Map_Program_PreservesRel(p, Tr_Expr, Tr_Expr_Rel);
     Map_Program(p, Tr_Expr)
   }
 }
