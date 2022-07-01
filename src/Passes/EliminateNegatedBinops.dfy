@@ -119,7 +119,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
           && b.Bool?
           && b'.Bool?
           && b.b == ! b'.b
-        case (Failure(_), Failure(_)) =>
+        case (Failure(_), _) =>
           true
         case _ =>
           false)
@@ -176,7 +176,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
           var res1' := InterpBinaryOp(e', FlipNegatedBinop(op), vs'[0], vs'[1]);
           FlipNegatedBinop_Binop_Rel(e, e', op, vs[0], vs[1], vs'[0], vs'[1]);
 
-          assert res1.Success? == res1'.Success?;
+          assert res1.Success? ==> res1'.Success?;
           if res1.Success? {
             var b := res1.value;
             var b' := res1'.value;

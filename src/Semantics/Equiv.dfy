@@ -68,13 +68,36 @@ module Bootstrap.Semantics.Equiv {
     eq_ctx: (State,State) -> bool, eq_value: (T,T) -> bool, res: InterpResult<T>, res': InterpResult<T>)
     // Interpretation results are equivalent.
     // "G" stands for "generic".
-    // TODO(SMH): be a bit more precise in the error case, especially in case of "out of fuel".
+    //
+    // We state the following:
+    // - if `res` is success, then `res'` must be success, and contain equivalent value and context
+    // - if `res` is not success, then there are no conditions on `res'`
+    //
+    // We do this because:
+    // - our passes sometimes generate program which fail less (because some expressions were filtered
+    //   for instance)
+    // - but the original programs are supposed to be proven as never failing (under the proper preconditions)
+    //
+    // For instance, the following transformations generate programs which fail stricly less:
+    // ```
+    // if b then {} else {} ---> {} // Evaluating b may fail
+    // g(); f(); {} ---> g(); f()   // Original program: fails if f() doesn't evaluate to unit
+    // var x := e; if b then x else 0; --> if b then e else 0 // e might fail in only one branch
+    // ```
+    //
+    // TODO(SMH): we might want to be more precise in the `OutOfFuel` case, especially because
+    // we might want to verify non-terminating functions.
+    //
+    // Rk.: whenever this function is updated, don't forget to update:
+    // - ``EqValue_Closure``
+    // - ``EqPureInterpResult``
+    // - ``EqInterpResultSeq1Value``
   {
     match (res, res') {
       case (Success(Return(v,ctx)), Success(Return(v',ctx'))) =>
         && eq_ctx(ctx, ctx')
         && eq_value(v, v')
-      case (Failure(_), Failure(_)) =>
+      case (Failure(_), _) =>
         true
       case _ =>
         false
@@ -207,7 +230,7 @@ module Bootstrap.Semantics.Equiv {
           assume ValueTypeHeight(ov) < ValueTypeHeight(v);
           assume ValueTypeHeight(ov') < ValueTypeHeight(v');
           EqValue(ov, ov')
-        case (Failure(_), Failure(_)) =>
+        case (Failure(_), _) =>
           true
         case _ =>
           false
@@ -334,8 +357,6 @@ module Bootstrap.Semantics.Equiv {
     ensures EqValue_Closure(v, v)
     decreases v, 0
   {
-    reveal EqValue_Closure();
-
     var Closure(ctx, vars, body) := v;
 
     forall env: Environment, argvs: seq<WV>, argvs': seq<WV> |
@@ -371,6 +392,7 @@ module Bootstrap.Semantics.Equiv {
         EqInterp_Expr_EqState(body, env, ctx1, ctx1');
         assert EqPureInterpResultValue(res, res');
     }
+    reveal EqValue_Closure();
   }
 
   lemma EqState_Refl(ctx: State)
@@ -466,8 +488,7 @@ module Bootstrap.Semantics.Equiv {
           assert EqPureInterpResultValue(res0, res2);
         }
         else {
-          assert res1.Failure?;
-          assert res2.Failure?;
+          // Trivial
         }
     }
   }
@@ -593,11 +614,12 @@ module Bootstrap.Semantics.Equiv {
   }
 
   predicate EqPureInterpResult<T(0)>(eq_values: (T,T) -> bool, res: PureInterpResult<T>, res': PureInterpResult<T>)
+    // See the explanations for ``GEqInterpResult``, especially for the ``Failure`` case.
   {
     match (res, res') {
       case (Success(v), Success(v')) =>
         eq_values(v, v')
-      case (Failure(_), Failure(_)) =>
+      case (Failure(_), _) =>
         true
       case _ =>
         false
@@ -621,7 +643,7 @@ module Bootstrap.Semantics.Equiv {
         && |sv| == 1
         && EqValue(v, sv[0])
         && EqState(ctx, ctx')
-      case (Failure(_), Failure(_)) =>
+      case (Failure(_), _) =>
         true
       case _ =>
         false
@@ -658,7 +680,7 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
-  // TODO: make opaque?
+  // TODO(SMH): make opaque?
   predicate GEqInterp(eq: Equivs, e: Exprs.T, e': Exprs.T)
     // This is the important, generic equivalence relation over expressions.
   {
@@ -880,14 +902,10 @@ module Bootstrap.Semantics.Equiv {
               assert eq.eq_state(ctx2, ctx2');
 
             }
-            case Failure(_) => {
-              assert res2'.Failure?;
-            }
+            case Failure(_) =>
           }
         }
-        case Failure(_) => {
-          assert res1'.Failure?;
-        }
+        case Failure(_) =>
       }
     }
   }
@@ -1068,11 +1086,10 @@ module Bootstrap.Semantics.Equiv {
           EqInterpBlockExprs_Inst(tl, tl', env, ctx0, ctx0');
         }
         else {
+          // Trivial case:
           assert v' != V.Unit;
-
-          // TODO(SMH): update EqInterp so that this works (evaluating `es` will fail if `e` doesn't
-          // evaluate to `Unit`)
-          assume false; // TODO: prove
+          var res := InterpBlock_Exprs([e] + tl, env, ctx);
+          assert res.Failure?;
         }
       }
       else {
