@@ -95,6 +95,18 @@ module Bootstrap.Semantics.Equiv {
       Success(val)
     }
 
+    lemma InterpCallFunctionBody_Eq_InterpFunctionCall(e: Interp.Expr, env: Environment, fn: WV, argvs: seq<WV>)
+      requires env.fuel > 0
+      requires fn.Closure?
+      requires |fn.vars| == |argvs|
+      ensures InterpFunctionCall(e, env, fn, argvs) == InterpCallFunctionBody(fn, env.(fuel := env.fuel - 1), argvs)
+      // We do need this lemma, though the reason why we need it is strange: the result is trivial by definition
+    {
+      reveal InterpFunctionCall();
+      reveal InterpCallFunctionBody();
+      reveal BuildCallState();
+    }
+
     predicate EqValue(v: WV, v': WV)
       decreases ValueTypeHeight(v) + ValueTypeHeight(v'), 1
       // Equivalence between values.
@@ -201,6 +213,20 @@ module Bootstrap.Semantics.Equiv {
             false
         }
       )
+    }
+
+    lemma EqValue_Closure_EqInterp_FunctionCall(f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>, env: Environment)
+      requires f.Closure?
+      requires f'.Closure?
+      requires EqValue_Closure(f, f')
+      requires EqSeqValue(argvs, argvs')
+      requires |f.vars| == |argvs|
+      requires |f'.vars| == |argvs'|
+      requires forall i | 0 <= i < |argvs| :: ValueTypeHeight(argvs[i]) < ValueTypeHeight(f)
+      requires forall i | 0 <= i < |argvs'| :: ValueTypeHeight(argvs'[i]) < ValueTypeHeight(f')
+      ensures EqPureInterpResultValue(InterpCallFunctionBody(f, env, argvs), InterpCallFunctionBody(f', env, argvs'))
+    {
+      reveal EqValue_Closure();
     }
 
     predicate EqState(ctx: State, ctx': State)
