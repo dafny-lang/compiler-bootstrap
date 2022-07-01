@@ -51,7 +51,7 @@ module Bootstrap.Semantics.Pure {
       case If(_, _, _) => true
   }
 
-  predicate method {:opaque} IsPure(e: Expr) {
+  predicate method {:opaque} IsPure(e: Syntax.Expr) {
     Predicates.Deep.All_Expr(e, IsPure_Single)
   }
 

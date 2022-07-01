@@ -6,6 +6,7 @@ include "../Utils/Library.dfy"
 include "../Utils/StrTree.dfy"
 include "../Semantics/Interp.dfy"
 include "../Semantics/Equiv.dfy"
+include "../Semantics/Pure.dfy"
 include "../Transforms/BottomUp.dfy"
 include "EliminateNegatedBinops.dfy"
 
@@ -50,7 +51,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   //
   // 3. We simplify the `if then else` expressions when their branches contain empty blocks (``SimplifyIfThenElse``):
   //    ```
-  //    if b then {} else {} --> {}
+  //    if b then {} else {} --> {} // if b is pure
   //    if b then {} else e --> if !b then e else {} // This allows us to only print `if !b then e` in the output program
   //    ```
   //
@@ -104,6 +105,8 @@ module FilterCommon {
   import opened Semantics.Interp
 
   type Expr = Syntax.Expr
+
+  const EmptyBlock := Expr.Block([])
 
   // TODO: move?
   predicate method IsEmptyBlock(e: Expr)
@@ -391,6 +394,80 @@ module InlineLastBlock {
     }
     else {
       EqInterp_Refl(e); 
+    }
+  }
+}
+
+module SimplifyIfThenElse {
+  // Tranformation 3
+  
+  import Utils.Lib
+  import Utils.Lib.Debug
+  import opened Utils.Lib.Datatypes
+  import opened Transforms.BottomUp
+
+  import opened AST.Syntax
+  import opened AST.Predicates
+  import opened Semantics.Interp
+  import opened Semantics.Values
+  import opened Semantics.Equiv
+  import opened Semantics.Pure
+  import opened Transforms.Generic
+  import opened Transforms.Proofs.BottomUp_
+
+  import opened FilterCommon
+
+  type Expr = Syntax.Expr
+
+  function method SimplifyEmptyIfThenElse_Single(e: Expr): Expr
+    // Tranformation 3.1: `if b then {} else {} ---> {}`
+    //
+    // Eliminating `b` might lead to a program which fails less. We might want to be
+    // more precise in case we deal with potentially non-terminating programs, for instance
+    // by checking that `b` doesn't call any (potentially non-terminating) method.
+  {
+    // We might want to check that `e.cond` terminates
+    if e.If? && IsPure(e.cond) && IsEmptyBlock(e.thn) && IsEmptyBlock(e.els) then EmptyBlock
+    else e
+  }
+
+  lemma SimplifyEmptyIfThenElse_Single_Rel(e: Expr)
+    ensures Tr_Expr_Rel(e, SimplifyEmptyIfThenElse_Single(e))
+  {
+    if e.If? && IsPure(e.cond) && IsEmptyBlock(e.thn) && IsEmptyBlock(e.els) && SupportsInterp(e) {
+      var e' := SimplifyEmptyIfThenElse_Single(e);
+      reveal SupportsInterp();
+
+      forall env, ctx, ctx' | EqState(ctx, ctx')
+        ensures EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e', env, ctx'))
+      {
+        var res := InterpExpr(e, env, ctx);
+        var res0 := InterpExprWithType(e.cond, Type.Bool, env, ctx);
+
+        if res0.Success? {
+          var Return(b, ctx0) := res0.value;
+
+          InterpExprWithType_IsPure_SameState(e.cond, Type.Bool, env, ctx);
+          assert ctx0 == ctx;
+          
+          assert res == InterpExpr(EmptyBlock, env, ctx0) by {
+            reveal InterpExpr();
+          }
+
+          EqInterp_Refl(EmptyBlock);
+          EqInterp_Inst(EmptyBlock, EmptyBlock, env, ctx, ctx');
+        }
+        else {
+          assert res.Failure? by {
+            reveal InterpExpr();
+          }
+        }
+      }
+
+      assert SupportsInterp(e');
+    }
+    else {
+      EqInterp_Refl(e);
     }
   }
 }
