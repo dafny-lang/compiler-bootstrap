@@ -289,7 +289,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     // etc. yet). When the `Program` definition is complete enough, we will
     // remove this definition and exclusively use `Apply`.
   {
-    
+
     Tr_Pre_Expr_IsTrue(m.methodBody);
     assert Deep.All_Method(m, Tr_Expr.f.requires);
     TrPreservesRel();
