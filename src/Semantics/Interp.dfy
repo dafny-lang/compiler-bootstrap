@@ -897,10 +897,16 @@ module Bootstrap.Semantics.Interp {
   function method {:opaque} InterpBlock_Exprs(es: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
     decreases env.fuel, es, 0
-  { // TODO generalize into a FoldResult function
+  {
+    // There is something subtle here:
+    // - if a block is empty, it evaluates to `Unit`
+    // - otherwise, it evaluates to the value of the last expression in the block (after all
+    //   the previous expressions have been evaluated, of course)
     if es == [] then Success(Return(V.Unit, ctx))
+    else if |es| == 1 then
+      InterpExpr(es[0], env, ctx)
     else
-      // Evaluate the first expression.
+      // Evaluate the first expression
       var Return(val, ctx) :- InterpExpr(es[0], env, ctx);
       // This expression must actually evaluate to `Unit`
       :- Need(val == V.Unit, TypeError(es[0], val, Types.Unit));
