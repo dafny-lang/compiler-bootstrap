@@ -444,7 +444,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     reveal InterpLiteral();
   }
 
-  lemma EqInterp_Expr_Abs_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
+  lemma EqInterp_Expr_Abs_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State) // TODO: fix
     requires e.Abs?
     requires e'.Abs?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
@@ -551,7 +551,6 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
         assert EqInterpResultValue(res, res');
       }
       case Failure(_) => {
-        assert res0'.Failure?;
         assert EqInterpResultValue(res, res');
       }
     }
@@ -614,10 +613,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
             EqInterp_Expr_FunctionCall_CanBeMapLifted(e, e', env, argvs[0], argvs'[0], argvs[1..], argvs'[1..]);
             assert EqInterpResultValue(res, res');
           }
-          case _ => {
-            // Impossible branch
-            assert false;
-          }
+          case _ =>
         }
       }
       case (Failure(_), Failure(_)) => {
@@ -625,10 +621,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
         assert res'.Failure?;
         assert EqInterpResultValue(res, res');
       }
-      case _ => {
-        // Impossible branch
-        assert false;
-      }
+      case _ =>
     }
   }
 

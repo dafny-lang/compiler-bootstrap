@@ -13,6 +13,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   // This module implements a simple pass, which simplifies the empty blocks in a program.
   //
   // We do the following:
+  //
   // 1. we filter the expressions which are empty blocks in blocks of expressions (``FilterEmptyBlocks``):
   //   ```
   //   var x := f();
@@ -30,6 +31,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   //   h();
   //   ...
   //   ```
+  //
   // 2. we inline the blocks which end blocks (note that we can't other blocks because of scoping
   //   issues) (``InlineLastBlock``):
   //   ```
@@ -45,6 +47,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   //   g();
   //   h();
   //   ```
+  //
   // 3. We simplify the `if then else` expressions when their branches contain empty blocks (``SimplifyIfThenElse``):
   //    ```
   //    if b then {} else {} --> {}
