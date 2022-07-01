@@ -13,18 +13,18 @@ module Bootstrap.Transforms.Generic {
   {}
 
   datatype Transformer_<!A(!new), !B> = // FIXME(CPC): Remove rel
-    TR(f: A --> B, ghost post: B -> bool, ghost rel: (A,B) -> bool)
+    TR(f: A --> B, ghost post: B -> bool)
   {
     predicate HasValidPost() {
       forall a: A | f.requires(a) :: post(f(a))
     }
 
-    predicate HasValidRel() {
+    predicate HasValidRel(rel: (A,B) -> bool) {
       forall a: A | f.requires(a) :: rel(a, f(a))
     }
 
     predicate Valid?() {
-      forall a | f.requires(a) :: HasValidPost() && HasValidRel()
+      forall a | f.requires(a) :: HasValidPost()
     }
   }
 
