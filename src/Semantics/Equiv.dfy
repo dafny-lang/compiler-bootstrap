@@ -74,7 +74,7 @@ module Bootstrap.Semantics.Equiv {
     // - if `res` is not success, then there are no conditions on `res'`
     //
     // We do this because:
-    // - our passes sometimes generate program which fail less (because some expressions were filtered
+    // - our passes sometimes generate programs that fail less (because some expressions were filtered out,
     //   for instance)
     // - but the original programs are supposed to be proven as never failing (under the proper preconditions)
     //
