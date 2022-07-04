@@ -61,9 +61,7 @@ module Bootstrap.Semantics.Pure {
 
   predicate InterpResultHasState<T>(res: InterpResult<T>, ctx: State)
   {
-    match res
-      case Success(Return(v, ctx')) => ctx' == ctx
-      case Failure(_) => true
+    res.Success? ==> res.value.ctx == ctx
   }
 
   lemma InterpExpr_IsPure_SameState(e: PureExpr, env: Environment, ctx: State)
