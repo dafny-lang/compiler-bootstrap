@@ -1065,8 +1065,8 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     }
     else {
       // Evaluate the first expression
-      var res0 := InterpExpr(es[0], env, ctx);
-      var res0' := InterpExpr(es'[0], env, ctx');
+      var res0 := InterpExprWithType(es[0], Types.Unit, env, ctx);
+      var res0' := InterpExprWithType(es'[0], Types.Unit, env, ctx');
       EqInterp_Inst(es[0], es'[0], env, ctx, ctx');
 
       // Evaluate the remaining expressions
