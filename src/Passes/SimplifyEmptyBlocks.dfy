@@ -326,7 +326,6 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
       ensures EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(InlineLastBlock_Seq(es), env, ctx'))
     {
       reveal InterpBlock_Exprs();
-      //reveal Seq.Filter();
 
       var es' := InlineLastBlock_Seq(es);
 
@@ -470,5 +469,133 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
         EqInterp_Refl(e);
       }
     }
+
+    // TODO: factorize with ``EliminateNegatedBinops``?
+    function method NegateExpr(e: Expr): (e':Expr)
+      ensures SupportsInterp(e) ==> SupportsInterp(e')
+    {
+      reveal SupportsInterp();
+      Exprs.Apply(Exprs.Eager(Exprs.UnaryOp(UnaryOps.BoolNot)), [e])
+    }
+
+    // TODO: factorize with ``EliminateNegatedBinops``?
+    lemma InterpExpr_NegateExpr(e: Expr, env: Environment, ctx: State)
+      requires SupportsInterp(e)
+      ensures
+        match InterpExpr(e, env, ctx)
+          case Failure(_) => true
+          case Success(Return(v, ctx1)) =>
+            match InterpExpr(NegateExpr(e), env, ctx)
+            case Failure(_) => !v.Bool?
+            case Success(Return(v', ctx1')) =>
+              && v.Bool?
+              && v'.Bool?
+              && v.b == !v'.b
+              && ctx1' == ctx1
+    {
+      var res := InterpExpr(e, env, ctx);
+      var e' := NegateExpr(e);
+      var res' := InterpExpr(e', env, ctx);
+
+      var args := [e];
+      var args_res := InterpExprs(args, env, ctx);
+      InterpExprs1_Strong_Eq(e, env, ctx);
+
+      reveal InterpExpr();
+      
+      if args_res.Success? {
+        reveal InterpUnaryOp();
+      }
+      else {}
+    }
+
+    function method NegateIfThenElse_Single(e: Expr): (e': Expr)
+      ensures SupportsInterp(e) ==> SupportsInterp(e')
+      // Auxiliary transformation: `if b then e0 else e1 ---> if !b then e1 else e0`
+    {
+      reveal SupportsInterp();
+      if e.If? then Expr.If(NegateExpr(e.cond), e.els, e.thn)
+      else e
+    }
+    
+    
+    lemma NegateIfThenElse_Single_Rel(e: Expr)
+      ensures Tr_Expr_Rel(e, NegateIfThenElse_Single(e))
+    {
+      if e.If? && SupportsInterp(e) {
+        var e' := NegateIfThenElse_Single(e);
+        
+        reveal SupportsInterp();
+
+        forall env, ctx, ctx' | EqState(ctx, ctx')
+          ensures EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e', env, ctx'))
+        {
+          var res := InterpExpr(e, env, ctx);
+          var res' := InterpExpr(e', env, ctx);
+
+          var res0 := InterpExprWithType(e.cond, Type.Bool, env, ctx);
+          var res0' := InterpExprWithType(e.cond, Type.Bool, env, ctx');
+
+          EqInterp_Refl(e.cond);
+          EqInterp_Inst(e.cond, e.cond, env, ctx, ctx');
+          
+          var res0'' := InterpExprWithType(e'.cond, Type.Bool, env, ctx');
+          InterpExpr_NegateExpr(e.cond, env, ctx');
+
+          reveal InterpExpr();
+          if res.Success? {
+            assert res0'.Success?;
+            assert res0''.Success?;
+
+            var Return(b, ctx0) := res0.value;
+            var Return(b'', ctx0'') := res0''.value;
+
+            assert b.Bool? && b''.Bool? && b.b == !b''.b;
+
+            EqInterp_Refl(e.thn);
+            EqInterp_Inst(e.thn, e.thn, env, ctx0, ctx0'');
+            EqInterp_Refl(e.els);
+            EqInterp_Inst(e.els, e.els, env, ctx0, ctx0'');
+          }
+          else {}
+        }
+
+        assert SupportsInterp(e');
+      }
+      else {
+        EqInterp_Refl(e);
+      }
+    }
+
+    function method NegateIfThenElseIfEmptyThen_Single(e: Expr): (e': Expr)
+      ensures SupportsInterp(e) ==> SupportsInterp(e')
+      // Tranformation 3.2: `if b then {} else e ---> if !b then e else {}`
+    {
+      reveal SupportsInterp();
+      if e.If? && IsEmptyBlock(e.thn) then NegateIfThenElse_Single(e)
+      else e
+    }
+
+    lemma NegateIfThenElseIfEmptyThen_Single_Rel(e: Expr)
+      ensures Tr_Expr_Rel(e, NegateIfThenElseIfEmptyThen_Single(e))
+    {
+      if e.If? && IsEmptyBlock(e.thn) {
+        NegateIfThenElse_Single_Rel(e);
+      }
+      else {
+        EqInterp_Refl(e);
+      }
+    }
+
+    function method Simplify_Single(e: Expr): (e': Expr)
+      ensures SupportsInterp(e) ==> SupportsInterp(e')
+      // The full transformation 3
+    {
+      reveal SupportsInterp();
+      var e1 := SimplifyEmptyIfThenElse_Single(e);
+      var e2 := NegateIfThenElseIfEmptyThen_Single(e1);
+      e2
+    }
+    
   }
 }
