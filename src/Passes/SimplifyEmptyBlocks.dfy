@@ -116,7 +116,7 @@ module FilterCommon {
   // TODO: move?
   predicate method IsNonEmptyBlock(e: Expr)
   {
-    !(IsEmptyBlock(e))
+    !IsEmptyBlock(e)
   }
 
   predicate Tr_Expr_Post(e: Expr) {
