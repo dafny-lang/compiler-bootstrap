@@ -61,10 +61,9 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   //
   // Rk.: pass 3. removes expressions that might fail. A pass like (3.) is correct because, following definition of ``EqInterp``, the original program (before simplification) is assumed to not fail. 
   //
-  // Rk.: one reason why we need those passes is that we transform the let binding expressions
-  // coming from the Dafny ASTs to statements (more specifically, blocks containing variable
-  // declarations) in the Dafny-in-Dafny AST. This leads to the introduction of unnecessary
-  // blocks and hurts clarity when outputting code:
+  // Rk.: one reason why we need these passes is that Dafny-in-Dafny unifies let
+  // expressions and variable-declaration statements. For let expressions, this
+  // can lead to the introduction of unnecessary blocks and hurt readability.
   //   ```
   //   var x := 3; // let-binding expression
   //   var y := true; // let-binding expression
