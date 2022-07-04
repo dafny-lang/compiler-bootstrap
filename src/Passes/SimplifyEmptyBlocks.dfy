@@ -59,7 +59,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   // some blocks might lead to the simplification of some `if then else` branches which might in
   // turn lead to the simplification of other blocks, etc.
   //
-  // Rk.: pass 3. removes expressions which might fail  a pass like 3. is correct, because following definition of ``EqInterp`` 
+  // Rk.: pass 3. removes expressions that might fail. A pass like (3.) is correct because, following definition of ``EqInterp``, the original program (before simplification) is assumed to not fail. 
   //
   // Rk.: one reason why we need those passes is that we transform the let binding expressions
   // coming from the Dafny ASTs to statements (more specifically, blocks containing variable
