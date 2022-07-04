@@ -114,7 +114,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
     }
 
     // TODO: move?
-    predicate method IsNonEmptyBlock(e: Expr)
+    predicate method IsNotEmptyBlock(e: Expr)
     {
       !IsEmptyBlock(e)
     }
@@ -152,7 +152,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
       ensures Seq_All(SupportsInterp, es) ==> Seq_All(SupportsInterp, es')
       ensures |es| >= |es'|
     {
-      Seq.Filter(es, IsNonEmptyBlock)
+      Seq.Filter(es, IsNotEmptyBlock)
     }
 
     function method FilterEmptyBlocks_Single(e: Expr): Expr
