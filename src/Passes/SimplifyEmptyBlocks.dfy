@@ -15,7 +15,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   //
   // We do the following:
   //
-  // 1. we filter the expressions which are empty blocks in blocks of expressions (``FilterEmptyBlocks``):
+  // 1. we filter empty blocks in blocks of expressions (``FilterEmptyBlocks``):
   //   ```
   //   var x := f();
   //   g();
