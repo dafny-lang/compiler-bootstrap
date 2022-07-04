@@ -28,6 +28,7 @@ module Bootstrap.Semantics.Equiv {
   type Context = Values.Context
 
   // TODO(SMH): move
+  // TODO(SMH): it should be equivalent to use ``Seq.All`` instead, but doing so breaks proofs.
   predicate Seq_All<T>(f: T -> bool, s: seq<T>)
   {
     forall x | x in s :: f(x)
@@ -74,11 +75,11 @@ module Bootstrap.Semantics.Equiv {
     // - if `res` is not success, then there are no conditions on `res'`
     //
     // We do this because:
-    // - our passes sometimes generate program which fail less (because some expressions were filtered
+    // - our passes sometimes generate programs that fail less (because some expressions were filtered out,
     //   for instance)
     // - but the original programs are supposed to be proven as never failing (under the proper preconditions)
     //
-    // For instance, the following transformations generate programs which fail stricly less:
+    // For instance, the following transformations generate programs that fail strictly less:
     // ```
     // if b then {} else {} ---> {} // Evaluating b may fail
     // g(); f(); {} ---> g(); f()   // Original program: fails if f() doesn't evaluate to unit
@@ -94,7 +95,7 @@ module Bootstrap.Semantics.Equiv {
     // - ``EqInterpResultSeq1Value``
   {
     match (res, res') {
-      case (Success(Return(v,ctx)), Success(Return(v',ctx'))) =>
+      case (Success(Return(v, ctx)), Success(Return(v', ctx'))) =>
         && eq_ctx(ctx, ctx')
         && eq_value(v, v')
       case (Failure(_), _) =>
@@ -123,7 +124,8 @@ module Bootstrap.Semantics.Equiv {
     requires fn.Closure?
     requires |fn.vars| == |argvs|
     ensures InterpFunctionCall(e, env, fn, argvs) == InterpCallFunctionBody(fn, env.(fuel := env.fuel - 1), argvs)
-    // We do need this lemma, though the reason why we need it is strange: the result is trivial by definition
+    // DISCUSS: We *do* need this lemma, though the reason why we need it is strange: the
+    // result is trivial by definition, but sometimes I can't prove it in a bigger context.
   {
     reveal InterpFunctionCall();
     reveal InterpCallFunctionBody();

@@ -11,11 +11,11 @@ include "../Transforms/BottomUp.dfy"
 include "EliminateNegatedBinops.dfy"
 
 module Bootstrap.Passes.SimplifyEmptyBlocks {
-  // This module implements a simple pass, which simplifies the empty blocks in a program.
+  // This module implements a pass that simplifies empty blocks in a program.
   //
   // We do the following:
   //
-  // 1. we filter the expressions which are empty blocks in blocks of expressions (``FilterEmptyBlocks``):
+  // 1. we filter empty blocks in blocks of expressions (``FilterEmptyBlocks``):
   //   ```
   //   var x := f();
   //   g();
@@ -33,7 +33,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   //   ...
   //   ```
   //
-  // 2. we inline the blocks which end blocks (note that we can't other blocks because of scoping
+  // 2. we inline the blocks that end blocks (note that we can't inline other blocks because of scoping
   //   issues) (``InlineLastBlock``):
   //   ```
   //   var x := f();
@@ -49,7 +49,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   //   h();
   //   ```
   //
-  // 3. We simplify the `if then else` expressions when their branches contain empty blocks (``SimplifyIfThenElse``):
+  // 3. We simplify `if then else` expressions when their branches contain empty blocks (``SimplifyIfThenElse``):
   //    ```
   //    if b then {} else {} --> {} // if b is pure
   //    if b then {} else e --> if !b then e else {} // This allows us to only print `if !b then e` in the output program
@@ -59,12 +59,11 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   // some blocks might lead to the simplification of some `if then else` branches which might in
   // turn lead to the simplification of other blocks, etc.
   //
-  // Rk.: pass 3. removes expressions which might fail  a pass like 3. is correct, because following definition of ``EqInterp`` 
+  // Rk.: pass 3. removes expressions that might fail. A pass like (3.) is correct because, following definition of ``EqInterp``, the original program (before simplification) is assumed to not fail. 
   //
-  // Rk.: one reason why we need those passes is that we transform the let binding expressions
-  // coming from the Dafny ASTs to statements (more specifically, blocks containing variable
-  // declarations) in the Dafny-in-Dafny AST. This leads to the introduction of unnecessary
-  // blocks and hurts clarity when outputting code:
+  // Rk.: one reason why we need these passes is that Dafny-in-Dafny unifies let
+  // expressions and variable-declaration statements. For let expressions, this
+  // can lead to the introduction of unnecessary blocks and hurt readability.
   //   ```
   //   var x := 3; // let-binding expression
   //   var y := true; // let-binding expression
@@ -115,9 +114,9 @@ module FilterCommon {
   }
 
   // TODO: move?
-  predicate method IsNonEmptyBlock(e: Expr)
+  predicate method IsNotEmptyBlock(e: Expr)
   {
-    !(IsEmptyBlock(e))
+    !IsEmptyBlock(e)
   }
 
   predicate Tr_Expr_Post(e: Expr) {
@@ -153,7 +152,7 @@ module FilterEmptyBlocks {
     ensures Seq_All(SupportsInterp, es) ==> Seq_All(SupportsInterp, es')
     ensures |es| >= |es'|
   {
-    Seq.Filter(es, IsNonEmptyBlock)
+    Seq.Filter(es, IsNotEmptyBlock)
   }
 
   function method FilterEmptyBlocks_Single(e: Expr): Expr

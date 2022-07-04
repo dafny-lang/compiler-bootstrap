@@ -1,5 +1,4 @@
-
-  include "../Interop/CSharpDafnyASTModel.dfy"
+include "../Interop/CSharpDafnyASTModel.dfy"
 include "../Interop/CSharpInterop.dfy"
 include "../Interop/CSharpDafnyInterop.dfy"
 include "../Interop/CSharpDafnyASTInterop.dfy"
@@ -42,7 +41,7 @@ module Bootstrap.Semantics.Pure {
                   case Display(_) => true
                   case Print => false // For now, we actually don't model the fact that `Print` has side effects
                 }
-              case FunctionCall() => true // TODO(SMH): ok for now because we only have terminating functions
+              case FunctionCall() => true // TODO(SMH): ok for now because we only have terminating, pure functions
               case DataConstructor(_, _) => true
             }
         }
@@ -61,9 +60,7 @@ module Bootstrap.Semantics.Pure {
 
   predicate InterpResultHasState<T>(res: InterpResult<T>, ctx: State)
   {
-    match res
-      case Success(Return(v, ctx')) => ctx' == ctx
-      case Failure(_) => true
+    res.Success? ==> res.value.ctx == ctx
   }
 
   lemma InterpExpr_IsPure_SameState(e: PureExpr, env: Environment, ctx: State)
