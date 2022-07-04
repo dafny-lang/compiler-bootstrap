@@ -68,11 +68,19 @@ module Bootstrap.AST.Predicates {
           decreases e, 1
           ensures All_Expr(e, Q)
 
-        //
-        // Miscelleanous
-        //
+        lemma All_Expr_True(e: Expr, f: Expr -> bool)
+          requires forall e :: f(e)
+          ensures All_Expr(e, f)
+          decreases e, 1
 
-        function IsTrue(e:Expr): bool { true }
+        lemma AllChildren_Expr_True(e: Expr, f: Expr -> bool)
+          requires forall e :: f(e)
+          ensures AllChildren_Expr(e, f)
+          decreases e, 0
+
+        lemma All_Expr_True_Forall(f: Expr -> bool)
+          requires forall e :: f(e)
+          ensures forall e :: All_Expr(e, f)
       }
 
       module Rec refines Base { // DISCUSS
@@ -114,31 +122,6 @@ module Bootstrap.AST.Predicates {
           }
         }
 
-        lemma All_Expr_True(e: Expr, f: Expr -> bool)
-          requires forall e :: f(e)
-          ensures All_Expr(e, f)
-          decreases e, 1
-        {
-          AllChildren_Expr_True(e, f);
-        }
-
-        lemma AllChildren_Expr_True(e: Expr, f: Expr -> bool)
-          requires forall e :: f(e)
-          ensures AllChildren_Expr(e, f)
-          decreases e, 0
-        {
-          forall e' | e' in e.Children() { All_Expr_True(e', f); }
-        }
-
-        lemma All_Expr_True_Forall(f: Expr -> bool)
-          requires forall e :: f(e)
-          ensures forall e :: All_Expr(e, f)
-        {
-          forall e ensures All_Expr(e, f) {
-            All_Expr_True(e, f);
-          }
-        }
-
         lemma AllImpliesChildren ... {}
 
         lemma All_Expr_weaken ... {
@@ -148,6 +131,21 @@ module Bootstrap.AST.Predicates {
         lemma AllChildren_Expr_weaken ... { // NEAT
           forall e' | e' in e.Children() { All_Expr_weaken(e', P, Q); }
         }
+
+        lemma All_Expr_True ... {
+          AllChildren_Expr_True(e, f);
+        }
+
+        lemma AllChildren_Expr_True ... {
+          forall e' | e' in e.Children() { All_Expr_True(e', f); }
+        }
+
+        lemma All_Expr_True_Forall ... {
+          forall e ensures All_Expr(e, f) {
+            All_Expr_True(e, f);
+          }
+        }
+
       }
 
       module NonRec refines Base {
@@ -161,31 +159,6 @@ module Bootstrap.AST.Predicates {
           forall e' | e' in e.Children() :: All_Expr(e', P)
         }
 
-        lemma All_Expr_True(e: Expr, f: Expr -> bool)
-          requires forall e :: f(e)
-          ensures All_Expr(e, f)
-          decreases e, 1
-        {
-          AllChildren_Expr_True(e, f);
-        }
-
-        lemma AllChildren_Expr_True(e: Expr, f: Expr -> bool)
-          requires forall e :: f(e)
-          ensures AllChildren_Expr(e, f)
-          decreases e, 0
-        {
-          forall e' | e' in e.Children() { All_Expr_True(e', f); }
-        }
-
-        lemma All_Expr_True_Forall(f: Expr -> bool)
-          requires forall e :: f(e)
-          ensures forall e :: All_Expr(e, f)
-        {
-          forall e ensures All_Expr(e, f) {
-            All_Expr_True(e, f);
-          }
-        }
-
         lemma AllImpliesChildren ... {}
 
         lemma AllChildren_Expr_weaken ... {
@@ -195,6 +168,21 @@ module Bootstrap.AST.Predicates {
         lemma All_Expr_weaken ... {
           AllChildren_Expr_weaken(e, P, Q);
         }
+
+        lemma All_Expr_True ... {
+          AllChildren_Expr_True(e, f);
+        }
+
+        lemma AllChildren_Expr_True ... {
+          forall e' | e' in e.Children() { All_Expr_True(e', f); }
+        }
+
+        lemma All_Expr_True_Forall ... {
+          forall e ensures All_Expr(e, f) {
+            All_Expr_True(e, f);
+          }
+        }
+
       }
 
       module Equiv {
