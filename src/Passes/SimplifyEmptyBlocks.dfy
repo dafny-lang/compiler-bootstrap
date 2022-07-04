@@ -220,6 +220,9 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
             assert InterpBlock(es[0].stmts, env, ctx) == InterpBlock_Exprs([], env, ctx);
           }
 
+          // Doesn't work without this assertion
+          assert res0 == InterpExprWithType(es[0], Types.Unit, env, ctx);
+
           assert es' == FilterEmptyBlocks_Seq(es[1..]);
           FilterEmptyBlocks_Seq_Rel(es[1..], env, ctx, ctx');
         }
@@ -595,7 +598,8 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
       var e1 := SimplifyEmptyIfThenElse_Single(e);
       var e2 := NegateIfThenElseIfEmptyThen_Single(e1);
       e2
-    }
-    
+    } 
   }
+
+  
 }
