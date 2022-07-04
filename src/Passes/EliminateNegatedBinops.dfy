@@ -10,8 +10,6 @@ include "../Transforms/BottomUp.dfy"
 
 module Bootstrap.Passes.EliminateNegatedBinops {
   // TODO(SMH): I don't manage to make ``EliminateNegatedBinops`` refine ``Pass``
-  // TODO(SMH): the above refactoring might actually hurt, as ``SimplifyEmptyBlocks`` actually
-  // reuses some of the proofs of ``EliminateNegatedBinops``.
   // This module implements a simple pass, by which we decompose the "negated" binops
   // into a negation of the "original" binop.
   //
@@ -119,12 +117,11 @@ module Bootstrap.Passes.EliminateNegatedBinops {
           && b.Bool?
           && b'.Bool?
           && b.b == ! b'.b
-        case (Failure(_), _) =>
+        case (Failure(_), Failure(_)) =>
           true
         case _ =>
           false)
   {
-    assume TODO();
     reveal InterpBinaryOp();
     EqValue_HasEqValue_Eq(v0, v0');
     EqValue_HasEqValue_Eq(v1, v1');

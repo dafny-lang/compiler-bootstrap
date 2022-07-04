@@ -906,7 +906,7 @@ module Bootstrap.Semantics.Interp {
     else if |es| == 1 then
       InterpExpr(es[0], env, ctx)
     else
-      // Evaluate the first expression
+      // Evaluate the first expression - TODO: use InteprExprWithType
       var Return(val, ctx) :- InterpExpr(es[0], env, ctx);
       // This expression must actually evaluate to `Unit`
       :- Need(val == V.Unit, TypeError(es[0], val, Types.Unit));
