@@ -322,6 +322,16 @@ module Bootstrap.Transforms.BottomUp {
     reveal Shallow.Map_Program();
     Map_Method_PreservesRel(p.mainMethod, tr, rel);
   }
+
+  lemma TransformationAndRel_Lift(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
+    requires RelIsTransitive(rel)
+    requires RelCanBeMapLifted(rel)
+    requires TransformerShallowPreservesRel(f, rel)
+    ensures TransformerDeepPreservesRel(f, rel)
+    // Lifting lemma for a relation like ``EqInterp``: under some conditions on
+    // the relation, it is possible to simply prove that `f` links its input
+    // and output with `rel` to be able to lift it through map.
+  {}
 }
 
 module Bootstrap.Transforms.Proofs.BottomUp_ {
@@ -1088,8 +1098,6 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     }
   }
 
-
-
   lemma EqInterp_Expr_Block_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
     requires e.Block?
     requires e'.Block?
@@ -1142,5 +1150,31 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       }
       else {}
     }
+  }
+  
+  // TODO(SMH): move? (or even remove?)
+  lemma EqInterp_CanBeComposed(f: Expr --> Expr, g: Expr --> Expr)
+    requires TransformerShallowPreservesRel(f, EqInterp)
+    requires TransformerShallowPreservesRel(g, EqInterp)
+    requires forall x | f.requires(x) :: g.requires(f(x))
+    ensures TransformerShallowPreservesRel(Comp(f, g), EqInterp)
+  {
+    forall e | f.requires(e) ensures EqInterp(e, g(f(e)))
+    {
+      assert EqInterp(e, f(e));
+      assert EqInterp(f(e), g(f(e)));
+      EqInterp_Trans(e, f(e), g(f(e)));
+    }
+  }
+
+  lemma EqInterp_Lift(f: Expr --> Expr)
+    requires TransformerShallowPreservesRel(f, EqInterp)
+    ensures TransformerDeepPreservesRel(f, EqInterp)
+    // It is enough to prove that `f` links its input and output with ``EqInterp``
+    // to be able to lift it through map.
+  {
+     EqInterp_IsTransitive();
+     EqInterp_CanBeMapLifted();
+     TransformationAndRel_Lift(f, EqInterp); 
   }
 }
