@@ -33,7 +33,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   //   ...
   //   ```
   //
-  // 2. we inline the blocks which end blocks (note that we can't other blocks because of scoping
+  // 2. we inline the blocks which end blocks (note that we can't inline other blocks because of scoping
   //   issues) (``InlineLastBlock``):
   //   ```
   //   var x := f();
