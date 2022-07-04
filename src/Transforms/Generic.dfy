@@ -28,6 +28,14 @@ module Bootstrap.Transforms.Generic {
     }
   }
 
+  // TODO(SMH): remove?
+  function method Comp<A(!new),B,C>(f: A --> B, g: B --> C): (A --> C)
+    requires forall x | f.requires(x) :: g.requires(f(x))
+    // Compose two transformations
+  {
+    x requires f.requires(x) => g(f(x))
+  }
+
   type Transformer<!A(!new), !B> = tr: Transformer_<A, B> | tr.Valid?()
     witness *
 

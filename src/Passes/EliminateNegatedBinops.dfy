@@ -225,22 +225,13 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     ensures MapChildrenPreservesPre(Tr_Expr_Single,Tr_Expr_Post)
   {}
 
-  lemma TransformationAndRel_Lift(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
-    requires RelIsTransitive(rel)
-    requires RelCanBeMapLifted(rel)
-    requires TransformerShallowPreservesRel(f, rel)
-    ensures TransformerDeepPreservesRel(f, rel)
-  {}
-
   lemma TrPreservesRel()
     ensures TransformerDeepPreservesRel(Tr_Expr_Single, Tr_Expr_Rel)
   {
     var f := Tr_Expr_Single;
     var rel := Tr_Expr_Rel;
 
-    EqInterp_IsTransitive();
-    EqInterp_CanBeMapLifted();
-    TransformationAndRel_Lift(f, rel);
+    EqInterp_Lift(f);
   }
 
   const Tr_Expr : BottomUpTransformer :=
@@ -259,23 +250,6 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     Deep.All_Program(p, Tr_Expr_Post)
   }
 
-  lemma Tr_Pre_Expr_IsTrue(e: Expr)
-    ensures Deep.All_Expr(e, Tr_Expr.f.requires)
-    decreases e, 1
-  // It is not obvious that `Deep.All_Expr(e, _ => true)` is true...
-  // Also, because the functions encoding is not very precise, we can't
-  // use the lemma ``Deep.All_Expr_true``.
-  {
-    Tr_Pre_ChildrenExpr_IsTrue(e);
-  }
-
-  lemma Tr_Pre_ChildrenExpr_IsTrue(e: Expr)
-    ensures Deep.AllChildren_Expr(e, Tr_Expr.f.requires)
-    decreases e, 0
-  {
-    forall e' | e' in e.Children() { Tr_Pre_Expr_IsTrue(e'); }
-  }
-
   function method Apply_Method(m: Method) : (m': Method)
     ensures Deep.All_Method(m', Tr_Expr_Post)
     ensures Tr_Expr_Rel(m.methodBody, m'.methodBody)
@@ -287,7 +261,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     // remove this definition and exclusively use `Apply`.
   {
 
-    Tr_Pre_Expr_IsTrue(m.methodBody);
+    Deep.All_Expr_True_Forall(Tr_Expr.f.requires);
     assert Deep.All_Method(m, Tr_Expr.f.requires);
     TrPreservesRel();
     Map_Method_PreservesRel(m, Tr_Expr, Tr_Expr_Rel);
@@ -300,7 +274,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     ensures Tr_Expr_Rel(p.mainMethod.methodBody, p'.mainMethod.methodBody)
     // Apply the transformation to a program.
   {
-    Tr_Pre_Expr_IsTrue(p.mainMethod.methodBody);
+    Deep.All_Expr_True_Forall(Tr_Expr.f.requires);
     assert Deep.All_Program(p, Tr_Expr.f.requires);
     TrPreservesRel();
     Map_Program_PreservesRel(p, Tr_Expr, Tr_Expr_Rel);
