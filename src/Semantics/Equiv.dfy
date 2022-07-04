@@ -123,7 +123,8 @@ module Bootstrap.Semantics.Equiv {
     requires fn.Closure?
     requires |fn.vars| == |argvs|
     ensures InterpFunctionCall(e, env, fn, argvs) == InterpCallFunctionBody(fn, env.(fuel := env.fuel - 1), argvs)
-    // We do need this lemma, though the reason why we need it is strange: the result is trivial by definition
+    // DISCUSS: We *do* need this lemma, though the reason why we need it is strange: the
+    // result is trivial by definition, but sometimes I can't prove it in a bigger context.
   {
     reveal InterpFunctionCall();
     reveal InterpCallFunctionBody();
