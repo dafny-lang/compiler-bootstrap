@@ -947,11 +947,11 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       reveal InterpFunctionCall();
       var Closure(ctx, vars, body) := f;
       var Closure(ctx', vars', body') := f';
-      
+
       assert |vars| == |vars'| == |argvs| == |argvs'| by {
         reveal EqValue_Closure();
       }
-      
+
       var res0 := InterpCallFunctionBody(f, env.(fuel := env.fuel - 1), argvs);
       var res0' := InterpCallFunctionBody(f', env.(fuel := env.fuel - 1), argvs');
 
@@ -1073,7 +1073,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       if res0.Success? && res0.value.ret == V.Unit {
         var Return(_, ctx0) := res0.value;
         var Return(_, ctx0') := res0'.value;
-        
+
         var res1 := InterpBlock_Exprs(es[1..], env, ctx0);
         var res1' := InterpBlock_Exprs(es'[1..], env, ctx0');
 
