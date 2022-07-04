@@ -49,7 +49,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   //   h();
   //   ```
   //
-  // 3. We simplify the `if then else` expressions when their branches contain empty blocks (``SimplifyIfThenElse``):
+  // 3. We simplify `if then else` expressions when their branches contain empty blocks (``SimplifyIfThenElse``):
   //    ```
   //    if b then {} else {} --> {} // if b is pure
   //    if b then {} else e --> if !b then e else {} // This allows us to only print `if !b then e` in the output program
