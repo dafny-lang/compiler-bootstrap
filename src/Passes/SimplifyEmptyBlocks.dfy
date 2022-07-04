@@ -11,7 +11,7 @@ include "../Transforms/BottomUp.dfy"
 include "EliminateNegatedBinops.dfy"
 
 module Bootstrap.Passes.SimplifyEmptyBlocks {
-  // This module implements a simple pass, which simplifies the empty blocks in a program.
+  // This module implements a pass that simplifies empty blocks in a program.
   //
   // We do the following:
   //
