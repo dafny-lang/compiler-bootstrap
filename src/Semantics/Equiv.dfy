@@ -78,7 +78,7 @@ module Bootstrap.Semantics.Equiv {
     //   for instance)
     // - but the original programs are supposed to be proven as never failing (under the proper preconditions)
     //
-    // For instance, the following transformations generate programs which fail stricly less:
+    // For instance, the following transformations generate programs that fail strictly less:
     // ```
     // if b then {} else {} ---> {} // Evaluating b may fail
     // g(); f(); {} ---> g(); f()   // Original program: fails if f() doesn't evaluate to unit
