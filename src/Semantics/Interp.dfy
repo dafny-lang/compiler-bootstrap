@@ -894,6 +894,10 @@ module Bootstrap.Semantics.Interp {
     Success(val)
   }
 
+  // TODO(SMH): update this to not enforce the intermediary blocks to evaluate to `Unit`,
+  // and use ``InterpExprs``. We will add a condition on ``Expr`` stating that there can't
+  // be empty blocks, and will use `{ () }` as a placeholder for an empty block whenever
+  // we need to use one.
   function method {:opaque} InterpBlock_Exprs(es: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
     decreases env.fuel, es, 0
