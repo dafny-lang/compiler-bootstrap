@@ -94,7 +94,7 @@ module Bootstrap.Semantics.Equiv {
     // - ``EqInterpResultSeq1Value``
   {
     match (res, res') {
-      case (Success(Return(v,ctx)), Success(Return(v',ctx'))) =>
+      case (Success(Return(v, ctx)), Success(Return(v', ctx'))) =>
         && eq_ctx(ctx, ctx')
         && eq_value(v, v')
       case (Failure(_), _) =>
