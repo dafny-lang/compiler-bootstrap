@@ -114,18 +114,29 @@ module Bootstrap.AST.Predicates {
           }
         }
 
-        lemma All_Expr_true(e: Expr)
-          ensures All_Expr(e, IsTrue)
+        lemma All_Expr_True(e: Expr, f: Expr -> bool)
+          requires forall e :: f(e)
+          ensures All_Expr(e, f)
           decreases e, 1
         {
-          AllChildren_Expr_true(e);
+          AllChildren_Expr_True(e, f);
         }
 
-        lemma AllChildren_Expr_true(e: Expr)
-          ensures AllChildren_Expr(e, IsTrue)
+        lemma AllChildren_Expr_True(e: Expr, f: Expr -> bool)
+          requires forall e :: f(e)
+          ensures AllChildren_Expr(e, f)
           decreases e, 0
         {
-          forall e' | e' in e.Children() { All_Expr_true(e'); }
+          forall e' | e' in e.Children() { All_Expr_True(e', f); }
+        }
+
+        lemma All_Expr_True_Forall(f: Expr -> bool)
+          requires forall e :: f(e)
+          ensures forall e :: All_Expr(e, f)
+        {
+          forall e ensures All_Expr(e, f) {
+            All_Expr_True(e, f);
+          }
         }
 
         lemma AllImpliesChildren ... {}
@@ -150,18 +161,29 @@ module Bootstrap.AST.Predicates {
           forall e' | e' in e.Children() :: All_Expr(e', P)
         }
 
-        lemma All_Expr_true(e: Expr)
-          ensures All_Expr(e, IsTrue)
+        lemma All_Expr_True(e: Expr, f: Expr -> bool)
+          requires forall e :: f(e)
+          ensures All_Expr(e, f)
           decreases e, 1
         {
-          AllChildren_Expr_true(e);
+          AllChildren_Expr_True(e, f);
         }
 
-        lemma AllChildren_Expr_true(e: Expr)
-          ensures AllChildren_Expr(e, IsTrue)
+        lemma AllChildren_Expr_True(e: Expr, f: Expr -> bool)
+          requires forall e :: f(e)
+          ensures AllChildren_Expr(e, f)
           decreases e, 0
         {
-          forall e' | e' in e.Children() { All_Expr_true(e'); }
+          forall e' | e' in e.Children() { All_Expr_True(e', f); }
+        }
+
+        lemma All_Expr_True_Forall(f: Expr -> bool)
+          requires forall e :: f(e)
+          ensures forall e :: All_Expr(e, f)
+        {
+          forall e ensures All_Expr(e, f) {
+            All_Expr_True(e, f);
+          }
         }
 
         lemma AllImpliesChildren ... {}

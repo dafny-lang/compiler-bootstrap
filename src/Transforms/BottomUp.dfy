@@ -10,318 +10,328 @@ include "../Transforms/Generic.dfy"
 include "../Transforms/Shallow.dfy"
 
 module Bootstrap.Transforms.BottomUp {
-    import opened AST.Syntax
-    import opened Utils.Lib
-    import opened AST.Predicates
-    import opened Semantics.Equiv
-    import opened Generic
-    import Shallow
+  import opened AST.Syntax
+  import opened Utils.Lib
+  import opened AST.Predicates
+  import opened Semantics.Equiv
+  import opened Generic
+  import Shallow
 
-    predicate MapChildrenPreservesPre(f: Expr --> Expr, post: Expr -> bool)
-      // This predicate gives us the conditions for which, if we deeply apply `f` to all
-      // the children of an expression, then the resulting expression satisfies the pre
-      // of `f` (i.e., we can call `f` on it).
-      //
-      // Given `e`, `e'`, if:
-      // - `e` and `e'` have the same constructor
-      // - `e` satisfies the pre of `f`
-      // - all the children of `e'` deeply satisfy the post of `f`
-      // Then:
-      // - `e'` satisfies the pre of `f`
-    {
-      forall e, e' ::
-         && Exprs.ConstructorsMatch(e, e')
-         && f.requires(e)
-         && Deep.AllChildren_Expr(e', post)
-         ==> f.requires(e')
+  predicate MapChildrenPreservesPre(f: Expr --> Expr, post: Expr -> bool)
+    // This predicate gives us the conditions for which, if we deeply apply `f` to all
+    // the children of an expression, then the resulting expression satisfies the pre
+    // of `f` (i.e., we can call `f` on it).
+    //
+    // Given `e`, `e'`, if:
+    // - `e` and `e'` have the same constructor
+    // - `e` satisfies the pre of `f`
+    // - all the children of `e'` deeply satisfy the post of `f`
+    // Then:
+    // - `e'` satisfies the pre of `f`
+  {
+    forall e, e' ::
+       && Exprs.ConstructorsMatch(e, e')
+       && f.requires(e)
+       && Deep.AllChildren_Expr(e', post)
+       ==> f.requires(e')
+  }
+
+  predicate TransformerMatchesPrePost(f: Expr --> Expr, post: Expr -> bool)
+    // This predicate gives us the conditions for which, if we deeply apply `f` to an
+    // expression, the resulting expression satisfies the postcondition we give for `f`.
+    //
+    // Given `e`, if:
+    // - all the children of `e` deeply satisfy the post of `f`
+    // - `e` satisfies the pre of `f`
+    // Then:
+    // - `f(e)` deeply satisfies the post of `f`
+  {
+    forall e: Expr | Deep.AllChildren_Expr(e, post) && f.requires(e) ::
+      Deep.All_Expr(f(e), post)
+  }
+
+  // FIXME(CPC) move?
+  predicate TransformerShallowPreservesRel(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
+    // `f` relates its input and its output with `rel`.
+  {
+    forall e | f.requires(e) :: rel(e, f(e))
+  }
+
+  predicate TransformerDeepPreservesRel(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
+    // This predicate is quite general, but is to be used in the following setting:
+    // if we apply `f` on all the children of `e`, leading to an expression `e'`, then we
+    // can relate `e` and `f(e')` with `rel`.
+  {
+    forall e, e' ::
+       && Exprs.ConstructorsMatch(e, e')
+       && f.requires(e')
+       && All_Rel_Forall(rel, e.Children(), e'.Children())
+       ==> rel(e, f(e'))
+  }
+
+  predicate IsBottomUpTransformer(f: Expr --> Expr, post: Expr -> bool)
+    // Predicate for ``BottomUpTransformer``
+  {
+    && TransformerMatchesPrePost(f, post)
+    && MapChildrenPreservesPre(f, post)
+  }
+
+  // Identity bottom-up transformer: we need it only because we need a witness when
+  // defining ``BottomUpTransformer``, to prove that the type is inhabited.
+  const IdentityTransformer: ExprTransformer :=
+    TR(d => d, _ => true)
+
+  predicate IdentityTransformerRel(e: Expr, e': Expr)
+  {
+    true
+  }
+
+  lemma IdentityMatchesPrePost()
+    ensures TransformerMatchesPrePost(IdentityTransformer.f, IdentityTransformer.post)
+  { }
+
+  lemma IdentityPreservesPre()
+    ensures MapChildrenPreservesPre(IdentityTransformer.f, IdentityTransformer.post)
+  { }
+
+  lemma IdentityPreservesRel()
+    ensures TransformerDeepPreservesRel(IdentityTransformer.f, IdentityTransformerRel)
+  { }
+
+  // FIXME(CPC): Move to equivs (use a datatype to make this a member function)
+  predicate RelCanBeMapLifted(rel: (Expr, Expr) -> bool)
+    // In many situations, the binary relation between the input and the output is transitive
+    // and can be lifted through the map function.
+  {
+    forall e, e' ::
+       && Exprs.ConstructorsMatch(e, e')
+       && All_Rel_Forall(rel, e.Children(), e'.Children())
+       ==> rel(e, e')
+  }
+
+  // A bottom-up transformer, i.e.: a transformer we can recursively apply bottom-up to
+  // an expression, and get the postcondition we expect on the resulting expression.
+  type BottomUpTransformer = tr: ExprTransformer | IsBottomUpTransformer(tr.f, tr.post)
+    witness (IdentityMatchesPrePost();
+             IdentityPreservesPre();
+             IdentityTransformer)
+
+  predicate TODO() { false }
+
+  function method MapChildren_Expr(e: Expr, tr: BottomUpTransformer) :
+    (e': Expr)
+    decreases e, 0
+    requires Deep.AllChildren_Expr(e, tr.f.requires)
+    ensures Deep.AllChildren_Expr(e', tr.post)
+    ensures Exprs.ConstructorsMatch(e, e')
+    // Apply a transformer bottom-up on the children of an expression.
+  {
+    // Not using datatype updates below to ensure that we get a warning if a
+    // type gets new arguments
+    match e {
+      case Var(_) => e
+      case Literal(lit_) => e
+      case Abs(vars, body) => Expr.Abs(vars, Map_Expr(body, tr))
+      case Apply(aop, exprs) =>
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
+        var e' := Expr.Apply(aop, exprs');
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
+      case Block(exprs) =>
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
+        var e' := Expr.Block(exprs');
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
+      case Bind(vars, vals, body) =>
+        assume TODO();
+        var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
+        Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
+        var e' := Expr.Bind(vars, vals', Map_Expr(body, tr));
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
+      case If(cond, thn, els) =>
+        var e' := Expr.If(Map_Expr(cond, tr), Map_Expr(thn, tr), Map_Expr(els, tr));
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
     }
+  }
 
-    predicate TransformerMatchesPrePost(f: Expr --> Expr, post: Expr -> bool)
-      // This predicate gives us the conditions for which, if we deeply apply `f` to an
-      // expression, the resulting expression satisfies the postcondition we give for `f`.
-      //
-      // Given `e`, if:
-      // - all the children of `e` deeply satisfy the post of `f`
-      // - `e` satisfies the pre of `f`
-      // Then:
-      // - `f(e)` deeply satisfies the post of `f`
-    {
-      forall e: Expr | Deep.AllChildren_Expr(e, post) && f.requires(e) ::
-        Deep.All_Expr(f(e), post)
+  function method Map_Expr(e: Expr, tr: BottomUpTransformer) : (e': Expr)
+    decreases e, 1
+    requires Deep.All_Expr(e, tr.f.requires)
+    ensures Deep.All_Expr(e', tr.post)
+    // Apply a transformer bottom-up on an expression.
+  {
+    Deep.AllImpliesChildren(e, tr.f.requires);
+    tr.f(MapChildren_Expr(e, tr))
+  }
+
+  function method MapChildren_Expr_WithRel(e: Expr, tr: BottomUpTransformer, ghost rel: (Expr, Expr) -> bool) :
+    (e': Expr)
+    decreases e, 0
+    requires Deep.AllChildren_Expr(e, tr.f.requires)
+    requires TransformerDeepPreservesRel(tr.f, rel)
+    ensures Deep.AllChildren_Expr(e', tr.post)
+    ensures Exprs.ConstructorsMatch(e, e')
+    ensures All_Rel_Forall(rel, e.Children(), e'.Children())
+    ensures e' == MapChildren_Expr(e, tr)
+    // Apply a transformer bottom-up on the children of an expression, and prove that it preserves a relation.
+  {
+    match e {
+      case Var(_) => e
+      case Literal(lit_) => e
+      case Abs(vars, body) => Expr.Abs(vars, Map_Expr_WithRel(body, tr, rel))
+      case Apply(aop, exprs) =>
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
+        var e' := Expr.Apply(aop, exprs');
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
+      case Block(exprs) =>
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
+        var e' := Expr.Block(exprs');
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
+      case Bind(vars, vals, body) =>
+        assume TODO();
+        var vals' := Seq.Map(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
+        Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
+        var e' := Expr.Bind(vars, vals', Map_Expr_WithRel(body, tr, rel));
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
+      case If(cond, thn, els) =>
+        var e' := Expr.If(Map_Expr_WithRel(cond, tr, rel), Map_Expr_WithRel(thn, tr, rel), Map_Expr_WithRel(els, tr, rel));
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
     }
+  }
 
-    // FIXME(CPC) move?
-    predicate TransformerShallowPreservesRel(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
-      // `f` relates its input and its output with `rel`.
+  function method Map_Expr_WithRel(e: Expr, tr: BottomUpTransformer, ghost rel: (Expr, Expr) -> bool) : (e': Expr)
+    decreases e, 1
+    requires Deep.All_Expr(e, tr.f.requires)
+    requires TransformerDeepPreservesRel(tr.f, rel)
+    ensures Deep.All_Expr(e', tr.post)
+    ensures rel(e, e')
+    ensures e' == Map_Expr(e, tr)
+    // Apply a transformer bottom-up on an expression, and prove that it preserves a relation.
+  {
+    Deep.AllImpliesChildren(e, tr.f.requires);
+    tr.f(MapChildren_Expr_WithRel(e, tr, rel))
+  }
+
+
+  lemma MapChildren_Expr_PreservesRel(e: Expr, tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
+    requires Deep.AllChildren_Expr(e, tr.f.requires)
+    requires TransformerDeepPreservesRel(tr.f, rel)
+    ensures All_Rel_Forall(rel, e.Children(), MapChildren_Expr(e, tr).Children())
+    // If `rel` preserves a relation, ``MapChildren_Expr`` preserves the same relation.
+  {
+    var _ := MapChildren_Expr_WithRel(e, tr, rel);
+  }
+
+  lemma Map_Expr_PreservesRel(e: Expr, tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
+    decreases e, 1
+    requires Deep.All_Expr(e, tr.f.requires)
+    requires TransformerDeepPreservesRel(tr.f, rel)
+    ensures rel(e, Map_Expr(e, tr))
+    // If `rel` preserves a relation, ``Map_Expr`` preserves the same relation.
+  {
+    var _ := Map_Expr_WithRel(e, tr, rel);
+  }
+
+  function method Map_Expr_Transformer(tr: BottomUpTransformer) :
+    (tr': ExprTransformer)
+    // Given a bottom-up transformer `tr`, return a transformer which applies `tr` in
+    // a bottom-up manner.
+  {
+    TR(e requires Deep.All_Expr(e, tr.f.requires) => Map_Expr(e, tr),
+       e' => Deep.All_Expr(e', tr.post))
+  }
+
+  lemma Map_Expr_Transformer_PreservesRel(tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
+    requires TransformerDeepPreservesRel(tr.f, rel)
+    ensures Map_Expr_Transformer(tr).HasValidRel(rel)
+  {
+    var tr' := Map_Expr_Transformer(tr);
+    forall e:Expr
+      ensures tr'.f.requires(e) ==> rel(e, tr'.f(e))
     {
-      forall e | f.requires(e) :: rel(e, f(e))
-    }
-
-    predicate TransformerDeepPreservesRel(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
-      // This predicate is quite general, but is to be used in the following setting:
-      // if we apply `f` on all the children of `e`, leading to an expression `e'`, then we
-      // can relate `e` and `f(e')` with `rel`.
-    {
-      forall e, e' ::
-         && Exprs.ConstructorsMatch(e, e')
-         && f.requires(e')
-         && All_Rel_Forall(rel, e.Children(), e'.Children())
-         ==> rel(e, f(e'))
-    }
-
-    predicate IsBottomUpTransformer(f: Expr --> Expr, post: Expr -> bool)
-      // Predicate for ``BottomUpTransformer``
-    {
-      && TransformerMatchesPrePost(f, post)
-      && MapChildrenPreservesPre(f, post)
-    }
-
-    // Identity bottom-up transformer: we need it only because we need a witness when
-    // defining ``BottomUpTransformer``, to prove that the type is inhabited.
-    const IdentityTransformer: ExprTransformer :=
-      TR(d => d, _ => true)
-
-    predicate IdentityTransformerRel(e: Expr, e': Expr)
-    {
-      true
-    }
-
-    lemma IdentityMatchesPrePost()
-      ensures TransformerMatchesPrePost(IdentityTransformer.f, IdentityTransformer.post)
-    { }
-
-    lemma IdentityPreservesPre()
-      ensures MapChildrenPreservesPre(IdentityTransformer.f, IdentityTransformer.post)
-    { }
-
-    lemma IdentityPreservesRel()
-      ensures TransformerDeepPreservesRel(IdentityTransformer.f, IdentityTransformerRel)
-    { }
-
-    // FIXME(CPC): Move to equivs (use a datatype to make this a member function)
-    predicate RelCanBeMapLifted(rel: (Expr, Expr) -> bool)
-      // In many situations, the binary relation between the input and the output is transitive
-      // and can be lifted through the map function.
-    {
-      forall e, e' ::
-         && Exprs.ConstructorsMatch(e, e')
-         && All_Rel_Forall(rel, e.Children(), e'.Children())
-         ==> rel(e, e')
-    }
-
-    // A bottom-up transformer, i.e.: a transformer we can recursively apply bottom-up to
-    // an expression, and get the postcondition we expect on the resulting expression.
-    type BottomUpTransformer = tr: ExprTransformer | IsBottomUpTransformer(tr.f, tr.post)
-      witness (IdentityMatchesPrePost();
-               IdentityPreservesPre();
-               IdentityTransformer)
-
-    predicate TODO() { false }
-
-    function method MapChildren_Expr(e: Expr, tr: BottomUpTransformer) :
-      (e': Expr)
-      decreases e, 0
-      requires Deep.AllChildren_Expr(e, tr.f.requires)
-      ensures Deep.AllChildren_Expr(e', tr.post)
-      ensures Exprs.ConstructorsMatch(e, e')
-      // Apply a transformer bottom-up on the children of an expression.
-    {
-      // Not using datatype updates below to ensure that we get a warning if a
-      // type gets new arguments
-      match e {
-        case Var(_) => e
-        case Literal(lit_) => e
-        case Abs(vars, body) => Expr.Abs(vars, Map_Expr(body, tr))
-        case Apply(aop, exprs) =>
-          var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
-          Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
-          var e' := Expr.Apply(aop, exprs');
-          assert Exprs.ConstructorsMatch(e, e');
-          e'
-        case Block(exprs) =>
-          var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
-          Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
-          var e' := Expr.Block(exprs');
-          assert Exprs.ConstructorsMatch(e, e');
-          e'
-        case Bind(vars, vals, body) =>
-          assume TODO();
-          var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
-          Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
-          var e' := Expr.Bind(vars, vals', Map_Expr(body, tr));
-          assert Exprs.ConstructorsMatch(e, e');
-          e'
-        case If(cond, thn, els) =>
-          var e' := Expr.If(Map_Expr(cond, tr), Map_Expr(thn, tr), Map_Expr(els, tr));
-          assert Exprs.ConstructorsMatch(e, e');
-          e'
-      }
-    }
-
-    function method Map_Expr(e: Expr, tr: BottomUpTransformer) : (e': Expr)
-      decreases e, 1
-      requires Deep.All_Expr(e, tr.f.requires)
-      ensures Deep.All_Expr(e', tr.post)
-      // Apply a transformer bottom-up on an expression.
-    {
-      Deep.AllImpliesChildren(e, tr.f.requires);
-      tr.f(MapChildren_Expr(e, tr))
-    }
-
-    function method MapChildren_Expr_WithRel(e: Expr, tr: BottomUpTransformer, ghost rel: (Expr, Expr) -> bool) :
-      (e': Expr)
-      decreases e, 0
-      requires Deep.AllChildren_Expr(e, tr.f.requires)
-      requires TransformerDeepPreservesRel(tr.f, rel)
-      ensures Deep.AllChildren_Expr(e', tr.post)
-      ensures Exprs.ConstructorsMatch(e, e')
-      ensures All_Rel_Forall(rel, e.Children(), e'.Children())
-      ensures e' == MapChildren_Expr(e, tr)
-      // Apply a transformer bottom-up on the children of an expression, and prove that it preserves a relation.
-    {
-      match e {
-        case Var(_) => e
-        case Literal(lit_) => e
-        case Abs(vars, body) => Expr.Abs(vars, Map_Expr_WithRel(body, tr, rel))
-        case Apply(aop, exprs) =>
-          var exprs' := Seq.Map(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
-          Map_All_IsMap(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
-          var e' := Expr.Apply(aop, exprs');
-          assert Exprs.ConstructorsMatch(e, e');
-          e'
-        case Block(exprs) =>
-          var exprs' := Seq.Map(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
-          Map_All_IsMap(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
-          var e' := Expr.Block(exprs');
-          assert Exprs.ConstructorsMatch(e, e');
-          e'
-        case Bind(vars, vals, body) =>
-          assume TODO();
-          var vals' := Seq.Map(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
-          Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
-          var e' := Expr.Bind(vars, vals', Map_Expr_WithRel(body, tr, rel));
-          assert Exprs.ConstructorsMatch(e, e');
-          e'
-        case If(cond, thn, els) =>
-          var e' := Expr.If(Map_Expr_WithRel(cond, tr, rel), Map_Expr_WithRel(thn, tr, rel), Map_Expr_WithRel(els, tr, rel));
-          assert Exprs.ConstructorsMatch(e, e');
-          e'
-      }
-    }
-
-    function method Map_Expr_WithRel(e: Expr, tr: BottomUpTransformer, ghost rel: (Expr, Expr) -> bool) : (e': Expr)
-      decreases e, 1
-      requires Deep.All_Expr(e, tr.f.requires)
-      requires TransformerDeepPreservesRel(tr.f, rel)
-      ensures Deep.All_Expr(e', tr.post)
-      ensures rel(e, e')
-      ensures e' == Map_Expr(e, tr)
-      // Apply a transformer bottom-up on an expression, and prove that it preserves a relation.
-    {
-      Deep.AllImpliesChildren(e, tr.f.requires);
-      tr.f(MapChildren_Expr_WithRel(e, tr, rel))
-    }
-
-
-    lemma MapChildren_Expr_PreservesRel(e: Expr, tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
-      requires Deep.AllChildren_Expr(e, tr.f.requires)
-      requires TransformerDeepPreservesRel(tr.f, rel)
-      ensures All_Rel_Forall(rel, e.Children(), MapChildren_Expr(e, tr).Children())
-      // If `rel` preserves a relation, ``MapChildren_Expr`` preserves the same relation.
-    {
-      var _ := MapChildren_Expr_WithRel(e, tr, rel);
-    }
-
-    lemma Map_Expr_PreservesRel(e: Expr, tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
-      decreases e, 1
-      requires Deep.All_Expr(e, tr.f.requires)
-      requires TransformerDeepPreservesRel(tr.f, rel)
-      ensures rel(e, Map_Expr(e, tr))
-      // If `rel` preserves a relation, ``Map_Expr`` preserves the same relation.
-    {
-      var _ := Map_Expr_WithRel(e, tr, rel);
-    }
-
-    function method Map_Expr_Transformer(tr: BottomUpTransformer) :
-      (tr': ExprTransformer)
-      // Given a bottom-up transformer `tr`, return a transformer which applies `tr` in
-      // a bottom-up manner.
-    {
-      TR(e requires Deep.All_Expr(e, tr.f.requires) => Map_Expr(e, tr),
-         e' => Deep.All_Expr(e', tr.post))
-    }
-
-    lemma Map_Expr_Transformer_PreservesRel(tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
-      requires TransformerDeepPreservesRel(tr.f, rel)
-      ensures Map_Expr_Transformer(tr).HasValidRel(rel)
-    {
-      var tr' := Map_Expr_Transformer(tr);
-      forall e:Expr
-        ensures tr'.f.requires(e) ==> rel(e, tr'.f(e))
-      {
-        if tr'.f.requires(e) {
-          var e2 := tr'.f(e);
-          Map_Expr_PreservesRel(e, tr, rel);
-          match e {
-            case Var(_) => {}
-            case Literal(_) => {}
-            case Abs(vars, body) =>
-              assert rel(e, tr'.f(e));
-            case Apply(applyOp, args) =>
-              assert rel(e, tr'.f(e));
-            case Block(stmts) =>
-              assert rel(e, tr'.f(e));
-            case Bind(vars, vals, body) =>
-              assert rel(e, tr'.f(e));
-            case If(cond, thn, els) => {
-              assert rel(e, tr'.f(e));
-            }
+      if tr'.f.requires(e) {
+        var e2 := tr'.f(e);
+        Map_Expr_PreservesRel(e, tr, rel);
+        match e {
+          case Var(_) => {}
+          case Literal(_) => {}
+          case Abs(vars, body) =>
+            assert rel(e, tr'.f(e));
+          case Apply(applyOp, args) =>
+            assert rel(e, tr'.f(e));
+          case Block(stmts) =>
+            assert rel(e, tr'.f(e));
+          case Bind(vars, vals, body) =>
+            assert rel(e, tr'.f(e));
+          case If(cond, thn, els) => {
+            assert rel(e, tr'.f(e));
           }
         }
       }
     }
+  }
 
-    function method {:opaque} Map_Method(m: Method, tr: BottomUpTransformer) :
-      (m': Method)
-      requires Deep.All_Method(m, tr.f.requires)
-      ensures Deep.All_Method(m', tr.post)
-      // Apply a transformer to a method, in a bottom-up manner.
-    {
-      Shallow.Map_Method(m, Map_Expr_Transformer(tr))
-    }
+  function method {:opaque} Map_Method(m: Method, tr: BottomUpTransformer) :
+    (m': Method)
+    requires Deep.All_Method(m, tr.f.requires)
+    ensures Deep.All_Method(m', tr.post)
+    // Apply a transformer to a method, in a bottom-up manner.
+  {
+    Shallow.Map_Method(m, Map_Expr_Transformer(tr))
+  }
 
-    function method {:opaque} Map_Program(p: Program, tr: BottomUpTransformer) :
-      (p': Program)
-      requires Deep.All_Program(p, tr.f.requires)
-      ensures Deep.All_Program(p', tr.post)
-      // Apply a transformer to a program, in a bottom-up manner.
-    {
-      Shallow.Map_Program(p, Map_Expr_Transformer(tr))
-    }
+  function method {:opaque} Map_Program(p: Program, tr: BottomUpTransformer) :
+    (p': Program)
+    requires Deep.All_Program(p, tr.f.requires)
+    ensures Deep.All_Program(p', tr.post)
+    // Apply a transformer to a program, in a bottom-up manner.
+  {
+    Shallow.Map_Program(p, Map_Expr_Transformer(tr))
+  }
 
-    lemma {:opaque} Map_Method_PreservesRel(m: Method, tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
-      requires Deep.All_Method(m, tr.f.requires)
-      requires TransformerDeepPreservesRel(tr.f, rel)
-      ensures rel(m.methodBody, Map_Method(m, tr).methodBody)
-      // ``Map_Method`` preserves relations
-    {
-      reveal Map_Method();
-      reveal Shallow.Map_Method();
-      Map_Expr_PreservesRel(m.methodBody, tr, rel);
-    }
+  lemma {:opaque} Map_Method_PreservesRel(m: Method, tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
+    requires Deep.All_Method(m, tr.f.requires)
+    requires TransformerDeepPreservesRel(tr.f, rel)
+    ensures rel(m.methodBody, Map_Method(m, tr).methodBody)
+    // ``Map_Method`` preserves relations
+  {
+    reveal Map_Method();
+    reveal Shallow.Map_Method();
+    Map_Expr_PreservesRel(m.methodBody, tr, rel);
+  }
 
-    lemma {:opaque} Map_Program_PreservesRel(p: Program, tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
-      requires Deep.All_Program(p, tr.f.requires)
-      requires TransformerDeepPreservesRel(tr.f, rel)
-      ensures rel(p.mainMethod.methodBody, Map_Program(p, tr).mainMethod.methodBody)
-      // ``Map_Program`` preserves relations
-    {
-      reveal Map_Method();
-      reveal Map_Program();
-      reveal Shallow.Map_Method();
-      reveal Shallow.Map_Program();
-      Map_Method_PreservesRel(p.mainMethod, tr, rel);
-    }
+  lemma {:opaque} Map_Program_PreservesRel(p: Program, tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
+    requires Deep.All_Program(p, tr.f.requires)
+    requires TransformerDeepPreservesRel(tr.f, rel)
+    ensures rel(p.mainMethod.methodBody, Map_Program(p, tr).mainMethod.methodBody)
+    // ``Map_Program`` preserves relations
+  {
+    reveal Map_Method();
+    reveal Map_Program();
+    reveal Shallow.Map_Method();
+    reveal Shallow.Map_Program();
+    Map_Method_PreservesRel(p.mainMethod, tr, rel);
+  }
+
+  lemma TransformationAndRel_Lift(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
+    requires RelIsTransitive(rel)
+    requires RelCanBeMapLifted(rel)
+    requires TransformerShallowPreservesRel(f, rel)
+    ensures TransformerDeepPreservesRel(f, rel)
+    // Lifting lemma for a relation like ``EqInterp``: under some conditions on
+    // the relation, it is possible to simply prove that `f` links its input
+    // and output with `rel` to be able to lift it through map.
+  {}
 }
 
 module Bootstrap.Transforms.Proofs.BottomUp_ {
@@ -1088,8 +1098,6 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     }
   }
 
-
-
   lemma EqInterp_Expr_Block_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
     requires e.Block?
     requires e'.Block?
@@ -1142,5 +1150,31 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       }
       else {}
     }
+  }
+  
+  // TODO(SMH): move? (or even remove?)
+  lemma EqInterp_CanBeComposed(f: Expr --> Expr, g: Expr --> Expr)
+    requires TransformerShallowPreservesRel(f, EqInterp)
+    requires TransformerShallowPreservesRel(g, EqInterp)
+    requires forall x | f.requires(x) :: g.requires(f(x))
+    ensures TransformerShallowPreservesRel(Comp(f, g), EqInterp)
+  {
+    forall e | f.requires(e) ensures EqInterp(e, g(f(e)))
+    {
+      assert EqInterp(e, f(e));
+      assert EqInterp(f(e), g(f(e)));
+      EqInterp_Trans(e, f(e), g(f(e)));
+    }
+  }
+
+  lemma EqInterp_Lift(f: Expr --> Expr)
+    requires TransformerShallowPreservesRel(f, EqInterp)
+    ensures TransformerDeepPreservesRel(f, EqInterp)
+    // It is enough to prove that `f` links its input and output with ``EqInterp``
+    // to be able to lift it through map.
+  {
+     EqInterp_IsTransitive();
+     EqInterp_CanBeMapLifted();
+     TransformationAndRel_Lift(f, EqInterp); 
   }
 }

@@ -592,14 +592,111 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
 
     function method Simplify_Single(e: Expr): (e': Expr)
       ensures SupportsInterp(e) ==> SupportsInterp(e')
+      ensures Tr_Expr_Rel(e, e')
       // The full transformation 3
     {
       reveal SupportsInterp();
       var e1 := SimplifyEmptyIfThenElse_Single(e);
+      SimplifyEmptyIfThenElse_Single_Rel(e);
       var e2 := NegateIfThenElseIfEmptyThen_Single(e1);
+      NegateIfThenElseIfEmptyThen_Single_Rel(e1);
+      EqInterp_Trans(e, e1, e2);
       e2
     } 
   }
 
-  
+  module Simplify {
+    /// The final transformation
+    
+    import Utils.Lib
+    import Utils.Lib.Debug
+    import opened Utils.Lib.Datatypes
+    import opened Transforms.BottomUp
+
+    import opened AST.Syntax
+    import opened AST.Predicates
+    import opened Semantics.Interp
+    import opened Semantics.Values
+    import opened Semantics.Equiv
+    import opened Semantics.Pure
+    import opened Transforms.Generic
+    import opened Transforms.Proofs.BottomUp_
+
+    import opened FilterCommon
+    import FilterEmptyBlocks
+    import InlineLastBlock
+    import SimplifyIfThenElse
+
+    type Expr = Syntax.Expr
+
+    function method Simplify_Single(e: Expr): (e': Expr)
+      ensures SupportsInterp(e) ==> SupportsInterp(e')
+      ensures EqInterp(e, e')
+      // This function puts all the transformation together
+    {
+      var e1 := FilterEmptyBlocks.FilterEmptyBlocks_Single(e);
+      FilterEmptyBlocks.FilterEmptyBlocks_Single_Rel(e);
+      assert EqInterp(e, e1);
+      var e2 := InlineLastBlock.InlineLastBlock_Single(e1);
+      InlineLastBlock.InlineLastBlock_Single_Rel(e1);
+      assert EqInterp(e1, e2);
+      var e3 := SimplifyIfThenElse.Simplify_Single(e2);
+      assert EqInterp(e2, e3);
+
+      EqInterp_Trans(e, e1, e2);
+      EqInterp_Trans(e, e2, e3);
+      assert EqInterp(e, e3);
+
+      e3
+    }
+
+    predicate Tr_Pre(p: Program) {
+      true
+    }
+
+    predicate Tr_Expr_Post(e: Exprs.T) {
+      true
+    }
+
+    predicate Tr_Post(p: Program)
+    {
+      Deep.All_Program(p, Tr_Expr_Post)
+    }
+
+    const Tr_Expr : BottomUpTransformer :=
+      ( Deep.All_Expr_True_Forall(Tr_Expr_Post);
+        assert IsBottomUpTransformer(Simplify_Single, Tr_Expr_Post);
+        TR(Simplify_Single,
+           Tr_Expr_Post))
+
+    function method Apply_Method(m: Method) : (m': Method)
+      ensures Deep.All_Method(m', Tr_Expr_Post)
+      ensures Tr_Expr_Rel(m.methodBody, m'.methodBody)
+      // Apply the transformation to a method.
+      //
+      // We need it on a temporary basis, so that we can apply the transformation
+      // to all the methods in a program (we haven't defined modules, classes,
+      // etc. yet). When the `Program` definition is complete enough, we will
+      // remove this definition and exclusively use `Apply`.
+    {
+      Deep.All_Expr_True_Forall(Tr_Expr.f.requires);
+      assert Deep.All_Method(m, Tr_Expr.f.requires);
+      EqInterp_Lift(Tr_Expr.f);
+      Map_Method_PreservesRel(m, Tr_Expr, Tr_Expr_Rel);
+      Map_Method(m, Tr_Expr)
+    }
+
+    function method Apply(p: Program) : (p': Program)
+      requires Tr_Pre(p)
+      ensures Tr_Post(p')
+      ensures Tr_Expr_Rel(p.mainMethod.methodBody, p'.mainMethod.methodBody)
+      // Apply the transformation to a program.
+    {
+      Deep.All_Expr_True_Forall(Tr_Expr.f.requires);
+      assert Deep.All_Program(p, Tr_Expr.f.requires);
+      EqInterp_Lift(Tr_Expr.f);
+      Map_Program_PreservesRel(p, Tr_Expr, Tr_Expr_Rel);
+      Map_Program(p, Tr_Expr)
+    }
+  }
 }
