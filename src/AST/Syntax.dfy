@@ -181,6 +181,7 @@ module UnaryOps {
 module Exprs {
   import Utils.Lib.Math
   import Utils.Lib.Seq
+  import opened Utils.Lib.Datatypes  
 
   import Types
   import UnaryOps
@@ -241,13 +242,30 @@ module Exprs {
 /// caller's context. (In most cases, though, variables passed into an ``Abs``
 /// are not mutated at all, because dafny lambdas are pure).
 
+  datatype Var = Variable(name: string, ty: Types.Type)
+
+  // DISCUSS: if we use `Option<seq<Expr>>` in the `Expr.VarDecl` variant instead of introducing
+  // this auxiliary datatype, Dafny fails to prove termination of simple functions like ``Depth``.
+  datatype OptExprs =
+    | Some(value: seq<Expr>)
+    | None
+
   datatype Expr =
     | Var(name: string)
     | Literal(lit: Literal)
     | Abs(vars: seq<string>, body: Expr)
     | Apply(aop: ApplyOp, args: seq<Expr>)
     | Block(stmts: seq<Expr>)
-    | Bind(vars: seq<string>, vals: seq<Expr>, body: Expr)
+    | VarDecl(vdecls: seq<Var>, ovals: OptExprs)
+    // DISCUSS: `ovals` may make `VarDecl` slightly redundant with `Update` (i.e., we
+    // can always decompose `VarDecl` with initialization expressions as `VarDecl` followed
+    // by `Update`). It is however useful for pretty printing purposes, and in the definition
+    // of ``Pure``: a variable declaration is pure, while an update isn't. This is useful
+    // because we desugar let-bindings to a scope containing an initialized variable declaration.
+    // We could make ``Pure1`` pattern match on `VarDecl` followed by `Update` operating on the
+    // same variables, but then we couldn't use the `Predicates.Deep.All_Expr` function to lift
+    // this definition.
+    | Update(vars: seq<string>, vals: seq<Expr>)
     | If(cond: Expr, thn: Expr, els: Expr) // DISCUSS: Lazy op node?
   {
     function method Depth() : nat {
@@ -262,11 +280,17 @@ module Exprs {
           Seq.MaxF(var f := (e: Expr) requires e in args => e.Depth(); f, args, 0)
         case Block(stmts) =>
           Seq.MaxF(var f := (e: Expr) requires e in stmts => e.Depth(); f, stmts, 0)
-        case Bind(vars, vals, body) =>
-          Math.Max(
-            Seq.MaxF(var f := (e: Expr) requires e in vals => e.Depth(); f, vals, 0),
-            body.Depth()
-          )
+        case VarDecl(vdecls, ovals) =>
+          match ovals {
+            case Some(vals) =>
+              var f := (e: Expr) requires e in ovals.value =>
+                assert e < ovals;
+                e.Depth();
+              Seq.MaxF(f, vals, 0)
+            case None => 0
+          }
+        case Update(vars, vals) =>
+          Seq.MaxF(var f := (e: Expr) requires e in vals => e.Depth(); f, vals, 0)
         case If(cond, thn, els) =>
           Math.Max(cond.Depth(), Math.Max(thn.Depth(), els.Depth()))
       }
@@ -281,7 +305,12 @@ module Exprs {
         case Abs(vars, body) => [body]
         case Apply(aop, exprs) => exprs
         case Block(exprs) => exprs
-        case Bind(vars, vals, body) => vals + [body]
+        case VarDecl(vdecls, ovals) =>
+          match ovals {
+            case Some(vals) => vals
+            case None => []
+          }
+        case Update(vars, vals) => vals
         case If(cond, thn, els) => [cond, thn, els]
       }
     }
@@ -301,7 +330,9 @@ module Exprs {
         |es| >= 1 // Needs a function to call
       case Apply(Eager(Builtin(Display(ty))), es) =>
         ty.Collection? && ty.finite
-      case Bind(vars, vals, _) =>
+      case VarDecl(vdecls, ovals) =>
+        ovals.Some? ==> |vdecls| == |ovals.value|
+      case Update(vars, vals) =>
         |vars| == |vals|
       case _ => true
     }
@@ -321,8 +352,13 @@ module Exprs {
         e'.Block? && |stmts| == |e'.stmts|
       case If(cond, thn, els) =>
         e'.If?
-      case Bind(vars, vals, body) =>
-        e'.Bind? && |vars| == |e'.vars| && |vals| == |e'.vals|
+      case VarDecl(vdecls, ovals) =>
+        // TODO(SMH): we might not want to check that the variable types match (there
+        // may be aliases)
+        e'.VarDecl? && vdecls == e'.vdecls && ovals.Some? == e'.ovals.Some? &&
+        (ovals.Some? ==> |ovals.value| == |e'.ovals.value|)
+      case Update(vars, vals) =>
+        e'.Update? && vars == e'.vars && |vals| == |e'.vals|
     }
   }
 

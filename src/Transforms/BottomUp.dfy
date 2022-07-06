@@ -142,13 +142,26 @@ module Bootstrap.Transforms.BottomUp {
         var e' := Expr.Block(exprs');
         assert Exprs.ConstructorsMatch(e, e');
         e'
-      case Bind(vars, vals, body) =>
+      case VarDecl(vdecls, ovals) =>
+        assume TODO();
+        var ovals' :=
+          match ovals
+            case Some(vals) => Exprs.Some(Seq.Map(e requires e in vals => Map_Expr(e, tr), vals))
+            case None => Exprs.None;
+        var e' := Expr.VarDecl(vdecls, ovals');
+        e'
+      case Update(vars, vals) =>
+        assume TODO();
+        var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
+        var e' := Expr.Update(vars, vals');
+        e'
+/*          case Bind(vars, vals, body) =>
         assume TODO();
         var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
         var e' := Expr.Bind(vars, vals', Map_Expr(body, tr));
         assert Exprs.ConstructorsMatch(e, e');
-        e'
+        e'*/
       case If(cond, thn, els) =>
         var e' := Expr.If(Map_Expr(cond, tr), Map_Expr(thn, tr), Map_Expr(els, tr));
         assert Exprs.ConstructorsMatch(e, e');
@@ -194,7 +207,9 @@ module Bootstrap.Transforms.BottomUp {
             assert tr.rel(e, tr'.f(e));
           case Block(stmts) =>
             assert tr.rel(e, tr'.f(e));
-          case Bind(vars, vals, body) =>
+          case VarDecl(vdecls, ovals) =>
+            assert tr.rel(e, tr'.f(e));
+          case Update(vars, vals) =>
             assert tr.rel(e, tr'.f(e));
           case If(cond, thn, els) => {
             assert tr.rel(e, tr'.f(e));
@@ -309,7 +324,10 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       case If(_, _, _) => {
         EqInterp_Expr_If_CanBeMapLifted_Lem(e, e', env, ctx, ctx');
       }
-      case Bind(_, _, _) => {
+      case VarDecl(_, _) => {
+        assume TODO();
+      }
+      case Update(_, _) => {
         assume TODO();
       }
       case _ => {

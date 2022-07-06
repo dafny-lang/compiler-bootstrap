@@ -436,14 +436,18 @@ module Bootstrap.AST.Translator {
     var lhss := ListUtils.ToSeq(le.LHSs);
     var bvs :- Seq.MapResult(lhss, (pat: C.CasePattern<C.BoundVar>) reads * =>
       :- Need(pat.Var != null, UnsupportedExpr(le));
-      Success(TypeConv.AsString(pat.Var.Name)));
+      var ty :- TranslateType(pat.Var.Type);
+      Success(DE.Variable(TypeConv.AsString(pat.Var.Name), ty)));
     var rhss := ListUtils.ToSeq(le.RHSs);
     var elems :- Seq.MapResult(rhss, e requires e in rhss reads * =>
       assume Decreases(e, le); TranslateExpression(e));
     :- Need(|bvs| == |elems|, UnsupportedExpr(le));
     assume Decreases(le.Body, le);
     var body :- TranslateExpression(le.Body);
-    Success(DE.Bind(bvs, elems, body))
+    var vdecl := DE.VarDecl(bvs, DE.Some(elems));
+    var block := DE.Block([vdecl, body]);
+    assert P.All_Expr(block, DE.WellFormed); // Doesn't work without this assertion
+    Success(block)
   }
 
   function method TranslateConcreteSyntaxExpression(ce: C.ConcreteSyntaxExpression)
