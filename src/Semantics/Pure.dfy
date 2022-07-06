@@ -43,7 +43,8 @@ module Bootstrap.Semantics.Pure {
             }
         }
       case Block(_) => true
-      case Bind(_, _, _) => true
+      case VarDecl(_, _) => true
+      case Update(_, _) => false
       case If(_, _, _) => true
   }
 
@@ -75,12 +76,14 @@ module Bootstrap.Semantics.Pure {
         InterpExpr_Lazy_IsPure_SameState(e, env, ctx);
       case Apply(Eager(op), args) =>
         InterpExpr_Eager_IsPure_SameState(e, env, ctx);
-      case Bind(vars, exprs, body) =>
+      case VarDecl(vdecls, ovals) =>
         assume false; // TODO: prove
       case Block(stmts) =>
         InterpExpr_Block_IsPure_SameState(e, env, ctx);
       case If(cond, thn, els) =>
         InterpExpr_If_IsPure_SameState(e, env, ctx);
+      case Update(_, _) =>
+        assert false; // Impossible branch
   }
 
   lemma InterpExprWithType_IsPure_SameState(e: PureExpr, ty: Type, env: Environment, ctx: State)

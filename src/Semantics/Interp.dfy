@@ -36,8 +36,9 @@ module Bootstrap.Semantics.Interp {
       case Abs(vars, body) => true
       case Apply(Lazy(op), args) => true
       case Apply(Eager(op), args) => EagerOpSupportsInterp(op)
-      case Bind(vars, vals, body) => true
-      case Block(stmts) => true
+      case VarDecl(vars, ovals) => true
+      case Update(vars, vals) => true
+      case Block(stmts) => Debug.TODO(false)
       case If(cond, thn, els) => true
     }
   }
@@ -254,11 +255,13 @@ module Bootstrap.Semantics.Interp {
             case FunctionCall() =>
               InterpFunctionCall(e, env, argvs[0], argvs[1..])
           })
-      case Bind(vars, exprs: seq<Expr>, body: Expr) =>
-        var Return(vals, ctx) :- InterpExprs(exprs, env, ctx);
-        InterpBind(e, env, ctx, vars, vals, body)
-      case Block(stmts) =>
-        InterpBlock(stmts, env, ctx)
+      case VarDecl(vdecls, ovals) =>
+        Failure(Invalid(e)) // TODO
+      case Update(vars, vals) =>
+        Failure(Invalid(e)) // TODO
+//      case Bind(vars, exprs: seq<Expr>, body: Expr) =>
+//        var Return(vals, ctx) :- InterpExprs(exprs, env, ctx);
+//        InterpBind(e, env, ctx, vars, vals, body)
       case If(cond, thn, els) =>
         var Return(condv, ctx) :- InterpExprWithType(cond, Type.Bool, env, ctx);
         if condv.b then InterpExpr(thn, env, ctx) else InterpExpr(els, env, ctx)
@@ -890,7 +893,7 @@ module Bootstrap.Semantics.Interp {
     InterpBlock_Exprs(stmts, env, ctx)
   }
 
-  function method InterpBind(e: Expr, env: Environment, ctx: State, vars: seq<string>, vals: seq<Value>, body: Expr)
+/*  function method InterpBind(e: Expr, env: Environment, ctx: State, vars: seq<string>, vals: seq<Value>, body: Expr)
     : InterpResult<Value>
     requires body < e
     requires |vars| == |vals|
@@ -900,5 +903,5 @@ module Bootstrap.Semantics.Interp {
     var Return(val, bodyCtx) :- InterpExpr(body, env, bodyCtx);
     var ctx := ctx.(locals := ctx.locals + (bodyCtx.locals - set v | v in vars)); // Preserve mutation
     Success(Return(val, ctx))
-  }
+  }*/
 }

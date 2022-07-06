@@ -144,13 +144,26 @@ module Bootstrap.Transforms.BottomUp {
         var e' := Expr.Block(exprs');
         assert Exprs.ConstructorsMatch(e, e');
         e'
-      case Bind(vars, vals, body) =>
+      case VarDecl(vdecls, ovals) =>
+        assume TODO();
+        var ovals' :=
+          match ovals
+            case Some(vals) => Exprs.Some(Seq.Map(e requires e in vals => Map_Expr(e, tr), vals))
+            case None => Exprs.None;
+        var e' := Expr.VarDecl(vdecls, ovals');
+        e'
+      case Update(vars, vals) =>
+        assume TODO();
+        var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
+        var e' := Expr.Update(vars, vals');
+        e'
+/*          case Bind(vars, vals, body) =>
         assume TODO();
         var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
         var e' := Expr.Bind(vars, vals', Map_Expr(body, tr));
         assert Exprs.ConstructorsMatch(e, e');
-        e'
+        e'*/
       case If(cond, thn, els) =>
         var e' := Expr.If(Map_Expr(cond, tr), Map_Expr(thn, tr), Map_Expr(els, tr));
         assert Exprs.ConstructorsMatch(e, e');
@@ -195,19 +208,25 @@ module Bootstrap.Transforms.BottomUp {
         assert Exprs.ConstructorsMatch(e, e');
         e'
       case Block(exprs) =>
-        var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
-        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
         Map_All_IsMap(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
         var e' := Expr.Block(exprs');
         assert Exprs.ConstructorsMatch(e, e');
         e'
-      case Bind(vars, vals, body) =>
-        assume TODO();
-        var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
-        Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
+      case VarDecl(vdecls, ovals) =>
+        var ovals' :=
+          match ovals {
+            case Some(vals) =>
+              Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
+              Exprs.Some(Seq.Map(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals))
+            case None => Exprs.None
+          };
+        var e' := Expr.VarDecl(vdecls, ovals');
+        e'
+      case Update(vars, vals) =>
+        var vals' := Seq.Map(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
-        var e' := Expr.Bind(vars, vals', Map_Expr_WithRel(body, tr, rel));
-        assert Exprs.ConstructorsMatch(e, e');
+        var e' := Expr.Update(vars, vals');
         e'
       case If(cond, thn, els) =>
         var e' := Expr.If(Map_Expr_WithRel(cond, tr, rel), Map_Expr_WithRel(thn, tr, rel), Map_Expr_WithRel(els, tr, rel));
@@ -278,7 +297,9 @@ module Bootstrap.Transforms.BottomUp {
             assert rel(e, tr'.f(e));
           case Block(stmts) =>
             assert rel(e, tr'.f(e));
-          case Bind(vars, vals, body) =>
+          case VarDecl(vdecls, ovals) =>
+            assert rel(e, tr'.f(e));
+          case Update(vars, vals) =>
             assert rel(e, tr'.f(e));
           case If(cond, thn, els) => {
             assert rel(e, tr'.f(e));
@@ -415,8 +436,11 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       case If(_, _, _) => {
         EqInterp_Expr_If_CanBeMapLifted(e, e', env, ctx, ctx');
       }
-      case Bind(_, _, _) => {
-        assume TODO();
+      case VarDecl(_, _) => {
+        EqInterp_Expr_VarDecl_CanBeMapLifted_Lem(e, e', env, ctx, ctx');
+      }
+      case Update(_, _) => {
+        EqInterp_Expr_Update_CanBeMapLifted_Lem(e, e', env, ctx, ctx');
       }
       case Block(_) => {
         EqInterp_Expr_Block_CanBeMapLifted(e, e', env, ctx, ctx');
@@ -1159,6 +1183,106 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     }
   }
   
+  lemma EqInterp_Expr_VarDecl_CanBeMapLifted_Lem(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
+    requires e.VarDecl?
+    requires e'.VarDecl?
+    requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
+    ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
+    decreases e, env, 0
+  {
+    assume TODO();
+  }
+
+  lemma EqInterp_Expr_Update_CanBeMapLifted_Lem(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
+    requires e.Update?
+    requires e'.Update?
+    requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
+    ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
+    decreases e, env, 0
+  {      
+    reveal EqInterp_CanBeMapLifted_Pre();
+    reveal EqInterp_CanBeMapLifted_Post();
+
+    reveal InterpExpr();
+    reveal SupportsInterp();
+
+    var res := InterpExpr(e, env, ctx);
+    var res' := InterpExpr(e', env, ctx');
+
+    var Update(vars, vals) := e;
+    var Update(vars', vals') := e';
+
+    // The rhs evaluate to similar results
+    var res0 := InterpExprs(vals, env, ctx);
+    var res0' := InterpExprs(vals', env, ctx');
+    InterpExprs_EqInterp_Inst(vals, vals', env, ctx, ctx');
+    assert EqInterpResult(EqSeqValue, res0, res0');
+
+    if res0.Success? {
+      // Dafny crashes if we try to deconstruct the `Return`s in the match.
+      // See: https://github.com/dafny-lang/dafny/issues/2258
+      var Return(valsvs, ctx0) := res0.value;
+      var Return(valsvs', ctx0') := res0'.value;
+
+      var ctx1 := ctx0.(locals := AugmentContext(ctx.locals, vars, valsvs));
+      var ctx1' := ctx0'.(locals := AugmentContext(ctx'.locals, vars, valsvs'));
+
+      // assert EqState(ctx1, ctx1');
+
+    // var Return(vals, ctx) :- InterpExprs(vals, env, ctx);
+    // var ctx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
+    // Success(Return(Unit, ctx))
+
+      assume TODO();
+    }
+    else {
+      // Trivial
+    }
+
+/*      match (res0, res0') {
+      case (Success(res0), Success(res0')) => {
+        // Dafny crashes if we try to deconstruct the `Return`s in the match.
+        // See: https://github.com/dafny-lang/dafny/issues/2258
+        var Return(argvs, ctx0) := res0;
+        var Return(argvs', ctx0') := res0';
+
+        match (op, op') {
+          case (UnaryOp(op), UnaryOp(op')) => {
+            assert op == op';
+            EqInterp_Expr_UnaryOp_CanBeMapLifted_Lem(e, e', op, argvs[0], argvs'[0]);
+            assert EqInterpResultValue(res, res');
+          }
+          case (BinaryOp(bop), BinaryOp(bop')) => {
+            assert bop == bop';
+            EqInterp_Expr_BinaryOp_CanBeMapLifted_Lem(e, e', bop, argvs[0], argvs[1], argvs'[0], argvs'[1]);
+            assert EqInterpResultValue(res, res');
+          }
+          case (TernaryOp(top), TernaryOp(top')) => {
+            assert top == top';
+            EqInterp_Expr_TernaryOp_CanBeMapLifted_Lem(e, e', top, argvs[0], argvs[1], argvs[2], argvs'[0], argvs'[1], argvs'[2]);
+            assert EqInterpResultValue(res, res');
+          }
+          case (Builtin(Display(ty)), Builtin(Display(ty'))) => {
+            assert ty == ty';
+            EqInterp_Expr_Display_CanBeMapLifted_Lem(e, e', ty.kind, argvs, argvs');
+            assert EqInterpResultValue(res, res');
+          }
+          case (FunctionCall(), FunctionCall()) => {
+            EqInterp_Expr_FunctionCall_CanBeMapLifted_Lem(e, e', env, argvs[0], argvs'[0], argvs[1..], argvs'[1..]);
+            assert EqInterpResultValue(res, res');
+          }
+          case _ => {
+            // Impossible branch
+            assert false;
+          }
+        }
+      }
+      case (Failure(_), _) => {
+        // Trivial
+      }
+    } */
+  }
+
   // TODO(SMH): move? (or even remove?)
   lemma EqInterp_CanBeComposed(f: Expr --> Expr, g: Expr --> Expr)
     requires TransformerShallowPreservesRel(f, EqInterp)
