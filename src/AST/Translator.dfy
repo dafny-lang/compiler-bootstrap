@@ -546,6 +546,13 @@ module Bootstrap.AST.Translator {
     var cond :- TranslateExpression(i.Guard);
     var thn :- TranslateStatement(i.Thn);
     var els :- TranslateStatement(i.Els);
+    // We need to wrap the branches into blocks, so as to limit the scope of the variables
+    // declared inside those branches.
+    var thn := Expr.Block([thn]);
+    var els := Expr.Block([els]);
+    // Doesn't work without those assertions
+    assert P.All_Expr(thn, DE.WellFormed);
+    assert P.All_Expr(els, DE.WellFormed);
     Success(DE.If(cond, thn, els))
   }
 
