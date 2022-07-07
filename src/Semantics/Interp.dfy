@@ -16,34 +16,6 @@ module Bootstrap.Semantics.Interp {
   import opened Utils.Lib.Datatypes
   import opened AST.Predicates
 
-  // FIXME move
-  predicate method Pure1(e: Exprs.T) {
-    match e {
-      case Var(_) => true
-      case Literal(lit) => true
-      case Abs(vars, body) => true
-      case Apply(Lazy(op), args) =>
-        true
-      case Apply(Eager(op), args) =>
-        match op {
-          case UnaryOp(uop) => true
-          case BinaryOp(bop) => true
-          case TernaryOp(top) => true
-          case Builtin(Display(_)) => true
-          case Builtin(Print) => false
-          case FunctionCall() => true
-          case DataConstructor(name, typeArgs) => true
-        }
-      case Bind(vars, vals, body) => true
-      case Block(stmts) => true
-      case If(cond, thn, els) => true
-    }
-  }
-
-  predicate method Pure(e: Exprs.T) {
-    Predicates.Deep.All_Expr(e, Pure1)
-  }
-
   predicate method EagerOpSupportsInterp(op: Exprs.EagerOp) {
     match op {
       case UnaryOp(uop) => !uop.MemberSelect?
@@ -74,11 +46,6 @@ module Bootstrap.Semantics.Interp {
   predicate method {:opaque} SupportsInterp(e: Exprs.T) {
     Predicates.Deep.All_Expr(e, SupportsInterp1)
   }
-
-  lemma SupportsInterp_Pure(e: Exprs.T)
-    requires SupportsInterp1(e)
-    ensures Pure1(e)
-  {}
 
   // TODO: rewrite as a shallow predicate applied through ``v.All``?
   predicate method WellFormedEqValue(v: V.T)
