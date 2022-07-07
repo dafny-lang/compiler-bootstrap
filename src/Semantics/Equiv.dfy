@@ -28,6 +28,7 @@ module Bootstrap.Semantics.Equiv {
   type Context = Values.Context
 
   // TODO(SMH): move
+  // TODO(SMH): it should be equivalent to use ``Seq.All`` instead, but doing so breaks proofs.
   predicate Seq_All<T>(f: T -> bool, s: seq<T>)
   {
     forall x | x in s :: f(x)
