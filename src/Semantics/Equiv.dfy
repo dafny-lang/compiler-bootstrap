@@ -826,8 +826,8 @@ module Bootstrap.Semantics.Equiv {
     if es == [] {}
     else {
        // Evaluate the first expression
-      var res0 := InterpExpr(es[0], env, ctx);
-      var res0' := InterpExpr(es[0], env, ctx');
+      var res0 := InterpExprWithType(es[0], Types.Unit, env, ctx);
+      var res0' := InterpExprWithType(es[0], Types.Unit, env, ctx');
       EqInterp_Refl(es[0]);
       EqInterp_Inst(es[0], es[0], env, ctx, ctx');
 
@@ -1052,8 +1052,8 @@ module Bootstrap.Semantics.Equiv {
     reveal InterpBlock_Exprs();
 
     // Evaluate the first expression
-    var res0 := InterpExpr(e, env, ctx);
-    var res0' := InterpExpr(e', env, ctx');
+    var res0 := InterpExprWithType(e, Types.Unit, env, ctx);
+    var res0' := InterpExprWithType(e', Types.Unit, env, ctx');
     EqInterp_Inst(e, e', env, ctx, ctx');
 
     // We need to make a case disjunction on whether the length of the concatenated sequences is
