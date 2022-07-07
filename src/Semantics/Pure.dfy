@@ -36,11 +36,8 @@ module Bootstrap.Semantics.Pure {
               case UnaryOp(_) => true
               case BinaryOp(_) => true
               case TernaryOp(_) => true
-              case Builtin(builtin) =>
-                match builtin {
-                  case Display(_) => true
-                  case Print => false // For now, we actually don't model the fact that `Print` has side effects
-                }
+              case Builtin(Display(_)) => true
+              case Builtin(Print) => false // For now, we actually don't model the fact that `Print` has side effects
               case FunctionCall() => true // TODO(SMH): ok for now because we only have terminating, pure functions
               case DataConstructor(_, _) => true
             }
