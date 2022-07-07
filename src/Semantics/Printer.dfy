@@ -9,6 +9,7 @@ module Bootstrap.Semantics.Printer {
 
   function method ToString(v: Values.T) : string {
     match v
+      case Unit => "()"
       case Bool(b) => Str.of_bool(b)
       case Char(c) => "'" + Str.of_char(c) + "'"
       case Int(i) => Str.of_int(i)

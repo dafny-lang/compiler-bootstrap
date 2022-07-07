@@ -92,6 +92,7 @@ module Bootstrap.Semantics.Interp {
   // a decidable equality.
   {
     match v {
+      case Unit => true
       case Bool(b) => true
       case Char(c) => true
       case Int(i) => true
@@ -125,6 +126,7 @@ module Bootstrap.Semantics.Interp {
   // support one.
   {
     match v {
+      case Unit => true
       case Bool(b) => true
       case Char(c) => true
       case Int(i) => true
@@ -168,6 +170,10 @@ module Bootstrap.Semantics.Interp {
   // The type of well-formed values with a decidable equality
   type EqWV = v: V.T | WellFormedValue(v) && HasEqValue(v) witness V.Bool(false)
 
+  // DISCUSS: If we don't use this, sometimes Z3 fails to see that `V.Unit` is well-formed. It seems
+  // to happen when we use nested subset types, for instance: `Success(Return(V.Unit, ctx))`.
+  const Unit: Value := V.Unit
+
   // We need a value type height to prove that some functions terminate.
   function {:axiom} ValueTypeHeight(v: Value): nat
 
@@ -192,10 +198,11 @@ module Bootstrap.Semantics.Interp {
     }
   }
 
+  // TODO(SMH): `locals` may not be an appropriate name.
   datatype State =
-    State(locals: Context := map[])
+    State(locals: Context := map[], rollback: Context := map[])
   {
-    static const Empty := State(map[]) // BUG(https://github.com/dafny-lang/dafny/issues/2120)
+    static const Empty := State(map[], map[]) // BUG(https://github.com/dafny-lang/dafny/issues/2120)
   }
 
   datatype Environment =
@@ -283,12 +290,26 @@ module Bootstrap.Semantics.Interp {
               InterpFunctionCall(e, env, argvs[0], argvs[1..])
           })
       case VarDecl(vdecls, ovals) =>
-        Failure(Invalid(e)) // TODO
+        // Evaluate the rhs, if there is
+        if ovals.Some? then
+          var Return(vals, ctx) :- InterpExprs(ovals.value, env, ctx);
+          // Save the variables to the rollback context
+          var vars := Seq.Map((v: Exprs.Var) => v.name, vdecls);
+          var ctx := SaveToRollback(ctx, vars);
+          // Augment the context with the new bindings
+          var ctx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
+          // Continue
+          Success(Return(Unit, ctx))
+        else
+          // Save the variables to the rollback context
+          var vars := Seq.Map((v: Exprs.Var) => v.name, vdecls);
+          var ctx := SaveToRollback(ctx, vars);
+          // Continue
+          Success(Return(Unit, ctx))
       case Update(vars, vals) =>
-        Failure(Invalid(e)) // TODO
-//      case Bind(vars, exprs: seq<Expr>, body: Expr) =>
-//        var Return(vals, ctx) :- InterpExprs(exprs, env, ctx);
-//        InterpBind(e, env, ctx, vars, vals, body)
+        var Return(vals, ctx) :- InterpExprs(vals, env, ctx);
+        var ctx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
+        Success(Return(Unit, ctx))
       case If(cond, thn, els) =>
         var Return(condv, ctx) :- InterpExprWithType(cond, Type.Bool, env, ctx);
         if condv.b then InterpExpr(thn, env, ctx) else InterpExpr(els, env, ctx)
@@ -888,6 +909,23 @@ module Bootstrap.Semantics.Interp {
     var ctx := State(locals := AugmentContext(fn.ctx, fn.vars, argvs));
     var Return(val, ctx) :- InterpExpr(fn.body, env.(fuel := env.fuel - 1), ctx);
     Success(val)
+  }
+
+  function method SaveToRollback(ctx: State, vars: seq<string>)
+    : State
+    // This function is used when evaluating variable declarations:
+    // - save the non-local variables which are about to be shadowed into the rollback context
+    // - set the declared variables as "uninitialized" (by removing them from the local
+    //   context)
+  {
+    // Convert the sequence of variables to a set
+    var vars := set x | x in vars;
+    // We have to save the variables which:
+    // - are already present in the context (with a value)
+    // - are not in rollback
+    var save := map x | x in (vars * ctx.locals.Keys) - ctx.rollback.Keys :: ctx.locals[x];
+    // Update the contexts
+    ctx.(locals := ctx.locals - vars, rollback := ctx.rollback + save)
   }
 
 /*  function method InterpBind(e: Expr, env: Environment, ctx: State, vars: seq<string>, vals: seq<Value>, body: Expr)
