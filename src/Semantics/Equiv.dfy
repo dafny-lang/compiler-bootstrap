@@ -111,6 +111,7 @@ module Bootstrap.Semantics.Equiv {
   // to be a valid option.
   {
     match (v, v') {
+      case (Unit, Unit) => true
       case (Bool(b), Bool(b')) => b == b'
       case (Char(c), Char(c')) => c == c'
       case (Int(i), Int(i')) => i == i'
@@ -138,6 +139,7 @@ module Bootstrap.Semantics.Equiv {
         EqValue_Closure(v, v')
 
       // DISCUSS: Better way to write this?  Need exhaustivity checking
+      case (Unit, _) => false
       case (Bool(b), _) => false
       case (Char(c), _) => false
       case (Int(i), _) => false
@@ -245,6 +247,7 @@ module Bootstrap.Semantics.Equiv {
     decreases v, 1
   {
     match v {
+      case Unit => {}
       case Bool(_) => {}
       case Char(_) => {}
       case Int(_) => {}
@@ -351,6 +354,7 @@ module Bootstrap.Semantics.Equiv {
     decreases ValueTypeHeight(v0), 1
   {
     match v0 {
+      case Unit => {}
       case Bool(_) => {}
       case Char(_) => {}
       case Int(_) => {}
