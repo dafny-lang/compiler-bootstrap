@@ -928,7 +928,12 @@ module Bootstrap.Semantics.Interp {
     : (r: InterpResult<Value>)
     decreases env.fuel, stmts, 1
   {
-    InterpBlock_Exprs(stmts, env, ctx)
+    var ctx1 := ctx.(rollback := map []);
+    var Return(v, ctx2) :- InterpBlock_Exprs(stmts, env, ctx1);
+    var locals3 := map x | x in (ctx2.locals.Keys * ctx.locals.Keys) :: ctx2.locals[x];
+    var locals3 := locals3 + ctx2.rollback;
+    var ctx3 := State(locals := locals3, rollback := ctx.rollback);
+    Success(Return(v, ctx3))
   }
 
   /*function method InterpBind(e: Expr, env: Environment, ctx: State, vars: seq<string>, vals: seq<Value>, body: Expr)

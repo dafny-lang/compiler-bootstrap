@@ -486,7 +486,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     reveal InterpLiteral();
   }
 
-  lemma EqInterp_Expr_Abs_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State) // TODO: fix
+  lemma EqInterp_Expr_Abs_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
     requires e.Abs?
     requires e'.Abs?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
@@ -1144,16 +1144,32 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     reveal InterpBlock();
     reveal SupportsInterp();
 
-    var es := e.stmts;
-    var es' := e'.stmts;
-    EqInterp_Expr_BlockExprs_CanBeMapLifted(es, es', env, ctx, ctx');
-
     var res := InterpExpr(e, env, ctx);
     var res' := InterpExpr(e', env, ctx');
 
-    // Doesn't work without those assertions, for some reason
+    var ctx1 := ctx.(rollback := map []);
+    var ctx1' := ctx'.(rollback := map []);
+
+    assert EqState(ctx1, ctx1') by { reveal GEqCtx(); }
+
+    var es := e.stmts;
+    var es' := e'.stmts;
+    // Doesn't work without those assertions, for some reason (probably a problem of fuel)
     assert res == InterpBlock(es, env, ctx);
     assert res' == InterpBlock(es', env, ctx');
+
+    var res0 := InterpBlock_Exprs(es, env, ctx1);
+    var res0' := InterpBlock_Exprs(es', env, ctx1');
+    EqInterp_Expr_BlockExprs_CanBeMapLifted(es, es', env, ctx1, ctx1');
+    assert EqInterpResultValue(res0, res0');
+    
+    if res0.Success? {
+      reveal GEqCtx();
+    }
+    else {
+      // Trivial
+      assert res.Failure?;
+    }
   }
 
   lemma EqInterp_CanBeMapLifted()
