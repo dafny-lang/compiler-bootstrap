@@ -904,6 +904,7 @@ module Bootstrap.Semantics.Interp {
       InterpBlock_Exprs(es[1..], env, ctx)
   }
 
+  // TODO(SMH): update so that a block is actually a scope
   function method {:opaque} InterpBlock(stmts: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
     decreases env.fuel, stmts, 1
