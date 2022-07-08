@@ -16,35 +16,6 @@ module Bootstrap.Semantics.Interp {
   import opened Utils.Lib.Datatypes
   import opened AST.Predicates
 
-  // FIXME move
-  predicate method Pure1(e: Exprs.T) {
-    match e {
-      case Var(_) => true
-      case Literal(lit) => true
-      case Abs(vars, body) => true
-      case Apply(Lazy(op), args) =>
-        true
-      case Apply(Eager(op), args) =>
-        match op {
-          case UnaryOp(uop) => true
-          case BinaryOp(bop) => true
-          case TernaryOp(top) => true
-          case Builtin(Display(_)) => true
-          case Builtin(Print) => false
-          case FunctionCall() => true
-          case DataConstructor(name, typeArgs) => true
-        }
-      case VarDecl(vdecls, ovals) => true
-      case Update(vars, vals) => false
-      case Block(stmts) => true
-      case If(cond, thn, els) => true
-    }
-  }
-
-  predicate method Pure(e: Exprs.T) {
-    Predicates.Deep.All_Expr(e, Pure1)
-  }
-
   predicate method EagerOpSupportsInterp(op: Exprs.EagerOp) {
     match op {
       case UnaryOp(uop) => !uop.MemberSelect?
@@ -67,7 +38,7 @@ module Bootstrap.Semantics.Interp {
       case Apply(Eager(op), args) => EagerOpSupportsInterp(op)
       case VarDecl(vars, ovals) => true
       case Update(vars, vals) => true
-      case Block(stmts) => Debug.TODO(false)
+      case Block(stmts) => true
       case If(cond, thn, els) => true
     }
   }
@@ -310,6 +281,8 @@ module Bootstrap.Semantics.Interp {
         var Return(vals, ctx) :- InterpExprs(vals, env, ctx);
         var ctx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
         Success(Return(Unit, ctx))
+      case Block(stmts) =>
+        InterpBlock(stmts, env, ctx)
       case If(cond, thn, els) =>
         var Return(condv, ctx) :- InterpExprWithType(cond, Type.Bool, env, ctx);
         if condv.b then InterpExpr(thn, env, ctx) else InterpExpr(els, env, ctx)
@@ -401,7 +374,7 @@ module Bootstrap.Semantics.Interp {
 
   function method {:opaque} InterpExprs(es: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<seq<Value>>)
-    decreases env.fuel, es
+    decreases env.fuel, es, 0
     ensures r.Success? ==> |r.value.ret| == |es|
   { // TODO generalize into a FoldResult function
     reveal SupportsInterp();
@@ -416,6 +389,7 @@ module Bootstrap.Semantics.Interp {
     ensures HasEqValue(v)
   {
     match a
+      case LitUnit => V.Unit
       case LitBool(b: bool) => V.Bool(b)
       case LitInt(i: int) => V.Int(i)
       case LitReal(r: real) => V.Real(r)
@@ -928,7 +902,36 @@ module Bootstrap.Semantics.Interp {
     ctx.(locals := ctx.locals - vars, rollback := ctx.rollback + save)
   }
 
-/*  function method InterpBind(e: Expr, env: Environment, ctx: State, vars: seq<string>, vals: seq<Value>, body: Expr)
+  // TODO(SMH): update this to not enforce the intermediary blocks to evaluate to `Unit`,
+  // and use ``InterpExprs``. We will add a condition on ``Expr`` stating that there can't
+  // be empty blocks, and will use `{ () }` as a placeholder for an empty block whenever
+  // we need to use one.
+  function method {:opaque} InterpBlock_Exprs(es: seq<Expr>, env: Environment, ctx: State)
+    : (r: InterpResult<Value>)
+    decreases env.fuel, es, 0
+  {
+    // There is something subtle here:
+    // - if a block is empty, it evaluates to `Unit`
+    // - otherwise, it evaluates to the value of the last expression in the block (after all
+    //   the previous expressions have been evaluated, of course)
+    if es == [] then Success(Return(V.Unit, ctx))
+    else if |es| == 1 then
+      InterpExpr(es[0], env, ctx)
+    else
+      // Evaluate the first expression
+      var Return(val, ctx) :- InterpExprWithType(es[0], Types.Unit, env, ctx);
+      // Evaluate the remaining expressions
+      InterpBlock_Exprs(es[1..], env, ctx)
+  }
+
+  function method {:opaque} InterpBlock(stmts: seq<Expr>, env: Environment, ctx: State)
+    : (r: InterpResult<Value>)
+    decreases env.fuel, stmts, 1
+  {
+    InterpBlock_Exprs(stmts, env, ctx)
+  }
+
+  /*function method InterpBind(e: Expr, env: Environment, ctx: State, vars: seq<string>, vals: seq<Value>, body: Expr)
     : InterpResult<Value>
     requires body < e
     requires |vars| == |vals|
