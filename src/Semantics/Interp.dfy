@@ -261,11 +261,11 @@ module Bootstrap.Semantics.Interp {
               InterpFunctionCall(e, env, argvs[0], argvs[1..])
           })
       case VarDecl(vdecls, ovals) =>
+        var vars := Seq.Map((v: Exprs.Var) => v.name, vdecls);
         // Evaluate the rhs, if there is
         if ovals.Some? then
           var Return(vals, ctx) :- InterpExprs(ovals.value, env, ctx);
           // Save the variables to the rollback context
-          var vars := Seq.Map((v: Exprs.Var) => v.name, vdecls);
           var ctx := SaveToRollback(ctx, vars);
           // Augment the context with the new bindings
           var ctx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
@@ -273,7 +273,6 @@ module Bootstrap.Semantics.Interp {
           Success(Return(Unit, ctx))
         else
           // Save the variables to the rollback context
-          var vars := Seq.Map((v: Exprs.Var) => v.name, vdecls);
           var ctx := SaveToRollback(ctx, vars);
           // Continue
           Success(Return(Unit, ctx))
@@ -885,7 +884,7 @@ module Bootstrap.Semantics.Interp {
     Success(val)
   }
 
-  function method SaveToRollback(ctx: State, vars: seq<string>)
+  function method {:opaque} SaveToRollback(ctx: State, vars: seq<string>)
     : State
     // This function is used when evaluating variable declarations:
     // - save the non-local variables which are about to be shadowed into the rollback context

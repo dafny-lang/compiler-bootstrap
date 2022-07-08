@@ -116,8 +116,6 @@ module Bootstrap.Transforms.BottomUp {
              IdentityPreservesPre();
              IdentityTransformer)
 
-  predicate TODO() { false }
-
   function method MapChildren_Expr(e: Expr, tr: BottomUpTransformer) :
     (e': Expr)
     decreases e, 0
@@ -450,10 +448,27 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     reveal EqInterp_CanBeMapLifted_Post();
 
     reveal InterpExpr();
-    reveal TryGetVariable();
     reveal GEqCtx();
 
-    assume TODO();
+    var v := e.name;
+    assert v == e'.name;
+    
+    var res := InterpVar(v, ctx', env);
+    var res' := InterpVar(v, ctx', env);
+
+    // Start by looking in the local context
+    var res0 := TryGetVariable(ctx.locals, v, UnboundVariable(v));
+    var res0' := TryGetVariable(ctx'.locals, v, UnboundVariable(v));
+
+    if res0.Success? {
+      assert res0.Success?;
+    }
+    else {
+      // Not in the local context: look in the global context
+      if v in env.globals {
+        EqValue_Refl(env.globals[v]);
+      }
+    }
   }
 
   // FIXME(CPC): Can this lemma and the following ones use Interp.Expr?
@@ -1176,7 +1191,57 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
     decreases e, env, 0
   {
-    assume TODO();
+    reveal EqInterp_CanBeMapLifted_Pre();
+    reveal EqInterp_CanBeMapLifted_Post();
+
+    var VarDecl(vdecls, ovals) := e;
+    var VarDecl(vdecls', ovals') := e';
+
+    var res := InterpExpr(e, env, ctx);
+    var res' := InterpExpr(e', env, ctx');
+
+    var vars := Seq.Map((v: Exprs.Var) => v.name, vdecls);
+
+    assert vdecls == vdecls';
+
+    if ovals.Some? {
+      reveal SupportsInterp();
+      var res0 := InterpExprs(ovals.value, env, ctx);
+      var res0' := InterpExprs(ovals'.value, env, ctx');
+
+      InterpExprs_EqInterp_Inst(ovals.value, ovals'.value, env, ctx, ctx');
+      assert EqInterpResult(EqSeqValue, res0, res0');
+
+      if res0.Success? {
+        var Return(vals, ctx0) := res0.value;
+        var Return(vals', ctx0') := res0'.value;
+
+        var ctx1 := SaveToRollback(ctx0, vars);
+        var ctx1' := SaveToRollback(ctx0', vars);
+        SaveToRollback_Equiv(ctx0, ctx0', vars);
+        assert EqState(ctx1, ctx1');
+
+        var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, vals));
+        var ctx2' := ctx1'.(locals := AugmentContext(ctx1'.locals, vars, vals'));
+        AugmentContext_Equiv(ctx1.locals, ctx1'.locals, vars, vals, vals');
+        assert EqState(ctx2, ctx2');
+
+        assert res == Success(Return(Unit, ctx2)) by { reveal InterpExpr(); }
+        assert res' == Success(Return(Unit, ctx2')) by { reveal InterpExpr(); }
+      }
+      else {
+        // Trivial
+        reveal InterpExpr();
+      }
+    }
+    else {
+      SaveToRollback_Equiv(ctx, ctx', vars);
+      var ctx1 := SaveToRollback(ctx, vars);
+      var ctx1' := SaveToRollback(ctx', vars);
+      assert EqState(ctx1, ctx1');
+
+      reveal InterpExpr();
+    }
   }
 
   lemma EqInterp_Expr_Update_CanBeMapLifted_Lem(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
@@ -1197,6 +1262,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
 
     var Update(vars, vals) := e;
     var Update(vars', vals') := e';
+    assert vars' == vars;
 
     // The rhs evaluate to similar results
     var res0 := InterpExprs(vals, env, ctx);
@@ -1210,63 +1276,17 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       var Return(valsvs, ctx0) := res0.value;
       var Return(valsvs', ctx0') := res0'.value;
 
-      var ctx1 := ctx0.(locals := AugmentContext(ctx.locals, vars, valsvs));
-      var ctx1' := ctx0'.(locals := AugmentContext(ctx'.locals, vars, valsvs'));
+      AugmentContext_Equiv(ctx0.locals, ctx0'.locals, vars, valsvs, valsvs');
+      var ctx1 := ctx0.(locals := AugmentContext(ctx0.locals, vars, valsvs));
+      var ctx1' := ctx0'.(locals := AugmentContext(ctx0'.locals, vars, valsvs'));
+      assert EqState(ctx1, ctx1');
 
-      // assert EqState(ctx1, ctx1');
-
-    // var Return(vals, ctx) :- InterpExprs(vals, env, ctx);
-    // var ctx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
-    // Success(Return(Unit, ctx))
-
-      assume TODO();
+      assert res == Success(Return(Unit, ctx1));
+      assert res' == Success(Return(Unit, ctx1'));
     }
     else {
       // Trivial
     }
-
-/*      match (res0, res0') {
-      case (Success(res0), Success(res0')) => {
-        // Dafny crashes if we try to deconstruct the `Return`s in the match.
-        // See: https://github.com/dafny-lang/dafny/issues/2258
-        var Return(argvs, ctx0) := res0;
-        var Return(argvs', ctx0') := res0';
-
-        match (op, op') {
-          case (UnaryOp(op), UnaryOp(op')) => {
-            assert op == op';
-            EqInterp_Expr_UnaryOp_CanBeMapLifted_Lem(e, e', op, argvs[0], argvs'[0]);
-            assert EqInterpResultValue(res, res');
-          }
-          case (BinaryOp(bop), BinaryOp(bop')) => {
-            assert bop == bop';
-            EqInterp_Expr_BinaryOp_CanBeMapLifted_Lem(e, e', bop, argvs[0], argvs[1], argvs'[0], argvs'[1]);
-            assert EqInterpResultValue(res, res');
-          }
-          case (TernaryOp(top), TernaryOp(top')) => {
-            assert top == top';
-            EqInterp_Expr_TernaryOp_CanBeMapLifted_Lem(e, e', top, argvs[0], argvs[1], argvs[2], argvs'[0], argvs'[1], argvs'[2]);
-            assert EqInterpResultValue(res, res');
-          }
-          case (Builtin(Display(ty)), Builtin(Display(ty'))) => {
-            assert ty == ty';
-            EqInterp_Expr_Display_CanBeMapLifted_Lem(e, e', ty.kind, argvs, argvs');
-            assert EqInterpResultValue(res, res');
-          }
-          case (FunctionCall(), FunctionCall()) => {
-            EqInterp_Expr_FunctionCall_CanBeMapLifted_Lem(e, e', env, argvs[0], argvs'[0], argvs[1..], argvs'[1..]);
-            assert EqInterpResultValue(res, res');
-          }
-          case _ => {
-            // Impossible branch
-            assert false;
-          }
-        }
-      }
-      case (Failure(_), _) => {
-        // Trivial
-      }
-    } */
   }
 
   
