@@ -57,7 +57,8 @@ module Bootstrap.Semantics.Equiv {
   predicate GEqState(
     eq_value: (WV,WV) -> bool, ctx: State, ctx': State)
   {
-    GEqCtx(eq_value, ctx.locals, ctx'.locals)
+    && GEqCtx(eq_value, ctx.locals, ctx'.locals)
+    && GEqCtx(eq_value, ctx.rollback, ctx'.rollback)
   }
 
   function Mk_EqState(eq_value: (WV,WV) -> bool): (State,State) -> bool
@@ -559,6 +560,9 @@ module Bootstrap.Semantics.Equiv {
     reveal GEqCtx();
     forall x | x in ctx0.locals.Keys ensures EqValue(ctx0.locals[x], ctx2.locals[x]) {
       EqValue_Trans(ctx0.locals[x], ctx1.locals[x], ctx2.locals[x]);
+    }
+    forall x | x in ctx0.rollback.Keys ensures EqValue(ctx0.rollback[x], ctx2.rollback[x]) {
+      EqValue_Trans(ctx0.rollback[x], ctx1.rollback[x], ctx2.rollback[x]);
     }
   }
 
