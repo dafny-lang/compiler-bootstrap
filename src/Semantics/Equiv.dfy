@@ -1013,7 +1013,7 @@ module Bootstrap.Semantics.Equiv {
   lemma {:vcs_split_on_every_assert}
   MapOfPairs_SeqZip_EqCtx(vars: seq<string>, argvs: seq<WV>, argvs': seq<WV>)
     requires |argvs| == |argvs'| == |vars|
-    requires (forall i | 0 <= i < |vars| :: EqValue(argvs[i], argvs'[i]))
+    requires (forall i | 0 <= i < |vars| :: EqValue(argvs[i], argvs'[i])) // TODO(SMH): use All_Rel_Forall
     ensures
       var m := MapOfPairs(Seq.Zip(vars, argvs));
       var m' := MapOfPairs(Seq.Zip(vars, argvs'));
@@ -1098,5 +1098,60 @@ module Bootstrap.Semantics.Equiv {
         // Trivial
       }
     }
+  }
+
+  lemma CtxUnion_Eq(ctx: Context, add: Context, ctx': Context, add': Context)
+    requires WellFormedContext(ctx)
+    requires WellFormedContext(ctx')
+    requires WellFormedContext(add)
+    requires WellFormedContext(add')
+    requires EqCtx(ctx, ctx')
+    requires EqCtx(add, add')
+    ensures WellFormedContext(ctx + add)
+    ensures WellFormedContext(ctx' + add')
+    ensures EqCtx(ctx + add, ctx' + add')
+  {
+    reveal GEqCtx();
+  }
+
+  lemma AugmentContext_Equiv(base: Context, base': Context, vars: seq<string>, vals: seq<WV>, vals': seq<WV>)
+    requires WellFormedContext(base)
+    requires WellFormedContext(base')
+    requires |vars| == |vals| == |vals'|
+    requires EqCtx(base, base')
+    requires All_Rel_Forall(EqValue, vals, vals')
+    ensures (EqCtx(AugmentContext(base, vars, vals), AugmentContext(base', vars, vals')))
+  {
+    var m := MapOfPairs(Seq.Zip(vars, vals));
+    var m' := MapOfPairs(Seq.Zip(vars, vals'));
+    MapOfPairs_SeqZip_EqCtx(vars, vals, vals');
+    assert EqCtx(m, m');
+    var ctx := base + m;
+    var ctx' := base' + m';
+    CtxUnion_Eq(base, m, base', m');
+    assert EqCtx(ctx, ctx');
+  }
+
+  lemma SaveToRollback_Equiv(ctx: State, ctx': State, varseq: seq<string>)
+    requires EqState(ctx, ctx')
+    ensures EqState(SaveToRollback(ctx, varseq), SaveToRollback(ctx', varseq))
+  {
+    var vars := set x | x in varseq;
+    var save := map x | x in (vars * ctx.locals.Keys) - ctx.rollback.Keys :: ctx.locals[x];
+    var save' := map x | x in (vars * ctx'.locals.Keys) - ctx'.rollback.Keys :: ctx'.locals[x];
+
+    var ctx1 := ctx.(locals := ctx.locals - vars, rollback := ctx.rollback + save);
+    var ctx1' := ctx'.(locals := ctx'.locals - vars, rollback := ctx'.rollback + save');
+
+    assert ctx1 == SaveToRollback(ctx, varseq) by { reveal SaveToRollback(); }
+    assert ctx1' == SaveToRollback(ctx', varseq) by { reveal SaveToRollback(); }
+
+    assume EqCtx(ctx.rollback, ctx'.rollback); // TODO: update EqState
+
+    assert EqCtx(save, save') by { reveal GEqCtx(); }
+    assert EqCtx(ctx1.locals, ctx1'.locals) by { reveal GEqCtx(); }
+    assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal GEqCtx(); }
+
+    reveal SaveToRollback();
   }
 }
