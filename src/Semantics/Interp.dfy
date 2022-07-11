@@ -928,23 +928,19 @@ module Bootstrap.Semantics.Interp {
     : (r: InterpResult<Value>)
     decreases env.fuel, stmts, 1
   {
-    var ctx1 := ctx.(rollback := map []);
+    var ctx1 := StartScope(ctx);
     var Return(v, ctx2) :- InterpBlock_Exprs(stmts, env, ctx1);
-    var locals3 := map x | x in (ctx2.locals.Keys * ctx.locals.Keys) :: ctx2.locals[x];
-    var locals3 := locals3 + ctx2.rollback;
-    var ctx3 := State(locals := locals3, rollback := ctx.rollback);
+    var ctx3 := EndScope(ctx, ctx2);
     Success(Return(v, ctx3))
   }
 
-  /*function method InterpBind(e: Expr, env: Environment, ctx: State, vars: seq<string>, vals: seq<Value>, body: Expr)
-    : InterpResult<Value>
-    requires body < e
-    requires |vars| == |vals|
-    decreases env.fuel, e, 0
-  {
-    var bodyCtx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
-    var Return(val, bodyCtx) :- InterpExpr(body, env, bodyCtx);
-    var ctx := ctx.(locals := ctx.locals + (bodyCtx.locals - set v | v in vars)); // Preserve mutation
-    Success(Return(val, ctx))
-  }*/
+  function method StartScope(ctx: State): State {
+    ctx.(rollback := map [])
+  }
+
+  function method EndScope(ctx: State, ctx1: State): State {
+    var locals := map x | x in (ctx1.locals.Keys * ctx.locals.Keys) :: ctx1.locals[x];
+    var locals1 := locals + ctx1.rollback;
+    State(locals := locals1, rollback := ctx.rollback)
+  }
 }
