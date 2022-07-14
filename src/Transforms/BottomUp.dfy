@@ -394,7 +394,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
   lemma {:verify false} EqInterp_Expr_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 1
+    decreases e, 1
   {
     // Note that we don't need to reveal ``InterpExpr``: we just match on the first
     // expression and call the appropriate auxiliary lemma.
@@ -448,7 +448,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires e'.Var?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
+    decreases e, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -483,7 +483,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires e'.Literal?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
+    decreases e, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -497,7 +497,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires e'.Abs?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
+    decreases e, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -560,7 +560,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires e'.Apply? && e'.aop.Lazy?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
+    decreases e, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -609,7 +609,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires e'.Apply? && e'.aop.Eager?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
+    decreases e, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -1034,7 +1034,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires e'.If?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
+    decreases e, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -1141,7 +1141,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires e'.Block?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
+    decreases e, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -1211,7 +1211,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires e'.VarDecl?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
+    decreases e, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -1271,7 +1271,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires e'.Update?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
+    decreases e, 0
   {      
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
