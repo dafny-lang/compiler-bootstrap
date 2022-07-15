@@ -51,17 +51,29 @@ abstract module Ind {
 //  function CombineValues(v: V, vs: VS): VS // TODO: remove?
 //  function UpdateOnAbs(st: S, vars: seq<string>, body: Expr): S // TODO: remove?
 
-  // TODO: change that to a function
-  lemma {:verify false} P_ExcludedMiddle(st: S, e: Expr)
+  function {:verify false} P_Step(st: S, e: Expr): (res: (S, V))
     requires P(st, e)
-    ensures P_Fail(st, e) || exists st', v :: P_Succ(st, e, st', v)
-    ensures P_Fail(st, e) ==> forall st', v :: !P_Succ(st, e, st', v)
+    requires !P_Fail(st, e)
+    ensures P_Succ(st, e, res.0, res.1)
 
-  // TODO: change that to a function
-  lemma {:verify false} Pes_ExcludedMiddle(st: S, es: seq<Expr>)
+  function {:verify false} P_StepState(st: S, e: Expr): S
+    requires P(st, e)
+    requires !P_Fail(st, e)
+  {
+    P_Step(st, e).0
+  }
+
+  function {:verify false} P_StepValue(st: S, e: Expr): V
+    requires P(st, e)
+    requires !P_Fail(st, e)
+  {
+    P_Step(st, e).1
+  }
+
+  function {:verify false} Pes_Step(st: S, es: seq<Expr>): (res: (S, VS))
     requires Pes(st, es)
-    ensures Pes_Fail(st, es) || exists st', vs :: Pes_Succ(st, es, st', vs)
-    ensures Pes_Fail(st, es) ==> forall st', vs :: !Pes_Succ(st, es, st', vs)
+    requires !Pes_Fail(st, es)
+    ensures Pes_Succ(st, es, res.0, res.1)
 
   lemma {:verify false} P_Fail_Sound(st: S, e: Expr)
     requires P_Fail(st, e)
@@ -91,32 +103,16 @@ abstract module Ind {
     requires e.Abs?
     ensures P(st, e)
 
-/*    lemma InductExprs_Fail(st: S, e: Expr, es: seq<Expr>)
-    ensures P_Fail(st, e) ==> Pes(st, [e] + es)
-    ensures forall st1, v :: P_Succ(st, e, st1, v) && Pes_Fail(st1, es) ==> Pes(st, [e] + es)
-    ensures P_Fail(st, e) ==> Pes(st, [e] + es)
-
-  lemma {:verify false} InductExprs_Succ(st: S, e: Expr, es: seq<Expr>, st1: S, v: V, st2: S, vs: VS)
-    requires P_Succ(st, e, st1, v)
-    requires Pes_Succ(st1, es, st2, vs)
-    ensures Pes(st, [e] + es)
-*/
-
   lemma {:verify false} InductExprs_Nil(st: S)
     ensures Pes(st, [])
 
-  lemma {:verify false} InductExprs_Succ_Impl(st: S, e: Expr, es: seq<Expr>, st': S, vs: VS)
-    requires Pes_Succ(st, [e] + es, st', vs) // TODO: change to !Pes_Fail
+  // TODO: explain how the values are combined?
+  lemma {:verify false} InductExprs_Succ_Impl(st: S, e: Expr, es: seq<Expr>)
+    requires Pes(st, [e] + es)
+    requires !Pes_Fail(st, [e] + es)
     requires P(st, e)
-    requires forall st :: Pes(st, es) // TODO: use the functions which return witnesses
-//    ensures exists st1, v :: 
-//    requires forall st1, v :: P_Succ(st, e, st1, v) && Pes_Succ(st1, es, st2, vs')
-//    requires forall st :: P(st, e)
-//    requires forall st :: Pes(st, es)
-    ensures exists st1, v, st2, vs' :: P_Succ(st, e, st1, v) && Pes_Succ(st1, es, st2, vs')
-
-//  lemma InductExprs_Succ_Equiv(st: S, e: Expr, es: seq<Expr>)
-//    ensures Pes(st, [e] + es) <==> P_Fail(st, e) || (exists st1, v :: P_Succ(st, e, st1, v) && Pes(st1, es))
+    ensures !P_Fail(st, e)
+    ensures Pes(P_StepState(st, e), es) ==> !Pes_Fail(P_StepState(st, e), es)
 
   // DISCUSS: ApplyLazy is a special case
   lemma {:verify false} InductApplyLazy(st: S, e: Expr, arg0: Expr, arg1: Expr)
@@ -183,7 +179,7 @@ abstract module Ind {
 
   lemma {:verify false} P_Satisfied(st: S, e: Expr)
     ensures P(st, e)
-    decreases e, 1
+    decreases e, 2
   {
     if P_Fail(st, e) {
       P_Fail_Sound(st, e);
@@ -193,10 +189,41 @@ abstract module Ind {
     }
   }
 
+  function {:verify false} InductExprs_Step(st: S, e0: Expr, i: nat, e: Expr, es: seq<Expr>): (out: (S, V, S, VS))
+    requires e0.Apply? // This is for termination
+    requires i < |e0.args| // This is for termination
+    requires e0.args[i..] == [e] + es // This is for termination
+    requires !Pes_Fail(st, [e] + es)
+    ensures
+      var (st1, v, st2, vs) := out;
+      && P_Succ(st, e, st1, v)
+      && Pes_Succ(st1, es, st2, vs)
+      && !Pes_Fail(st1, es)
+    decreases e0, 0
+  {
+    Pes_Satisfied(st, [e] + es);
+    
+    assert e == e0.args[i];
+    assert e < e0;
+    P_Satisfied(st, e); // Recursion
+    assert !P_Fail(st, e) ==> Pes(P_StepState(st, e), es) by {
+      if !P_Fail(st, e) {
+        Pes_Satisfied(P_StepState(st, e), es); // Recursion
+      }
+    }
+
+    InductExprs_Succ_Impl(st, e, es);
+
+    var (st1, v) := P_Step(st, e);
+    var (st2, vs) := Pes_Step(st1, es);
+
+    (st1, v, st2, vs)
+  }
+
   lemma {:verify false} P_Satisfied_Succ(st: S, e: Expr)
     requires !P_Fail(st, e)
     ensures P(st, e)
-    decreases e, 0
+    decreases e, 1
   {
     reveal SupportsInterp();
     
@@ -216,23 +243,20 @@ abstract module Ind {
         InductApplyLazy(st, e, arg0, arg1);
 
       case Apply(Eager(aop), _) =>
-        // Recursion
-        Pes_Satisfied(st, e.args);
+        Pes_Satisfied(st, e.args); // Recursion
 
         if Pes_Fail(st, e.args) {
           InductApplyEager_Fail(st, e, e.args);
         }
         else {
-          Pes_ExcludedMiddle(st, e.args);
-          var st': S, vs: VS :| Pes_Succ(st, e.args, st', vs);
+          var (st', vs) := Pes_Step(st, e.args);
 
           match aop
             case UnaryOp(op) =>
               var arg0 := e.args[0];
               assert e.args == [arg0] + [];
-              // TODO: fix (forall quantif)
-              InductExprs_Succ_Impl(st, arg0, [], st', vs);
-              var st1: S, v0: V :| P_Succ(st, arg0, st1, v0);
+              var (st1, v0, _, _) := InductExprs_Step(st, e, 0, arg0, []);
+              
               InductApplyEagerUnaryOp_Succ(st, e, op, arg0, st1, v0);
 
             case BinaryOp(op) =>
@@ -241,12 +265,10 @@ abstract module Ind {
               assert e.args == [arg0, arg1];
 
               assert e.args == [arg0] + [arg1];
-              InductExprs_Succ_Impl(st, arg0, [arg1], st', vs);
-              var st1, v0, st2, vs' :| P_Succ(st, arg0, st1, v0) && Pes_Succ(st1, [arg1], st2, vs');
+              var (st1, v0, st2, vs') := InductExprs_Step(st, e, 0, arg0, [arg1]);
 
               assert [arg1] == [arg1] + [];
-              InductExprs_Succ_Impl(st1, arg1, [], st2, vs');
-              var st2', v1, st3, vs'' :| P_Succ(st1, arg1, st2', v1) && Pes_Succ(st2', [], st3, vs'');
+              var (st2', v1, st3, vs'') := InductExprs_Step(st1, e, 1, arg1, []);
 
               InductApplyEagerBinaryOp_Succ(st, e, op, arg0, arg1, st1, v0, st2', v1);
 
@@ -257,16 +279,13 @@ abstract module Ind {
               assert e.args == [arg0, arg1, arg2];
 
               assert e.args == [arg0] + [arg1, arg2];
-              InductExprs_Succ_Impl(st, arg0, [arg1, arg2], st', vs);
-              var st1, v0, st2, vs' :| P_Succ(st, arg0, st1, v0) && Pes_Succ(st1, [arg1, arg2], st2, vs');
+              var (st1, v0, st2, vs') := InductExprs_Step(st, e, 0, arg0, [arg1, arg2]);
 
               assert [arg1, arg2] == [arg1] + [arg2];
-              InductExprs_Succ_Impl(st1, arg1, [arg2], st2, vs');
-              var st2', v1, st3, vs'' :| P_Succ(st1, arg1, st2', v1) && Pes_Succ(st2', [arg2], st3, vs'');
+              var (st2', v1, st3, vs'') := InductExprs_Step(st1, e, 1, arg1, [arg2]);
 
               assert [arg2] == [arg2] + [];
-              InductExprs_Succ_Impl(st2', arg2, [], st3, vs'');
-              var st3', v2, st4, vs''' :| P_Succ(st2', arg2, st3', v2) && Pes_Succ(st3', [], st4, vs''');
+              var (st3', v2, st4, vs''') := InductExprs_Step(st2', e, 2, arg2, []);
 
               InductApplyEagerTernaryOp_Succ(st, e, arg0, arg1, arg2, st1, v0, st2', v1, st3', v2);
 
@@ -278,9 +297,7 @@ abstract module Ind {
               var args := e.args[1..];
 
               assert e.args == [f] + args;
-              InductExprs_Succ_Impl(st, f, args, st', vs);
-
-              var st1, fv, st2, argvs :| P_Succ(st, f, st1, fv) && Pes_Succ(st1, args, st2, argvs);
+              var (st1, fv, st2, argvs) := InductExprs_Step(st, e, 0, f, args);
 
               InductApplyEagerFunctionCall(st, e, f, args, st1, fv, st2, argvs);
         }
@@ -294,19 +311,17 @@ abstract module Ind {
           InductIf_Fail(st, e, cond, thn, els);
         }
         else {
-          P_ExcludedMiddle(st, cond);
-          var st_cond, condv :| P_Succ(st, cond, st_cond, condv);
+          var (st_cond, condv) := P_Step(st, cond);
 
           // Test the condition
           if IsTrue(condv) {
             P_Satisfied(st_cond, thn); // Recursion
-            P_ExcludedMiddle(st_cond, thn);
 
             if P_Fail(st_cond, thn) {
               InductIf_Fail(st, e, cond, thn, els);
             }
             else {
-              var st_br, brv :| P_Succ(st_cond, thn, st_br, brv);
+              var (st_br, brv) := P_Step(st_cond, thn);
 
               //Recursion
               P_Satisfied(st_cond, thn);
@@ -317,13 +332,12 @@ abstract module Ind {
           }
           else if IsFalse(condv) {
             P_Satisfied(st_cond, els); // Recursion
-            P_ExcludedMiddle(st_cond, els);
 
             if P_Fail(st_cond, els) {
               InductIf_Fail(st, e, cond, thn, els);
             }
             else {
-              var st_br, brv :| P_Succ(st_cond, els, st_br, brv);
+              var (st_br, brv) := P_Step(st_cond, els);
 
               //Recursion
               P_Satisfied(st_cond, els);
@@ -350,7 +364,7 @@ abstract module Ind {
 
   lemma {:verify false} Pes_Satisfied(st: S, es: seq<Expr>)
     ensures Pes(st, es)
-    decreases es
+    decreases es, 0
   {
     assume false;
   }
@@ -418,31 +432,22 @@ module EqInterpRefl refines Ind {
   {
     v.v.Bool? && !v.v.b
   }
-
   
+  function {:verify false} P_Step ... {
+    var Return(v, ctx1) := InterpExpr(e, st.env, st.ctx).value;
+    var Return(v', ctx1') := InterpExpr(e, st.env, st.ctx').value;
+    (MState(st.env, ctx1, ctx1'), MValue(v, v'))
+  }
+
+  function {:verify false} Pes_Step ... {
+    var Return(vs, ctx1) := InterpExprs(es, st.env, st.ctx).value;
+    var Return(vs', ctx1') := InterpExprs(es, st.env, st.ctx').value;
+    (MState(st.env, ctx1, ctx1'), MSeqValue(vs, vs'))
+  }
+
   //
   // Lemmas
   //
-  
-  lemma {:verify false} P_ExcludedMiddle ... {
-    // Damn, Z3 is bad at instantiating existential quantifiers
-    if EqState(st.ctx, st.ctx') && InterpExpr(e, st.env, st.ctx).Success? {
-      var Return(v, ctx1) := InterpExpr(e, st.env, st.ctx).value;
-      var Return(v', ctx1') := InterpExpr(e, st.env, st.ctx').value;
-      assert P_Succ(st, e, MState(st.env, ctx1, ctx1'), MValue(v, v'));
-    }
-    else {}
-  }
-
-  lemma {:verify false} Pes_ExcludedMiddle ... {
-    // Damn, Z3 is bad at instantiating existential quantifiers
-    if EqState(st.ctx, st.ctx') && InterpExprs(es, st.env, st.ctx).Success? {
-      var Return(vs, ctx1) := InterpExprs(es, st.env, st.ctx).value;
-      var Return(vs', ctx1') := InterpExprs(es, st.env, st.ctx').value;
-      assert Pes_Succ(st, es, MState(st.env, ctx1, ctx1'), MSeqValue(vs, vs'));
-    }
-    else {}
-  }
 
   lemma {:verify false} P_Fail_Sound ... {}
   lemma {:verify false} P_Succ_Sound ... {}
@@ -454,31 +459,7 @@ module EqInterpRefl refines Ind {
   lemma {:verify false} InductAbs ... { assume false; }
 
   lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); }
-
-  lemma {:verify false} InductExprs_Succ_Impl ... {
-    reveal InterpExprs();
-
-    assert Pes_Succ(st, [e] + es, st', vs);
-
-    assert ([e] + es)[0] == e;
-    assert ([e] + es)[1..] == es;
-    
-    var Return(v, ctx1) := InterpExpr(e, st.env, st.ctx).value;
-    var Return(v', ctx1') := InterpExpr(e, st.env, st.ctx').value;
-
-    var v1 := MValue(v, v');
-    var st1 := MState(st.env, ctx1, ctx1');
-
-    assert P_Succ(st, e, st1, v1);
-
-    var Return(vs, ctx2) := InterpExprs(es, st.env, ctx1).value;
-    var Return(vs', ctx2') := InterpExprs(es, st.env, ctx1').value;
-
-    var st2 := MState(st.env, ctx2, ctx2');
-    var vs2 := MSeqValue(vs, vs');
-    assert Pes(st1, es); // We need this
-    assert Pes_Succ(st1, es, st2, vs2);
-  }
+  lemma {:verify true} InductExprs_Succ_Impl ... { reveal InterpExprs(); }
 
   lemma {:verify false} InductApplyLazy ... { assume false; }
   lemma {:verify false} InductApplyEager_Fail ... { reveal InterpExpr(); }
@@ -553,3 +534,4 @@ module EqInterpRefl refines Ind {
 }
 
 } // end of module Bootstrap.Semantics.ExprInduction
+
