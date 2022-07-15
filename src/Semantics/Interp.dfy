@@ -281,7 +281,8 @@ module Bootstrap.Semantics.Interp {
         var ctx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
         Success(Return(Unit, ctx))
       case If(cond, thn, els) =>
-        var Return(condv, ctx) :- InterpExprWithType(cond, Type.Bool, env, ctx);
+        var Return(condv, ctx) :- InterpExpr(cond, env, ctx);
+        :- Need(condv.HasType(Type.Bool), TypeError(e, condv, Type.Bool));
         if condv.b then InterpExpr(thn, env, ctx) else InterpExpr(els, env, ctx)
     }
   }
@@ -328,6 +329,13 @@ module Bootstrap.Semantics.Interp {
       MapOfPairs(pairs[..lastidx])[pairs[lastidx].0 := pairs[lastidx].1]
   }
 
+  // DISCUSS: using this function *inside* the interpreter is a bad idea, because then it is mutually
+  // recursive with all the other ``Interp...`` functions, and unfolding it requires fuel, which means
+  // Z3 often doesn't see the call to ``InterpExpr`` inside, making some proofs require more work than
+  // needed (for instance by forcing the user to introduce a call to ``InterpExprWithType`` in the
+  // context to allow the unfolding). For this reason, whenever we need to use ``InterpExprWithType``
+  // inside the interpreter definitions, we inline its body.
+  // We still keep this definition because it provides a convenient utility for the rest of the project.
   function method InterpExprWithType(e: Expr, ty: Type, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
     decreases env.fuel, e, 2
@@ -406,14 +414,17 @@ module Bootstrap.Semantics.Interp {
     reveal SupportsInterp();
     Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
     var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
-    var Return(v0, ctx0) :- InterpExprWithType(e0, Type.Bool, env, ctx);
+    var Return(v0, ctx0) :- InterpExpr(e0, env, ctx);
+    :- Need(v0.HasType(Type.Bool), TypeError(e, v0, Type.Bool));
     match (op, v0)
       case (And, Bool(false)) => Success(Return(V.Bool(false), ctx0))
       case (Or,  Bool(true))  => Success(Return(V.Bool(true), ctx0))
       case (Imp, Bool(false)) => Success(Return(V.Bool(true), ctx0))
       case (_,   Bool(b)) =>
         assert op in {Exprs.And, Exprs.Or, Exprs.Imp};
-        InterpExprWithType(e1, Type.Bool, env, ctx0)
+        var Return(v1, ctx1) :- InterpExpr(e1, env, ctx0);
+        :- Need(v1.HasType(Type.Bool), TypeError(e1, v1, Type.Bool));
+        Success(Return(v1, ctx1))
   }
 
   // Alternate implementation of ``InterpLazy``: less efficient but more closely
@@ -426,8 +437,10 @@ module Bootstrap.Semantics.Interp {
     reveal SupportsInterp();
     Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
     var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
-    var Return(v0, ctx0) :- InterpExprWithType(e0, Type.Bool, env, ctx);
-    var Return(v1, ctx1) :- InterpExprWithType(e1, Type.Bool, env, ctx0);
+    var Return(v0, ctx0) :- InterpExpr(e0, env, ctx);
+    :- Need(v0.HasType(Type.Bool), TypeError(e0, v0, Type.Bool));
+    var Return(v1, ctx1) :- InterpExpr(e1, env, ctx0);
+    :- Need(v1.HasType(Type.Bool), TypeError(e1, v1, Type.Bool));
     match (op, v0, v1)
       case (And, Bool(b0), Bool(b1)) =>
         Success(Return(V.Bool(b0 && b1), if b0 then ctx1 else ctx0))
@@ -899,7 +912,8 @@ module Bootstrap.Semantics.Interp {
       InterpExpr(es[0], env, ctx)
     else
       // Evaluate the first expression
-      var Return(val, ctx) :- InterpExprWithType(es[0], Types.Unit, env, ctx);
+      var Return(val, ctx) :- InterpExpr(es[0], env, ctx);
+      :- Need(val.HasType(Types.Unit), TypeError(es[0], val, Types.Unit));
       // Evaluate the remaining expressions
       InterpBlock_Exprs(es[1..], env, ctx)
   }
