@@ -697,7 +697,6 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
 
   // TODO: we could split this lemma, whose proof is big (though straightforward),
   // but it is a bit annoying to do...
-  // TODO: e and e' should be the same actually
   lemma EqInterp_Expr_BinaryOp_CanBeMapLifted(
     e: Interp.Expr, e': Interp.Expr, bop: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
   )
@@ -707,149 +706,21 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires InterpBinaryOp(e, bop, v0, v1).Success?
     ensures EqPureInterpResultValue(InterpBinaryOp(e, bop, v0, v1), InterpBinaryOp(e', bop, v0', v1'))
   {
-    reveal InterpBinaryOp();
-
-    var retv :- assert InterpBinaryOp(e, bop, v0, v1);
-    var res' := InterpBinaryOp(e', bop, v0', v1');
-
-    // Below: for the proofs about binary operations involving collections (Set, Map...),
-    // see the Set case, which gives the general strategy.
-    match bop {
-      case Numeric(op) =>
-      case Logical(op) =>
-      case Eq(op) => {
-        // The proof strategy is similar to the Set case.
-        EqValue_HasEqValue_Eq(v0, v0');
-        EqValue_HasEqValue_Eq(v1, v1');
-      }
-      case Char(op) =>
-      case Sets(op) => {
-        // We make a case disjunction between the "trivial" operations,
-        // and the others. We treat the "difficult" operations first.
-        // In the case of sets, the trivial operations are those which
-        // take two sets as parameters (they are trivial, because if
-        // two set values are equivalent according to ``EqValue``, then
-        // they are actually equal for ``==``).
-        if op.InSet? || op.NotInSet? {
-          // The trick is that:
-          // - either v0 and v0' have a decidable equality, in which case
-          //   the evaluation succeeds, and we actually have that v0 == v0'.
-          // - or they don't, in which case the evaluation fails.
-          // Of course, we need to prove that v0 has a decidable equality
-          // iff v0' has one. The important results are given by the lemma below.
-          EqValue_HasEqValue_Eq(v0, v0');
-          var retv' := res'.value;
-
-          // As we assume the evaluation succeeded in the precondition, necessarily the
-          // calls to ``Need`` succeeded, from which we can derive information, in particular
-          // information about the equality between values, which allows us to prove the goal.
-          assert HasEqValue(v0);
-          assert HasEqValue(v0');
-          assert v0 == v0';
-
-          assert v1.Set?;
-          assert v1'.Set?;
-          assert v1 == v1';
-
-          assert EqValue(retv, retv');
-        }
-        else {
-          // All the remaining operations are performed between sets.
-          // ``EqValue`` is true on sets iff they are equal, so
-          // this proof is trivial.
-
-          var retv' := res'.value;
-
-          // We enumerate all the cases on purpose, so that this assertion fails
-          // if we add more cases, making debugging easier.
-          assert || op.SetEq? || op.SetNeq? || op.Subset? || op.Superset? || op.ProperSubset?
-                 || op.ProperSuperset? || op.Disjoint? || op.Union? || op.Intersection?
-                 || op.SetDifference?;
-
-          assert EqValue(retv, retv');
-        }
-      }
-      case Multisets(op) => {
-        // Rk.: this proof is similar to the one for Sets
-        if op.InMultiset? || op.NotInMultiset? {
-          EqValue_HasEqValue_Eq(v0, v0');
-        }
-        else if op.MultisetSelect? {
-          // Rk.: this proof is similar to the one for Sets
-          EqValue_HasEqValue_Eq(v1, v1');
-        }
-        else {
-          // All the remaining operations are performed between multisets.
-          // ``EqValue`` is true on sets iff they are equal, so
-          // this proof is trivial.
-
-          // Same as for Sets: we enumerate all the cases on purpose
-          assert || op.MultisetEq? || op.MultisetNeq? || op.MultiSubset? || op.MultiSuperset?
-                 || op.ProperMultiSubset? || op.ProperMultiSuperset? || op.MultisetDisjoint?
-                 || op.MultisetUnion? || op.MultisetIntersection? || op.MultisetDifference?;
-
-
-          var retv' := res'.value;
-          assert EqValue(retv, retv');
-        }
-      }
-      case Sequences(op) => {
-        // Rk.: the proof strategy is given by the Sets case
-        EqValue_HasEqValue_Eq(v0, v0');
-        EqValue_HasEqValue_Eq(v1, v1');
-        var retv' := res'.value;
-
-        if op.SeqDrop? || op.SeqTake? {
-          var len := |v0.sq|;
-          // Doesn't work without this assertion
-          assert forall i | 0 <= i < len :: EqValue(v0.sq[i], v0'.sq[i]);
-        }
-        else {
-          // Same as for Sets: we enumerate all the cases on purpose
-          assert || op.SeqEq? || op.SeqNeq? || op.Prefix? || op.ProperPrefix? || op.Concat?
-                 || op.InSeq? || op.NotInSeq? || op.SeqSelect?;
-
-          assert EqValue(retv, retv');
-        }
-      }
-      case Maps(op) => {
-        // Rk.: the proof strategy is given by the Sets case
-        EqValue_HasEqValue_Eq(v0, v0');
-        EqValue_HasEqValue_Eq(v1, v1');
-
-        var retv' := res'.value;
-
-        if op.MapEq? || op.MapNeq? || op.InMap? || op.NotInMap? || op.MapSelect? {
-          assert EqValue(retv, retv');
-        }
-        else {
-          assert op.MapMerge? || op.MapSubtraction?;
-
-          // Z3 needs a bit of help to prove the equivalence between the maps
-          // The evaluation succeeds, and returns a map
-          var m1 := retv.m;
-          var m1' := retv'.m;
-
-          // Prove that: |m1| == |m1'|
-          assert m1.Keys == m1'.Keys;
-          assert |m1| == |m1.Keys|; // This is necessary
-          assert |m1'| == |m1'.Keys|; // This is necessary
-
-          assert EqValue(retv, retv');
-        }
-      }
-    }
+    InterpBinaryOp_Eq(e, e', bop, v0, v1, v0', v1');
   }
 
-  // TODO: e and e' should be the same actually
   lemma EqInterp_Expr_TernaryOp_CanBeMapLifted(
     e: Interp.Expr, e': Interp.Expr, top: TernaryOp, v0: WV, v1: WV, v2: WV, v0': WV, v1': WV, v2': WV
   )
     requires EqValue(v0, v0')
     requires EqValue(v1, v1')
     requires EqValue(v2, v2')
+    requires InterpTernaryOp(e, top, v0, v1, v2).Success?
     ensures EqPureInterpResultValue(InterpTernaryOp(e, top, v0, v1, v2), InterpTernaryOp(e', top, v0', v1', v2'))
   {
+    // TODO: using this lemma makes Dafny crash...
+    // InterpTernaryOp_Eq(e, e', top, v0, v1, v2, v0', v1', v2');
+
     reveal InterpTernaryOp();
 
     var res := InterpTernaryOp(e, top, v0, v1, v2);
