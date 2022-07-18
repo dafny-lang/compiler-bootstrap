@@ -92,7 +92,7 @@ module Bootstrap.Semantics.Interp {
   predicate method HasEqValue(v: V.T)
   // Return true if the value supports a decidale equality.
   //
-  // Note that this is a bit subtle for collections: any empty collection supports a decidable
+  // Note that this is a bit subtle for collections: any empt\y collection supports a decidable
   // equality, but non-empty collections support a decidable equality only if their elements
   // support one.
   {

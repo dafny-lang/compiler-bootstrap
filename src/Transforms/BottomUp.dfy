@@ -772,18 +772,6 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     }
   }
 
-  lemma InterpCallFunctionBody_Eq_InterpFunctionCall(e: Interp.Expr, env: Environment, fn: WV, argvs: seq<WV>)
-    requires env.fuel > 0
-    requires fn.Closure?
-    requires |fn.vars| == |argvs|
-    ensures InterpFunctionCall(e, env, fn, argvs) == InterpCallFunctionBody(fn, env.(fuel := env.fuel - 1), argvs)
-    // We do need this lemma, though the reason why we need it is strange: the result is trivial by definition
-  {
-    reveal InterpFunctionCall();
-    reveal InterpCallFunctionBody();
-    reveal BuildCallState();
-  }
-
   lemma EqInterp_Expr_FunctionCall_CanBeMapLifted(
     e: Interp.Expr, e': Interp.Expr, env: Environment, f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>
   )
@@ -793,40 +781,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     ensures EqPureInterpResultValue(InterpFunctionCall(e, env, f, argvs),
                                     InterpFunctionCall(e', env, f', argvs'))
   {
-    var res := InterpFunctionCall(e, env, f, argvs);
-    var res' := InterpFunctionCall(e', env, f', argvs');
-
-    reveal InterpFunctionCall();
-    var Closure(ctx, vars, body) := f;
-    var Closure(ctx', vars', body') := f';
-
-    assert |vars| == |vars'| == |argvs| == |argvs'| by {
-      reveal EqValue_Closure();
-    }
-
-    var res0 := InterpCallFunctionBody(f, env.(fuel := env.fuel - 1), argvs);
-    var res0' := InterpCallFunctionBody(f', env.(fuel := env.fuel - 1), argvs');
-
-    // This comes from EqValue_Closure
-    assert EqPureInterpResultValue(res0, res0') by {
-      // We have restrictions on the arguments on which we can apply the equivalence relation
-      // captured by ``EqValue_Closure``. We do the assumption that, if one of the calls succeedeed,
-      // then the arguments are "not too big" and we can apply the equivalence. This would be true
-      // if the program was successfully type-checked.
-      assume (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs[i]) < ValueTypeHeight(f));
-      assume (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs'[i]) < ValueTypeHeight(f'));
-      EqValue_Closure_EqInterp_FunctionCall(f, f', argvs, argvs', env.(fuel := env.fuel - 1));
-    }
-
-    // By definition
-    assert res0 == res by {
-      InterpCallFunctionBody_Eq_InterpFunctionCall(e, env, f, argvs);
-    }
-    assert res0' == res' by {
-      InterpCallFunctionBody_Eq_InterpFunctionCall(e', env, f', argvs');
-    }
-
-    assert EqPureInterpResultValue(res, res');
+    InterpFunctionCall_EqState(e, e', env, f, f', argvs, argvs');
   }
 
   lemma EqInterp_Expr_If_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
