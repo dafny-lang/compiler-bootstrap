@@ -1356,4 +1356,48 @@ module Bootstrap.Semantics.Equiv {
       }
     }
   }
+
+  lemma InterpFunctionCall_EqState(
+    e: Interp.Expr, e': Interp.Expr, env: Environment, f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>)
+    requires EqValue(f, f')
+    requires EqSeqValue(argvs, argvs')
+    requires InterpFunctionCall(e, env, f, argvs).Success?
+    ensures EqPureInterpResultValue(InterpFunctionCall(e, env, f, argvs),
+                                    InterpFunctionCall(e', env, f', argvs'))
+  {
+    var res := InterpFunctionCall(e, env, f, argvs);
+    var res' := InterpFunctionCall(e', env, f', argvs');
+
+    reveal InterpFunctionCall();
+    var Closure(ctx, vars, body) := f;
+    var Closure(ctx', vars', body') := f';
+
+    assert |vars| == |vars'| == |argvs| == |argvs'| by {
+      reveal EqValue_Closure();
+    }
+
+    var res0 := InterpCallFunctionBody(f, env.(fuel := env.fuel - 1), argvs);
+    var res0' := InterpCallFunctionBody(f', env.(fuel := env.fuel - 1), argvs');
+
+    // This comes from EqValue_Closure
+    assert EqPureInterpResultValue(res0, res0') by {
+      // We have restrictions on the arguments on which we can apply the equivalence relation
+      // captured by ``EqValue_Closure``. We do the assumption that, if one of the calls succeedeed,
+      // then the arguments are "not too big" and we can apply the equivalence. This would be true
+      // if the program was successfully type-checked.
+      assume (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs[i]) < ValueTypeHeight(f));
+      assume (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs'[i]) < ValueTypeHeight(f'));
+      EqValue_Closure_EqInterp_FunctionCall(f, f', argvs, argvs', env.(fuel := env.fuel - 1));
+    }
+
+    // By definition
+    assert res0 == res by {
+      InterpCallFunctionBody_Eq_InterpFunctionCall(e, env, f, argvs);
+    }
+    assert res0' == res' by {
+      InterpCallFunctionBody_Eq_InterpFunctionCall(e', env, f', argvs');
+    }
+
+    assert EqPureInterpResultValue(res, res');
+  }
 }

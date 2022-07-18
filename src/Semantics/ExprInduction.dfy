@@ -123,6 +123,7 @@ abstract module Ind {
 
   lemma {:verify false} InductVar(st: S, e: Expr)
     requires e.Var?
+    requires !P_Fail(st, e)
     ensures P(st, e)
 
   lemma {:verify false} InductLiteral(st: S, e: Expr)
@@ -564,8 +565,29 @@ module EqInterpRefl refines Ind {
   lemma {:verify false} Pes_Succ_Inj ... {}
   lemma {:verify false} ToSeq_Append ... {}
 
-  lemma {:verify false} InductVar ... { assume false; } // TODO: prove
-  lemma {:verify false} InductLiteral ... { assume false; } // TODO: prove
+  lemma {:verify false} InductVar ... {
+    reveal InterpExpr();
+    reveal GEqCtx();
+
+    var env := st.env;
+    var v := e.name;
+    
+    // Start by looking in the local context
+    var res0 := TryGetVariable(st.ctx.locals, v, UnboundVariable(v));
+    var res0' := TryGetVariable(st.ctx'.locals, v, UnboundVariable(v));
+
+    if res0.Success? {
+      assert res0.Success?;
+    }
+    else {
+      // Not in the local context: look in the global context
+      assert v in env.globals;
+      EqValue_Refl(env.globals[v]);
+    }
+  }
+
+  lemma {:verify false} InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); }
+
   lemma {:verify false} InductAbs ... { assume false; } // TODO: prove
 
   lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); }
@@ -594,7 +616,11 @@ module EqInterpRefl refines Ind {
   }
 
   lemma {:verify false} InductApplyEagerBuiltin ... { assume false; } // TODO: prove
-  lemma {:verify false} InductApplyEagerFunctionCall ... { assume false; } // TODO: prove
+
+  lemma {:verify false} InductApplyEagerFunctionCall ... {
+    reveal InterpExpr();
+    InterpFunctionCall_EqState(e, e, st.env, fv.v, fv.v', argvs.vs, argvs.vs');
+  }
 
   lemma {:verify false} InductIf_Fail ... { reveal InterpExpr(); }
   lemma {:verify false} InductIf_Succ ... { reveal InterpExpr(); }
