@@ -184,20 +184,27 @@ module Bootstrap.Transforms.BottomUp {
       case Literal(lit_) => e
       case Abs(vars, body) => Expr.Abs(vars, Map_Expr_WithRel(body, tr, rel))
       case Apply(aop, exprs) =>
-        var exprs' := Seq.Map(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
+        // BUG(https://github.com/dafny-lang/dafny/issues/2435): we can't apply `Map_Expr_WithRel`
+        // through `Seq.Map` because then the compiled code is incorrect.
+        // For this reason we apply `Map_Expr` instead of `Map_Expr_WithRel` and leverage the fact
+        // that those two functions return the same output.
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
         Map_All_IsMap(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
         var e' := Expr.Apply(aop, exprs');
         assert Exprs.ConstructorsMatch(e, e');
         e'
       case Block(exprs) =>
-        var exprs' := Seq.Map(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
         Map_All_IsMap(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
         var e' := Expr.Block(exprs');
         assert Exprs.ConstructorsMatch(e, e');
         e'
       case Bind(vars, vals, body) =>
         assume TODO();
-        var vals' := Seq.Map(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
+        var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
+        Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
         var e' := Expr.Bind(vars, vals', Map_Expr_WithRel(body, tr, rel));
         assert Exprs.ConstructorsMatch(e, e');
