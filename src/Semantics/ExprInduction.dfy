@@ -152,10 +152,20 @@ abstract module Ind {
       var (st2, vs) := Pes_Step(st1, es);
       Pes_Succ(st, [e] + es, st2, AppendValue(v, vs))
 
-  // DISCUSS: ApplyLazy is a special case
-  lemma {:verify false} InductApplyLazy(st: S, e: Expr, arg0: Expr, arg1: Expr)
+  lemma {:verify true} InductApplyLazy_Fail(st: S, e: Expr, arg0: Expr, arg1: Expr)
     requires e.Apply? && e.aop.Lazy? && e.args == [arg0, arg1]
     requires !P_Fail(st, e)
+    requires P_Fail(st, arg0)
+    ensures P(st, e)
+
+  lemma {:verify true} InductApplyLazy_Succ(st: S, e: Expr, arg0: Expr, arg1: Expr, st1: S, v0: V)
+    requires e.Apply? && e.aop.Lazy? && e.args == [arg0, arg1]
+    requires !P_Fail(st, e)
+    requires P_Succ(st, arg0, st1, v0)
+    requires P(st1, arg1) // We can't assume that we successfully evaluated the second argument, because the operator is lazy
+//    requires Pes(st, [arg0, arg1])
+//    requires !Pes_Fail(st, [arg0, arg1])
+//    requires Pes_StepValue(st, [arg0, arg1]) == ToSeq([v0, v1])
     ensures P(st, e)
 
   lemma {:verify false} InductApplyEager_Fail(st: S, e: Expr, args: seq<Expr>)
@@ -308,7 +318,18 @@ abstract module Ind {
       case Apply(Lazy(_), _) =>
         var arg0 := e.args[0];
         var arg1 := e.args[1];
-        InductApplyLazy(st, e, arg0, arg1);
+
+        P_Satisfied(st, arg0); // Recursion
+
+        if P_Fail(st, arg0) {
+          InductApplyLazy_Fail(st, e, arg0, arg1);
+        }
+        else {
+          var (st1, v0) := P_Step(st, arg0);
+
+          P_Satisfied(st1, arg1); // Recursion
+          InductApplyLazy_Succ(st, e, arg0, arg1, st1, v0);
+        }
 
       case Apply(Eager(aop), _) =>
         Pes_Satisfied(st, e.args); // Recursion
@@ -580,7 +601,8 @@ module EqInterpRefl refines Ind {
 
   lemma {:verify false} InductAbs ... {
     // TODO: post-condition for BuildClosureCallState? (EqState(st) ==> EqState(st'))
-    // It seems we only need the call to ``BuildCallState_EqState`` in the forall statement
+    // It seems we only need the call to ``BuildCallState_EqState`` in the forall statement,
+    // and that would also help for ``InductAbs_CallState``
     reveal InterpExpr();
     reveal EqValue_Closure();
 
@@ -631,12 +653,10 @@ module EqInterpRefl refines Ind {
   }
 
   lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); }
-
   lemma {:verify false} InductExprs_Succ_Impl ... { reveal InterpExprs(); }
 
-  lemma {:verify false} InductApplyLazy ... {
-    assume false;
-  } // TODO: prove
+  lemma {:verify true} InductApplyLazy_Fail ... { reveal InterpExpr(); reveal InterpLazy(); }
+  lemma {:verify true} InductApplyLazy_Succ ... { reveal InterpExpr(); reveal InterpLazy(); }
 
   lemma {:verify false} InductApplyEager_Fail ... { reveal InterpExpr(); }
 
