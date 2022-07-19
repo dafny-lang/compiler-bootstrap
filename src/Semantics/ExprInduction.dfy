@@ -52,6 +52,11 @@ abstract module Ind {
   function {:verify false} ToSeq(vs: seq<V>): VS // TODO(SMH): rename to `ToSeqValue`
 //  function UpdateOnAbs(st: S, vars: seq<string>, body: Expr): S // TODO: remove?
 
+  predicate VS_CallStatePre(vars: seq<string>, argvs: VS)
+
+  function {:verify true} BuildClosureCallState(st: S, vars: seq<string>, body: Expr, env: Environment, argvs: VS): S
+    requires VS_CallStatePre(vars, argvs)
+
   // DISCUSS: can't get the postcondition with a constant
   function {:verify false} GetNilVS(): (vs:VS)
     ensures vs == ToSeq([])
@@ -130,9 +135,19 @@ abstract module Ind {
     requires e.Literal?
     ensures P(st, e)
 
-  lemma {:verify false} InductAbs(st: S, e: Expr)
-    requires e.Abs?
+  lemma {:verify false} InductAbs(st: S, e: Expr, vars: seq<string>, body: Expr)
+    requires e.Abs? && e.vars == vars && e.body == body
+    requires !P_Fail(st, e)
+    requires forall env, argvs | VS_CallStatePre(vars, argvs) :: P(BuildClosureCallState(st, vars, body, env, argvs), body)
     ensures P(st, e)
+
+  lemma {:verify false} InductAbs_CallState(st: S, e: Expr, vars: seq<string>, body: Expr, env: Environment, argvs: VS, st_ret: S, retv: V)
+    requires e.Abs? && e.vars == vars && e.body == body
+    requires VS_CallStatePre(vars, argvs)
+    requires !P_Fail(st, e)
+//    requires !P_Fail(BuildClosureCallState(st, vars, body, env, argvs), body)
+    requires P_Succ(BuildClosureCallState(st, vars, body, env, argvs), body, st_ret, retv)
+    ensures P(BuildClosureCallState(st, vars, body, env, argvs), body)
 
   lemma {:verify false} InductExprs_Nil(st: S)
     ensures !Pes_Fail(st, []) ==> Pes_Succ(st, [], st, NilVS) // Pes_Fail: because, for instance, the state may not satisfy the proper invariant
@@ -191,8 +206,10 @@ abstract module Ind {
     requires Pes_StepValue(st, [arg0, arg1, arg2]) == ToSeq([v0, v1, v2])
     ensures P(st, e)
 
-  lemma {:verify false} InductApplyEagerBuiltin(st: S, e: Expr) // TODO(SMH): make this more precise
-    requires e.Apply? && e.aop.Eager? && e.aop.eOp.Builtin?
+  lemma {:verify false} InductApplyEagerBuiltinDisplay(st: S, e: Expr, ty: Types.Type, args: seq<Expr>, st1: S, argvs: VS)
+    requires e.Apply? && e.aop.Eager? && e.aop.eOp.Builtin? && e.aop.eOp.builtin.Display? && e.aop.eOp.builtin.ty == ty && e.args == args
+    requires !P_Fail(st, e)
+    requires Pes_Succ(st, args, st1, argvs)
     ensures P(st, e)
 
   lemma {:verify false} InductApplyEagerFunctionCall(st: S, e: Expr, f: Expr, args: seq<Expr>, st1: S, fv: V, st2: S, argvs: VS)
@@ -212,6 +229,7 @@ abstract module Ind {
     ensures forall st_cond, condv :: P_Succ(st, cond, st_cond, condv) && IsTrue(condv) && P_Fail(st_cond, thn) ==> P(st, e)
     ensures forall st_cond, condv :: P_Succ(st, cond, st_cond, condv) && IsFalse(condv) && P_Fail(st_cond, els) ==> P(st, e)
 
+  // TODO: remove IsTrue and IsFalse?
   lemma {:verify false} InductIf_Succ(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr, st_cond: S, condv: V, st_br: S, brv: V)
     requires e.If? && e.cond == cond && e.thn == thn && e.els == els
     requires !P_Fail(st, e)
@@ -276,7 +294,7 @@ abstract module Ind {
     (st1, v, st2, vs)
   }
 
-  lemma {:verify false} P_Satisfied_Succ(st: S, e: Expr)
+  lemma {:verify true} P_Satisfied_Succ(st: S, e: Expr)
     requires !P_Fail(st, e)
     ensures P(st, e)
     decreases e, 1
@@ -290,8 +308,20 @@ abstract module Ind {
       case Literal(_) =>
         InductLiteral(st, e);
 
-      case Abs(_, _) =>
-        InductAbs(st, e);
+      case Abs(vars, body) =>
+        forall env, argvs | VS_CallStatePre(vars, argvs)
+          ensures P(BuildClosureCallState(st, vars, body, env, argvs), body) {
+          var st_call := BuildClosureCallState(st, vars, body, env, argvs);
+          if P_Fail(st_call, body) {
+            P_Fail_Sound(st_call, body);
+          }
+          else {
+            P_Satisfied(st_call, body); // Recursion
+            var (st_ret, retv) := P_Step(st_call, body);
+            InductAbs_CallState(st, e, vars, body, env, argvs, st_ret, retv);
+          }
+        }
+        InductAbs(st, e, vars, body);
 
       case Apply(Lazy(_), _) =>
         var arg0 := e.args[0];
@@ -380,8 +410,13 @@ abstract module Ind {
 
               InductApplyEagerTernaryOp_Succ(st, e, op, arg0, arg1, arg2, st1, v0, st2', v1, st3', v2);
 
-            case Builtin(_) =>
-              InductApplyEagerBuiltin(st, e);
+            case Builtin(Display(ty)) =>
+              var (st1, argvs) := Pes_Step(st, e.args);
+              
+              InductApplyEagerBuiltinDisplay(st, e, ty, e.args, st1, argvs);
+
+            case Builtin(Print) =>
+              assert false; // Unreachable for now
 
             case FunctionCall =>
               var f := e.args[0];
@@ -492,6 +527,7 @@ module EqInterpRefl refines Ind {
 
   predicate {:verify false} P_Fail(st: S, e: Expr)
   {
+    // TODO: P ==> Q
     !EqState(st.ctx, st.ctx') || InterpExpr(e, st.env, st.ctx).Failure?
   }
 
@@ -541,6 +577,19 @@ module EqInterpRefl refines Ind {
     MSeqValue([], [])
   }
 
+  predicate VS_CallStatePre ...
+  {
+    && |argvs.vs| == |argvs.vs'| == |vars|
+    && forall i | 0 <= i < |argvs.vs| :: EqValue(argvs.vs[i], argvs.vs'[i])
+  }
+
+  function {:verify true} BuildClosureCallState ...
+  {
+    var ctx1 := BuildCallState(st.ctx.locals, vars, argvs.vs);
+    var ctx1' := BuildCallState(st.ctx'.locals, vars, argvs.vs');
+    MState(env, ctx1, ctx1')
+  }
+
   function {:verify false} P_Step ... {
     var Return(v, ctx1) := InterpExpr(e, st.env, st.ctx).value;
     var Return(v', ctx1') := InterpExpr(e, st.env, st.ctx').value;
@@ -588,13 +637,63 @@ module EqInterpRefl refines Ind {
 
   lemma {:verify false} InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); }
 
-  lemma {:verify false} InductAbs ... { assume false; } // TODO: prove
+  lemma {:verify false} InductAbs ... {
+    // TODO: post-condition for BuildClosureCallState? (EqState(st) ==> EqState(st')?)
+    reveal InterpExpr();
+    reveal EqValue_Closure();
+
+    var MState(env, ctx, ctx') := st;
+    var cv := Values.Closure(ctx.locals, vars, body);
+    var cv' := Values.Closure(ctx'.locals, vars, body);
+
+    forall env, argvs, argvs' |
+      && |argvs| == |argvs'| == |vars|
+      && (forall i | 0 <= i < |vars| :: EqValue(argvs[i], argvs'[i]))
+      ensures
+        var res := InterpCallFunctionBody(cv, env, argvs);
+        var res' := InterpCallFunctionBody(cv', env, argvs');
+        EqPureInterpResultValue(res, res')
+    {
+      var argvs := MSeqValue(argvs, argvs');
+
+      var ctx1 := BuildCallState(st.ctx.locals, vars, argvs.vs);
+      assert ctx1 == BuildCallState(cv.ctx, cv.vars, argvs.vs);
+      var ctx1' := BuildCallState(st.ctx'.locals, vars, argvs.vs');
+      assert ctx1' == BuildCallState(cv'.ctx, cv'.vars, argvs.vs');
+
+      BuildCallState_EqState(cv.ctx, cv'.ctx, vars, argvs.vs, argvs.vs');
+
+      var st_cl := MState(env, ctx1, ctx1');
+      assert VS_CallStatePre(vars, argvs);
+      assert P(BuildClosureCallState(st, vars, body, env, argvs), body);
+      assert st_cl == BuildClosureCallState(st, vars, body, env, argvs);
+
+      assert P(st_cl, body);
+
+      BuildCallState_EqState(cv.ctx, cv'.ctx, vars, argvs.vs, argvs.vs');      
+      assert EqState(st_cl.ctx, st_cl.ctx');
+      assert EqInterpResultValue(InterpExpr(cv.body, env, ctx1), InterpExpr(cv'.body, env, ctx1'));
+
+      reveal InterpCallFunctionBody();
+    }
+
+    assert EqValue_Closure(cv, cv');
+  }
+
+  lemma {:verify false} InductAbs_CallState ... {
+    reveal InterpExpr();
+    reveal InterpCallFunctionBody();
+    reveal BuildCallState();
+
+    BuildCallState_EqState(st.ctx.locals, st.ctx'.locals, vars, argvs.vs, argvs.vs');
+  }
 
   lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); }
 
   lemma {:verify false} InductExprs_Succ_Impl ... { reveal InterpExprs(); }
 
   lemma {:verify false} InductApplyLazy ... { assume false; } // TODO: prove
+
   lemma {:verify false} InductApplyEager_Fail ... { reveal InterpExpr(); }
 
   lemma {:verify false} InductApplyEagerUnaryOp_Succ ... { reveal InterpExpr(); reveal InterpUnaryOp(); }
@@ -615,7 +714,10 @@ module EqInterpRefl refines Ind {
     EqValue_HasEqValue_Eq(v1.v, v1.v');
   }
 
-  lemma {:verify false} InductApplyEagerBuiltin ... { assume false; } // TODO: prove
+  lemma {:verify false} InductApplyEagerBuiltinDisplay ... {
+    reveal InterpExpr();
+    Interp_Apply_Display_EqValue(e, e, ty.kind, argvs.vs, argvs.vs');
+  }
 
   lemma {:verify false} InductApplyEagerFunctionCall ... {
     reveal InterpExpr();

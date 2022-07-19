@@ -1357,6 +1357,41 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
+  lemma Interp_Apply_Display_EqValue(
+    e: Interp.Expr, e': Interp.Expr, kind: Types.CollectionKind, vs: seq<WV>, vs': seq<WV>
+  )
+    requires EqSeqValue(vs, vs')
+    requires InterpDisplay(e, kind, vs).Success?
+    ensures EqPureInterpResultValue(InterpDisplay(e, kind, vs), InterpDisplay(e', kind, vs'))
+  {
+    reveal InterpDisplay();
+
+    var res := InterpDisplay(e, kind, vs);
+    var res' := InterpDisplay(e', kind, vs');
+
+    match kind {
+      case Map(_) => {
+        InterpMapDisplay_EqArgs(e, e', vs, vs');
+        assert EqPureInterpResultValue(res, res');
+      }
+      case Multiset => {
+        EqValue_HasEqValue_Eq_Forall();
+        assert (forall i | 0 <= i < |vs| :: HasEqValue(vs[i]));
+        assert (forall i | 0 <= i < |vs| :: HasEqValue(vs'[i]));
+        assert (forall i | 0 <= i < |vs| :: EqValue(vs[i], vs'[i]));
+        assert vs == vs';
+        assert EqPureInterpResultValue(res, res');
+      }
+      case Seq => {
+        assert EqPureInterpResultValue(res, res');
+      }
+      case Set => {
+        EqValue_HasEqValue_Eq_Forall();
+        assert EqPureInterpResultValue(res, res');
+      }
+    }
+  }
+
   lemma InterpFunctionCall_EqState(
     e: Interp.Expr, e': Interp.Expr, env: Environment, f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>)
     requires EqValue(f, f')

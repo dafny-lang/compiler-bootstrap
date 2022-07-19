@@ -750,32 +750,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires InterpDisplay(e, kind, vs).Success?
     ensures EqPureInterpResultValue(InterpDisplay(e, kind, vs), InterpDisplay(e', kind, vs'))
   {
-    reveal InterpDisplay();
-
-    var res := InterpDisplay(e, kind, vs);
-    var res' := InterpDisplay(e', kind, vs');
-
-    match kind {
-      case Map(_) => {
-        InterpMapDisplay_EqArgs(e, e', vs, vs');
-        assert EqPureInterpResultValue(res, res');
-      }
-      case Multiset => {
-        EqValue_HasEqValue_Eq_Forall();
-        assert (forall i | 0 <= i < |vs| :: HasEqValue(vs[i]));
-        assert (forall i | 0 <= i < |vs| :: HasEqValue(vs'[i]));
-        assert (forall i | 0 <= i < |vs| :: EqValue(vs[i], vs'[i]));
-        assert vs == vs';
-        assert EqPureInterpResultValue(res, res');
-      }
-      case Seq => {
-        assert EqPureInterpResultValue(res, res');
-      }
-      case Set => {
-        EqValue_HasEqValue_Eq_Forall();
-        assert EqPureInterpResultValue(res, res');
-      }
-    }
+    Interp_Apply_Display_EqValue(e, e', kind, vs, vs');
   }
 
   lemma EqInterp_Expr_FunctionCall_CanBeMapLifted(
