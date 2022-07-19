@@ -41,7 +41,7 @@ abstract module Ind {
 
   predicate VS_CallStatePre(vars: seq<string>, argvs: VS)
 
-  function {:verify false} BuildClosureCallState(st: S, vars: seq<string>, body: Expr, env: Environment, argvs: VS): S
+  function {:verify false} BuildClosureCallState(st: S, vars: seq<string>, body: Expr, env: Environment, argvs: VS): (st':S)
     requires VS_CallStatePre(vars, argvs)
 
   // DISCUSS: can't get the postcondition with a constant
@@ -132,7 +132,6 @@ abstract module Ind {
     requires e.Abs? && e.vars == vars && e.body == body
     requires VS_CallStatePre(vars, argvs)
     requires !P_Fail(st, e)
-//    requires !P_Fail(BuildClosureCallState(st, vars, body, env, argvs), body)
     requires P_Succ(BuildClosureCallState(st, vars, body, env, argvs), body, st_ret, retv)
     ensures P(BuildClosureCallState(st, vars, body, env, argvs), body)
 
@@ -546,10 +545,20 @@ module EqInterpRefl refines Ind {
   }
 
   function {:verify false} BuildClosureCallState ...
+    // Adding this precondition makes the InductAbs proofs easier
+    ensures
+      EqState(st.ctx, st.ctx') ==>
+      EqState(st'.ctx, st'.ctx')
   {
     var ctx1 := BuildCallState(st.ctx.locals, vars, argvs.vs);
     var ctx1' := BuildCallState(st.ctx'.locals, vars, argvs.vs');
-    MState(env, ctx1, ctx1')
+    var st' := MState(env, ctx1, ctx1');
+    assert EqState(st.ctx, st.ctx') ==> EqState(st'.ctx, st'.ctx') by {
+      if EqState(st.ctx, st.ctx') {
+        BuildCallState_EqState(st.ctx.locals, st.ctx'.locals, vars, argvs.vs, argvs.vs');
+      }
+    }
+    st'
   }
 
   function {:verify false} P_Step ... {
@@ -600,9 +609,6 @@ module EqInterpRefl refines Ind {
   lemma {:verify false} InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); }
 
   lemma {:verify false} InductAbs ... {
-    // TODO: post-condition for BuildClosureCallState? (EqState(st) ==> EqState(st'))
-    // It seems we only need the call to ``BuildCallState_EqState`` in the forall statement,
-    // and that would also help for ``InductAbs_CallState``
     reveal InterpExpr();
     reveal EqValue_Closure();
 
@@ -618,25 +624,9 @@ module EqInterpRefl refines Ind {
         var res' := InterpCallFunctionBody(cv', env, argvs');
         EqPureInterpResultValue(res, res')
     {
+      // The following triggers instantiations
       var argvs := MSeqValue(argvs, argvs');
-
-      var ctx1 := BuildCallState(st.ctx.locals, vars, argvs.vs);
-      assert ctx1 == BuildCallState(cv.ctx, cv.vars, argvs.vs);
-      var ctx1' := BuildCallState(st.ctx'.locals, vars, argvs.vs');
-      assert ctx1' == BuildCallState(cv'.ctx, cv'.vars, argvs.vs');
-
-      BuildCallState_EqState(cv.ctx, cv'.ctx, vars, argvs.vs, argvs.vs'); // We only need this
-
-      var st_cl := MState(env, ctx1, ctx1');
-      assert VS_CallStatePre(vars, argvs);
       assert P(BuildClosureCallState(st, vars, body, env, argvs), body);
-      assert st_cl == BuildClosureCallState(st, vars, body, env, argvs);
-
-      assert P(st_cl, body);
-
-      BuildCallState_EqState(cv.ctx, cv'.ctx, vars, argvs.vs, argvs.vs');      
-      assert EqState(st_cl.ctx, st_cl.ctx');
-      assert EqInterpResultValue(InterpExpr(cv.body, env, ctx1), InterpExpr(cv'.body, env, ctx1'));
 
       reveal InterpCallFunctionBody();
     }
@@ -648,15 +638,13 @@ module EqInterpRefl refines Ind {
     reveal InterpExpr();
     reveal InterpCallFunctionBody();
     reveal BuildCallState();
-
-    BuildCallState_EqState(st.ctx.locals, st.ctx'.locals, vars, argvs.vs, argvs.vs');
   }
 
   lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); }
   lemma {:verify false} InductExprs_Succ_Impl ... { reveal InterpExprs(); }
 
-  lemma {:verify true} InductApplyLazy_Fail ... { reveal InterpExpr(); reveal InterpLazy(); }
-  lemma {:verify true} InductApplyLazy_Succ ... { reveal InterpExpr(); reveal InterpLazy(); }
+  lemma {:verify false} InductApplyLazy_Fail ... { reveal InterpExpr(); reveal InterpLazy(); }
+  lemma {:verify false} InductApplyLazy_Succ ... { reveal InterpExpr(); reveal InterpLazy(); }
 
   lemma {:verify false} InductApplyEager_Fail ... { reveal InterpExpr(); }
 
