@@ -35,26 +35,13 @@ abstract module Ind {
   predicate {:verify false} Pes(st: S, es: seq<Expr>)
   predicate {:verify false} Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS) // Success
   predicate {:verify false} Pes_Fail(st: S, es: seq<Expr>) // Failure
-
-  // We need ``IsTrue`` and ``IsFalse`` (and can't use `!IsTrue(v)` instead of `IsFalse(v)`)
-  // because `v` is not necessarily a boolean.
-  // DISCUSSION: we don't need those two predicates if we weaken a bit ``InductIf`` by using
-  // `P(st_cond, thn)` instead of `P_Succ(st_cond, thn, ...)` for instance.
-  predicate {:verify false} IsTrue(v: V)
-  predicate {:verify false} IsFalse(v: V) ensures IsFalse(v) ==> !IsTrue(v)
-
-  // TODO: change the lemmas to, for example for if then else:
-  // P_Fail(e) ==> OK
-  // !P_Fail(e) && P_Succ(cond) && IsTrue(condv) && P_Succ(thn) ==> P_Succ(e)
-  // ...
     
   function {:verify false} AppendValue(v: V, vs: VS): VS // Returns: [v] + vs
   function {:verify false} ToSeq(vs: seq<V>): VS // TODO(SMH): rename to `ToSeqValue`
-//  function UpdateOnAbs(st: S, vars: seq<string>, body: Expr): S // TODO: remove?
 
   predicate VS_CallStatePre(vars: seq<string>, argvs: VS)
 
-  function {:verify true} BuildClosureCallState(st: S, vars: seq<string>, body: Expr, env: Environment, argvs: VS): S
+  function {:verify false} BuildClosureCallState(st: S, vars: seq<string>, body: Expr, env: Environment, argvs: VS): S
     requires VS_CallStatePre(vars, argvs)
 
   // DISCUSS: can't get the postcondition with a constant
@@ -225,18 +212,13 @@ abstract module Ind {
   lemma {:verify false} InductIf_Fail(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr)
     requires e.If? && e.cond == cond && e.thn == thn && e.els == els
     ensures P_Fail(st, cond) ==> P(st, e)
-    ensures forall st_cond, condv :: P_Succ(st, cond, st_cond, condv) && !IsTrue(condv) && !IsFalse(condv) ==> P(st, e)
-    ensures forall st_cond, condv :: P_Succ(st, cond, st_cond, condv) && IsTrue(condv) && P_Fail(st_cond, thn) ==> P(st, e)
-    ensures forall st_cond, condv :: P_Succ(st, cond, st_cond, condv) && IsFalse(condv) && P_Fail(st_cond, els) ==> P(st, e)
 
-  // TODO: remove IsTrue and IsFalse?
-  lemma {:verify false} InductIf_Succ(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr, st_cond: S, condv: V, st_br: S, brv: V)
+  lemma {:verify false} InductIf_Succ(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr, st_cond: S, condv: V)// st_br: S, brv: V)
     requires e.If? && e.cond == cond && e.thn == thn && e.els == els
     requires !P_Fail(st, e)
     requires P_Succ(st, cond, st_cond, condv)
-    requires IsTrue(condv) || IsFalse(condv)
-    requires IsTrue(condv) ==> P_Succ(st_cond, thn, st_br, brv)
-    requires IsFalse(condv) ==> P_Succ(st_cond, els, st_br, brv)
+    requires P(st_cond, thn)
+    requires P(st_cond, els)
     ensures P(st, e)
 
   //
@@ -436,55 +418,23 @@ abstract module Ind {
         if P_Fail(st, cond) {
           InductIf_Fail(st, e, cond, thn, els);
         }
-        else {
+        else {            
           var (st_cond, condv) := P_Step(st, cond);
 
-          // Test the condition
-          if IsTrue(condv) {
-            P_Satisfied(st_cond, thn); // Recursion
-
-            if P_Fail(st_cond, thn) {
-              InductIf_Fail(st, e, cond, thn, els);
-            }
-            else {
-              var (st_br, brv) := P_Step(st_cond, thn);
-
-              //Recursion
-              P_Satisfied(st_cond, thn);
-
-              // Success case
-              InductIf_Succ(st, e, cond, thn, els, st_cond, condv, st_br, brv);
-            }
-          }
-          else if IsFalse(condv) {
-            P_Satisfied(st_cond, els); // Recursion
-
-            if P_Fail(st_cond, els) {
-              InductIf_Fail(st, e, cond, thn, els);
-            }
-            else {
-              var (st_br, brv) := P_Step(st_cond, els);
-
-              //Recursion
-              P_Satisfied(st_cond, els);
-
-              // Success case
-              InductIf_Succ(st, e, cond, thn, els, st_cond, condv, st_br, brv);
-            }
-          }
-          else {
-            InductIf_Fail(st, e, cond, thn, els);
-          }
+          P_Satisfied(st_cond, thn); // Recursion
+          P_Satisfied(st_cond, els); // Recursion
+          
+          InductIf_Succ(st, e, cond, thn, els, st_cond, condv);
         }
 
       case VarDecl(_, _) =>
-        assume false;
+        assume false; // TODO: prove
 
       case Update(_, _) =>
-        assume false;
+        assume false; // TODO: prove
 
       case Block(_) =>
-        assume false;
+        assume false; // TODO: prove
     }
   }
 
@@ -551,15 +501,6 @@ module EqInterpRefl refines Ind {
     !EqState(st.ctx, st.ctx') || InterpExprs(es, st.env, st.ctx).Failure?
   }
 
-  predicate {:verify false} IsTrue ...
-  {
-    v.v.Bool? && v.v.b
-  }
-  predicate {:verify false} IsFalse ...
-  {
-    v.v.Bool? && !v.v.b
-  }
-
   function {:verify false} AppendValue ...
   {
     MSeqValue([v.v] + vs.vs, [v.v'] + vs.vs')
@@ -583,7 +524,7 @@ module EqInterpRefl refines Ind {
     && forall i | 0 <= i < |argvs.vs| :: EqValue(argvs.vs[i], argvs.vs'[i])
   }
 
-  function {:verify true} BuildClosureCallState ...
+  function {:verify false} BuildClosureCallState ...
   {
     var ctx1 := BuildCallState(st.ctx.locals, vars, argvs.vs);
     var ctx1' := BuildCallState(st.ctx'.locals, vars, argvs.vs');
@@ -638,7 +579,8 @@ module EqInterpRefl refines Ind {
   lemma {:verify false} InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); }
 
   lemma {:verify false} InductAbs ... {
-    // TODO: post-condition for BuildClosureCallState? (EqState(st) ==> EqState(st')?)
+    // TODO: post-condition for BuildClosureCallState? (EqState(st) ==> EqState(st'))
+    // It seems we only need the call to ``BuildCallState_EqState`` in the forall statement
     reveal InterpExpr();
     reveal EqValue_Closure();
 
@@ -661,7 +603,7 @@ module EqInterpRefl refines Ind {
       var ctx1' := BuildCallState(st.ctx'.locals, vars, argvs.vs');
       assert ctx1' == BuildCallState(cv'.ctx, cv'.vars, argvs.vs');
 
-      BuildCallState_EqState(cv.ctx, cv'.ctx, vars, argvs.vs, argvs.vs');
+      BuildCallState_EqState(cv.ctx, cv'.ctx, vars, argvs.vs, argvs.vs'); // We only need this
 
       var st_cl := MState(env, ctx1, ctx1');
       assert VS_CallStatePre(vars, argvs);
@@ -692,7 +634,9 @@ module EqInterpRefl refines Ind {
 
   lemma {:verify false} InductExprs_Succ_Impl ... { reveal InterpExprs(); }
 
-  lemma {:verify false} InductApplyLazy ... { assume false; } // TODO: prove
+  lemma {:verify false} InductApplyLazy ... {
+    assume false;
+  } // TODO: prove
 
   lemma {:verify false} InductApplyEager_Fail ... { reveal InterpExpr(); }
 
