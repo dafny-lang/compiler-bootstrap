@@ -228,6 +228,10 @@ module Bootstrap.Semantics.Interp {
     InterpExpr(e, env, ctx)
   }
 
+  function method VarsToNames(vars: seq<Exprs.Var>): seq<string> {
+    Seq.Map((v: Exprs.Var) => v.name, vars)
+  }
+
   function method {:opaque} InterpExpr(e: Expr, env: Environment, ctx: State)
     : InterpResult<Value>
     decreases env.fuel, e, 1
@@ -261,7 +265,7 @@ module Bootstrap.Semantics.Interp {
               InterpFunctionCall(e, env, argvs[0], argvs[1..])
           })
       case VarDecl(vdecls, ovals) =>
-        var vars := Seq.Map((v: Exprs.Var) => v.name, vdecls);
+        var vars := VarsToNames(vdecls);
         // Evaluate the rhs, if there is
         if ovals.Some? then
           var Return(vals, ctx) :- InterpExprs(ovals.value, env, ctx);
@@ -417,7 +421,7 @@ module Bootstrap.Semantics.Interp {
     Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
     var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
     var Return(v0, ctx0) :- InterpExpr(e0, env, ctx);
-    :- Need(v0.HasType(Type.Bool), TypeError(e, v0, Type.Bool));
+    :- Need(v0.HasType(Type.Bool), TypeError(e0, v0, Type.Bool));
     match (op, v0)
       case (And, Bool(false)) => Success(Return(V.Bool(false), ctx0))
       case (Or,  Bool(true))  => Success(Return(V.Bool(true), ctx0))
