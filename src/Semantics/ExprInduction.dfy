@@ -154,25 +154,10 @@ abstract module Ind {
     ensures !Pes_Fail(st, []) ==> Pes_Succ(st, [], st, NilVS) // Pes_Fail: because, for instance, the state may not satisfy the proper invariant
 
   // TODO(SMH): I grouped everything (success and failure case) in this lemma. Maybe do the same for some other?...
-  // TODO(SMH): merge with below?
   lemma InductExprs_Cons(st: S, e: Expr, es: seq<Expr>)
     ensures P_Fail(st, e) ==> Pes_Fail(st, [e] + es)
     ensures !P_Fail(st, e) ==> forall st1, v :: P_Succ(st, e, st1, v) && Pes_Fail(st1, es) ==> Pes_Fail(st, [e] + es)
     ensures forall st1, v, st2, vs :: P_Succ(st, e, st1, v) && Pes_Succ(st1, es, st2, vs) ==> Pes_Succ(st, [e] + es, st2, AppendValue(v, vs))
-
-  // TODO(SMH): link the final states? (we only link the values)
-  // TODO: remove: we should be able to only use the one above.
-  lemma InductExprs_Succ_Impl(st: S, e: Expr, es: seq<Expr>)
-    requires Pes(st, [e] + es)
-    requires !Pes_Fail(st, [e] + es)
-    requires P(st, e)
-    ensures !P_Fail(st, e)
-    ensures Pes(P_StepState(st, e), es) ==> !Pes_Fail(P_StepState(st, e), es)
-    ensures
-      Pes(P_StepState(st, e), es) ==>
-      var (st1, v) := P_Step(st, e);
-      var (st2, vs) := Pes_Step(st1, es);
-      Pes_Succ(st, [e] + es, st2, AppendValue(v, vs))
 
   lemma InductApplyLazy_Fail(st: S, e: Expr, arg0: Expr, arg1: Expr)
     requires e.Apply? && e.aop.Lazy? && e.args == [arg0, arg1]
@@ -356,7 +341,7 @@ abstract module Ind {
       }
     }
 
-    InductExprs_Succ_Impl(st, e, es);
+    InductExprs_Cons(st, e, es);
 
     var (st1, v) := P_Step(st, e);
     var (st2, vs) := Pes_Step(st1, es);
@@ -874,7 +859,7 @@ module EqInterpRefl refines Ind {
 
   lemma InductExprs_Nil ... { reveal InterpExprs(); }
   lemma InductExprs_Cons ... { reveal InterpExprs(); }
-  lemma InductExprs_Succ_Impl ... { reveal InterpExprs(); } // TODO: remove?
+//  lemma {:verify false} InductExprs_Succ_Impl ... { reveal InterpExprs(); } // TODO: remove?
 
   lemma InductApplyLazy_Fail ... { reveal InterpExpr(); reveal InterpLazy(); }
   lemma InductApplyLazy_Succ ... { reveal InterpExpr(); reveal InterpLazy(); }
