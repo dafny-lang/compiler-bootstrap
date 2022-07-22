@@ -1435,4 +1435,75 @@ module Bootstrap.Semantics.Equiv {
 
     assert EqPureInterpResultValue(res, res');
   }
+
+  lemma InterpExprs_Block_Equiv_Strong(stmts: seq<Interp.Expr>, env: Environment, ctx: State)
+    ensures
+      match (InterpBlock_Exprs(stmts, env, ctx), InterpExprs_Block(stmts, env, ctx))
+        case (Success(Return(v, ctx1)), Success(Return(v', ctx1'))) => v == v' && ctx1 == ctx1'
+        case (Failure(_), Failure(_)) => true
+        case _ => false
+    // The utility function ``InterpExprs_Block`` is equivalent to ``InterpBlock_Exprs``.
+    // Note that here the equivalence is quite strong (for instance, both fail exactly at the same
+    // time).
+  {
+    reveal InterpBlock_Exprs();
+    reveal InterpExprs_Block();
+    reveal InterpExprs();
+
+    var res := InterpBlock_Exprs(stmts, env, ctx);
+    var res' := InterpExprs_Block(stmts, env, ctx);
+
+    if stmts == [] {}
+    else if |stmts| == 1 {
+      var e := stmts[0];
+      assert stmts == [e];
+
+      var res1 := InterpExpr(e, env, ctx);
+
+      if res1.Success? {
+        var Return(v, ctx1) := res1.value;
+
+        assert InterpExprs([], env, ctx1) == Success(Return([], ctx1));
+        assert InterpExprs(stmts, env, ctx) == Success(Return([v] + [], ctx1));
+
+        var vs := [v];
+        assert vs == [v] + [];
+
+        assert Seq.All((v: Interp.Value) => v.HasType(Types.Unit), vs[0..(|vs|-1)]);
+        assert vs[|vs| - 1] == v;
+
+        assert res == res1;
+        assert res' == res1;
+      }
+      else {
+        // Trivial
+      }
+    }
+    else {
+      var e := stmts[0];
+      var stmts' := stmts[1..];
+
+      var res1 := InterpExpr(e, env, ctx);
+      if res1.Success? {
+        var Return(v, ctx1) := res1.value;
+
+        InterpExprs_Block_Equiv_Strong(stmts', env, ctx1);
+
+        var res2 := InterpExprs(stmts', env, ctx1);
+        if res2.Success? {
+          var Return(vs, ctx2) := res2.value;
+          
+          var vs' := [v] + vs;
+          assert vs == vs'[1..];
+          assert v == vs'[0];
+        }
+        else {
+          // Trivial
+        }
+      }
+      else {
+        // Trivial
+      }
+    }
+  }
 }

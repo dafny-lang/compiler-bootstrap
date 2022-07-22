@@ -52,12 +52,18 @@ abstract module Ind {
   // Rollback
   function {:verify false} StateSaveToRollback(st: S, vars: seq<string>): (st':S)
 
+  function {:verify false} StateStartScope(st: S): (st':S)
+  function {:verify false} StateEndScope(st0: S, st: S): (st':S)
+
   // DISCUSS: can't get the postcondition with a constant
   function {:verify false} GetNilVS(): (vs:VS)
     ensures vs == SeqVToVS([])
 
   ghost const {:verify false} NilVS:VS := GetNilVS()
   ghost const {:verify false} UnitV:V
+
+  function {:verify false} VS_Last(vs: VS): V
+    requires vs != NilVS
 
   function {:verify false} P_Step(st: S, e: Expr): (res: (S, V))
     requires P(st, e)
@@ -147,7 +153,15 @@ abstract module Ind {
   lemma {:verify false} InductExprs_Nil(st: S)
     ensures !Pes_Fail(st, []) ==> Pes_Succ(st, [], st, NilVS) // Pes_Fail: because, for instance, the state may not satisfy the proper invariant
 
-  // TODO: link the final states? (we only link the values)
+  // TODO(SMH): I grouped everything (success and failure case) in this lemma. Maybe do the same for some other?...
+  // TODO(SMH): merge with below?
+  lemma {:verify true} InductExprs_Cons(st: S, e: Expr, es: seq<Expr>)
+    ensures P_Fail(st, e) ==> Pes_Fail(st, [e] + es)
+    ensures !P_Fail(st, e) ==> forall st1, v :: P_Succ(st, e, st1, v) && Pes_Fail(st1, es) ==> Pes_Fail(st, [e] + es)
+    ensures forall st1, v, st2, vs :: P_Succ(st, e, st1, v) && Pes_Succ(st1, es, st2, vs) ==> Pes_Succ(st, [e] + es, st2, AppendValue(v, vs))
+
+  // TODO(SMH): link the final states? (we only link the values)
+  // TODO: remove: we should be able to only use the one above.
   lemma {:verify false} InductExprs_Succ_Impl(st: S, e: Expr, es: seq<Expr>)
     requires Pes(st, [e] + es)
     requires !Pes_Fail(st, [e] + es)
@@ -284,12 +298,30 @@ abstract module Ind {
       P_Succ(st, e, UpdateState(st2, vars, values), UnitV)
     ensures P(st, e)
 
+  lemma {:verify false} InductBlock_Fail(st: S, e: Expr, stmts: seq<Expr>, st_start: S)
+    requires e.Block? && e.stmts == stmts
+    requires !P_Fail(st, e)
+    requires st_start == StateStartScope(st)
+    ensures !Pes_Fail(st_start, stmts)
+
+  // TODO: make the other lemmas adopt this style, where intermediate values like st_start or vf appear
+  // as input parameters
+  lemma {:verify false} InductBlock_Succ(st: S, e: Expr, stmts: seq<Expr>, st_start: S, st_stmts: S, vs: VS, st_end: S, vf: V)
+    requires e.Block? && e.stmts == stmts
+    requires !P_Fail(st, e)
+    requires st_start == StateStartScope(st)
+    requires Pes_Succ(st_start, stmts, st_stmts, vs)
+    requires vf == if vs == NilVS then UnitV else VS_Last(vs) // TODO(SMH): I'm not super fan of that
+    requires st_end == StateEndScope(st, st_stmts)
+    // We add this just to make the `StateEndScope` function appear - TODO: remove?
+    ensures P_Succ(st, e, st_end, vf)
+
 
   //
   // Lemmas
   //
 
-  lemma {:verify false} P_Satisfied(st: S, e: Expr)
+  lemma {:verify true} P_Satisfied(st: S, e: Expr)
     ensures P(st, e)
     decreases e, 2
   {
@@ -325,6 +357,7 @@ abstract module Ind {
     P_Satisfied(st, e); // Recursion
     assert !P_Fail(st, e) ==> Pes(P_StepState(st, e), es) by {
       if !P_Fail(st, e) {
+        // TODO: fix termination
         Pes_Satisfied(P_StepState(st, e), es); // Recursion
       }
     }
@@ -340,7 +373,7 @@ abstract module Ind {
     (st1, v, st2, vs)
   }
 
-  lemma {:verify false} P_Satisfied_Succ(st: S, e: Expr)
+  lemma {:verify true} P_Satisfied_Succ(st: S, e: Expr)
     requires !P_Fail(st, e)
     ensures P(st, e)
     decreases e, 1
@@ -534,16 +567,78 @@ abstract module Ind {
           InductUpdate_Succ(st, e, vars, vals, st1, values);
         }
 
-      case Block(_) =>
-        assume false; // TODO: prove
+      case Block(stmts) =>
+        var st_start := StateStartScope(st);
+
+        // Recursion
+        Pes_Satisfied(st_start, stmts);
+        
+        if Pes_Fail(st_start, stmts) {
+          InductBlock_Fail(st, e, stmts, st_start);
+        }
+        else {
+          var (st_stmts, vs) := Pes_Step(st_start, stmts);
+          var vf := if vs == NilVS then UnitV else VS_Last(vs);
+
+          var st_end := StateEndScope(st, st_stmts);
+          InductBlock_Succ(st, e, stmts, st_start, st_stmts, vs, st_end, vf);
+          assert P_Succ(st, e, st_end, vf);
+          P_Succ_Sound(st, e, st_end, vf);
+        }
     }
   }
 
-  lemma {:verify false} Pes_Satisfied(st: S, es: seq<Expr>)
+  lemma {:verify true} Pes_Satisfied(st: S, es: seq<Expr>)
     ensures Pes(st, es)
-    decreases es, 0
+    decreases es, 2
   {
-    assume false;
+    if Pes_Fail(st, es) {
+      Pes_Fail_Sound(st, es);
+    }
+    else {
+      Pes_Satisfied_Succ(st, es);
+    }
+  }
+
+  lemma {:verify true} Pes_Satisfied_Succ(st: S, es: seq<Expr>)
+    requires !Pes_Fail(st, es)
+    ensures Pes(st, es)
+    decreases es, 1
+  {
+    if es == [] {
+      InductExprs_Nil(st);
+      assert Pes_Succ(st, [], st, NilVS);
+      Pes_Succ_Sound(st, [], st, NilVS);
+    }
+    else {
+      var e := es[0];
+      var es' := es[1..];
+      assert [e] + es' == es;
+
+      P_Satisfied(st, e); // Recursion
+
+      if P_Fail(st, e) {
+        InductExprs_Cons(st, e, es');
+        assert Pes_Fail(st, [e] + es');
+        Pes_Fail_Sound(st, [e] + es');
+      }
+      else {
+        var (st1, v) := P_Step(st, e);
+        Pes_Satisfied(st1, es'); // Recursion
+
+        if Pes_Fail(st1, es') {
+          InductExprs_Cons(st, e, es');
+          assert Pes_Fail(st, [e] + es');
+          Pes_Fail_Sound(st, [e] + es');
+        }
+        else {
+          var (st2, vs) := Pes_Step(st1, es');
+          InductExprs_Cons(st, e, es');
+          assert Pes_Succ(st, [e] + es', st2, AppendValue(v, vs));
+          Pes_Succ_Sound(st, [e] + es', st2, AppendValue(v, vs));
+        }
+      }
+    }
   }
 }
 
@@ -559,7 +654,7 @@ module EqInterpRefl refines Ind {
 
   type {:verify false} S(!new) = MState
   type {:verify false} V(!new) = MValue
-  type {:verify false} VS(!new) = MSeqValue
+  type {:verify false} VS(!new) = vs:MSeqValue | |vs.vs| == |vs.vs'| witness MSeqValue([], [])
 
   predicate {:verify false} P(st: S, e: Expr)
   {
@@ -621,6 +716,13 @@ module EqInterpRefl refines Ind {
 
   ghost const {:verify false} UnitV := MValue(Values.Unit, Values.Unit)
 
+  function {:verify false} VS_Last ...
+  {
+    var v := vs.vs[|vs.vs| - 1];
+    var v' := vs.vs'[|vs.vs| - 1];
+    MValue(v, v')
+  }
+
   predicate {:verify false} VS_UpdateStatePre ...
   {
     && |argvs.vs| == |argvs.vs'| == |vars|
@@ -679,6 +781,24 @@ module EqInterpRefl refines Ind {
     }
 
     st'
+  }
+
+  function {:verify false} StateStartScope ...
+    ensures EqState(st.ctx, st.ctx') ==> EqState(st'.ctx, st'.ctx')
+  {
+    var ctx := StartScope(st.ctx);
+    var ctx' := StartScope(st.ctx');
+    reveal GEqCtx();
+    MState(st.env, ctx, ctx')
+  }
+
+  function {:verify false} StateEndScope ...
+    ensures EqState(st0.ctx, st0.ctx') && EqState(st.ctx, st.ctx') ==> EqState(st'.ctx, st'.ctx')
+  {
+    var ctx := EndScope(st0.ctx, st.ctx);
+    var ctx' := EndScope(st0.ctx', st.ctx');
+    reveal GEqCtx();
+    MState(st.env, ctx, ctx')
   }
 
   function {:verify false} P_Step ... {
@@ -761,7 +881,8 @@ module EqInterpRefl refines Ind {
   }
 
   lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); }
-  lemma {:verify false} InductExprs_Succ_Impl ... { reveal InterpExprs(); }
+  lemma {:verify true} InductExprs_Cons ... { reveal InterpExprs(); }
+  lemma {:verify false} InductExprs_Succ_Impl ... { reveal InterpExprs(); } // TODO: remove?
 
   lemma {:verify false} InductApplyLazy_Fail ... { reveal InterpExpr(); reveal InterpLazy(); }
   lemma {:verify false} InductApplyLazy_Succ ... { reveal InterpExpr(); reveal InterpLazy(); }
@@ -806,6 +927,41 @@ module EqInterpRefl refines Ind {
   lemma {:verify false} InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
   lemma {:verify false} InductVarDecl_Some_Succ  ... { reveal InterpExpr(); }
 
+  lemma {:verify false} InductBlock_Fail ...
+  {
+    reveal InterpExpr();
+    reveal InterpBlock();
+    reveal InterpExprs();
+    reveal InterpBlock_Exprs();
+    reveal InterpExprs_Block();
+
+    var env := st.env;
+
+    // We need this because of the fuel
+    assert InterpExpr(e, env, st.ctx) == InterpBlock(stmts, env, st.ctx);
+    assert InterpExpr(e, env, st.ctx') == InterpBlock(stmts, env, st.ctx');
+    
+    InterpExprs_Block_Equiv_Strong(stmts, env, st_start.ctx);
+    InterpExprs_Block_Equiv_Strong(stmts, env, st_start.ctx');
+  }
+
+  lemma {:verify false} InductBlock_Succ ...
+  {
+    reveal InterpExpr();
+    reveal InterpBlock();
+    reveal InterpExprs();
+    reveal InterpBlock_Exprs();
+    reveal InterpExprs_Block();
+
+    var env := st.env;
+
+    // We need this because of the fuel
+    assert InterpExpr(e, env, st.ctx) == InterpBlock(stmts, env, st.ctx);
+    assert InterpExpr(e, env, st.ctx') == InterpBlock(stmts, env, st.ctx');
+    
+    InterpExprs_Block_Equiv_Strong(stmts, env, st_start.ctx);
+    InterpExprs_Block_Equiv_Strong(stmts, env, st_start.ctx');
+  }
 
 } // end of module Bootstrap.Semantics.EqInterpRefl
 
