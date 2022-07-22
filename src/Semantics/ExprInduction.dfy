@@ -28,6 +28,7 @@ abstract module Ind {
   type V(!new)
   type VS(!new)
 
+  // ``P`` is the property of interest
   predicate P(st: S, e: Expr)
   predicate P_Succ(st: S, e: Expr, st': S, v: V) // Success
   predicate P_Fail(st: S, e: Expr) // Failure
