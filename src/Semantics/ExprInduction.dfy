@@ -919,6 +919,9 @@ module EqInterpRefl refines Ind {
   lemma InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
   lemma InductVarDecl_Some_Succ  ... { reveal InterpExpr(); }
 
+  // TODO(SMH): I tried simplifying the proofs below by adding a `requires` in ``InductBlock_Fail``
+  // and ``InductBlock_Succ`` to provide the assertions and the results of calling the lemmas used
+  // in the proof below, but it didn't work due to SMT solvers' misteries.
   lemma InductBlock_Fail ...
   {
     reveal InterpExpr();
