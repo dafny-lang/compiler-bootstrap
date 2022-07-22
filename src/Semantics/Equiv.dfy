@@ -1178,7 +1178,7 @@ module Bootstrap.Semantics.Equiv {
     assert ctx1 == SaveToRollback(ctx, varseq) by { reveal SaveToRollback(); }
     assert ctx1' == SaveToRollback(ctx', varseq) by { reveal SaveToRollback(); }
 
-    assume EqCtx(ctx.rollback, ctx'.rollback); // TODO: update EqState
+    assert EqCtx(ctx.rollback, ctx'.rollback);
 
     assert EqCtx(save, save') by { reveal GEqCtx(); }
     assert EqCtx(ctx1.locals, ctx1'.locals) by { reveal GEqCtx(); }
