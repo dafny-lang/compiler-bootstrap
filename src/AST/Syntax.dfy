@@ -315,7 +315,35 @@ module Exprs {
         case If(cond, thn, els) => [cond, thn, els]
       }
     }
+
+    // TODO(SMH): for some reason Dafny doesn't manage to prove that ``Size`` below is correct if
+    // I don't introduce this auxiliary function. TODO: report as a bug.
+    static function method AddNat(x: nat, y: nat): nat {
+      x + y
+    }
+
+    function method Size() : nat
+      decreases this.Depth(), 0
+    {
+      1 + Exprs_Size(this.Children())
+    }
+
+    static function method MaxDepth(es: seq<Expr>) : nat {
+      Seq.MaxF((e: Expr) => e.Depth(), es, 0)
+    }
+
+    static function method Exprs_Size(es: seq<Expr>): nat
+      decreases MaxDepth(es), 1, |es|
+    {
+      // Proofs work better if we don't use FoldL
+      if es == [] then 0
+      else
+        assert es[0] in es;
+        es[0].Size() + Exprs_Size(es[1..])
+    }
   }
+
+  const Exprs_Size := Expr.Exprs_Size
 
   function method WellFormed(e: Expr): bool {
     match e {

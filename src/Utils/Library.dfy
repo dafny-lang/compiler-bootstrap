@@ -193,6 +193,11 @@ module Seq {
     FoldL(Math.Max, default, s)
   }
 
+  function method Sum(s: seq<nat>) : (m: nat)
+  {
+    FoldL((x, y) => x + y, 0, s)
+  }
+
   function method {:opaque} MaxF<T>(f: T ~> int, ts: seq<T>, default: int) : (m: int)
     reads f.reads
     requires forall t | t in ts :: f.requires(t)
