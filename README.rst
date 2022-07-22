@@ -7,7 +7,7 @@ A work-in-progress reimplementation of Dafny's compilers, in Dafny.
 Trying it out
 =============
 
-Use ``make tests`` or ``make repl`` (and read through the `Makefile <./GNUmakefile>`__ to see all the steps).
+Clone this repository as part of the ``compiler-bootstrap`` branch of the main Dafny repository, then use ``make tests`` or ``make repl`` (and read through the `Makefile <./GNUmakefile>`__ to see all the steps).  Alternatively, if you cloned this repo on its own, ``make`` will complain and ask you how to select which Dafny to run for bootstrapping.
 
 Overview
 ========
