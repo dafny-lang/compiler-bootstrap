@@ -905,6 +905,10 @@ module Bootstrap.Semantics.Interp {
   // and use ``InterpExprs``. We will add a condition on ``Expr`` stating that there can't
   // be empty blocks, and will use `{ () }` as a placeholder for an empty block whenever
   // we need to use one.
+  // DISCUSS: another possibility is to do as follows:
+  // - ``Block`` takes one single expression, controls a scope and always evaluates to unit
+  // - have an equivalent of the Lisp progn
+  // - keep ``Bind``
   function method {:opaque} InterpBlock_Exprs(es: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
     decreases env.fuel, es, 0
