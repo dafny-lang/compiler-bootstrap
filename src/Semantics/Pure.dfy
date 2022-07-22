@@ -4,8 +4,6 @@ include "../Interop/CSharpDafnyInterop.dfy"
 include "../Interop/CSharpDafnyASTInterop.dfy"
 include "../Utils/Library.dfy"
 include "Interp.dfy"
-include "../Transforms/Generic.dfy"
-include "../Transforms/Shallow.dfy"
 
 module Bootstrap.Semantics.Pure {
   // This module defines a notion of pure expression, and proves properties about it (for instance,
@@ -43,7 +41,11 @@ module Bootstrap.Semantics.Pure {
             }
         }
       case Block(_) => true
-      case VarDecl(_, _) => true
+      case VarDecl(_, _) =>
+        // We could allow that, but the proofs are then hard.
+        // If you want theorems stating that the state doesn't change for more complex ASTs,
+        // see ``VarFootprint``
+        false
       case Update(_, _) => false
       case If(_, _, _) => true
   }
@@ -77,7 +79,6 @@ module Bootstrap.Semantics.Pure {
       case Apply(Eager(op), args) =>
         InterpExpr_Eager_IsPure_SameState(e, env, ctx);
       case VarDecl(vdecls, ovals) =>
-        assume false; // TODO: prove
       case Block(stmts) =>
         InterpExpr_Block_IsPure_SameState(e, env, ctx);
       case If(cond, thn, els) =>
@@ -144,7 +145,8 @@ module Bootstrap.Semantics.Pure {
     reveal IsPure();
     reveal InterpBlock();
 
-    InterpBlock_Exprs_IsPure_SameState(e.stmts, env, ctx);
+    var ctx1 := StartScope(ctx);
+    InterpBlock_Exprs_IsPure_SameState(e.stmts, env, ctx1);
   }
 
   lemma InterpBlock_Exprs_IsPure_SameState(es: seq<PureExpr>, env: Environment, ctx: State)
