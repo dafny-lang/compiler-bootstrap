@@ -288,7 +288,7 @@ module Bootstrap.Semantics.Interp {
         InterpBlock(stmts, env, ctx)
       case If(cond, thn, els) =>
         var Return(condv, ctx) :- InterpExpr(cond, env, ctx);
-        :- Need(condv.HasType(Type.Bool), TypeError(e, condv, Type.Bool));
+        :- NeedType(e, condv, Type.Bool);
         if condv.b then InterpExpr(thn, env, ctx) else InterpExpr(els, env, ctx)
     }
   }
@@ -349,7 +349,7 @@ module Bootstrap.Semantics.Interp {
   {
     reveal SupportsInterp();
     var Return(val, ctx) :- InterpExpr(e, env, ctx);
-    :- Need(val.HasType(ty), TypeError(e, val, ty));
+    :- NeedType(e, val, ty);
     Success(Return(val, ctx))
   }
 
@@ -421,7 +421,7 @@ module Bootstrap.Semantics.Interp {
     Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
     var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
     var Return(v0, ctx0) :- InterpExpr(e0, env, ctx);
-    :- Need(v0.HasType(Type.Bool), TypeError(e0, v0, Type.Bool));
+    :- NeedType(e0, v0, Type.Bool);
     match (op, v0)
       case (And, Bool(false)) => Success(Return(V.Bool(false), ctx0))
       case (Or,  Bool(true))  => Success(Return(V.Bool(true), ctx0))
@@ -429,7 +429,7 @@ module Bootstrap.Semantics.Interp {
       case (_,   Bool(b)) =>
         assert op in {Exprs.And, Exprs.Or, Exprs.Imp};
         var Return(v1, ctx1) :- InterpExpr(e1, env, ctx0);
-        :- Need(v1.HasType(Type.Bool), TypeError(e1, v1, Type.Bool));
+        :- NeedType(e1, v1, Type.Bool);
         Success(Return(v1, ctx1))
   }
 
@@ -444,9 +444,9 @@ module Bootstrap.Semantics.Interp {
     Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
     var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
     var Return(v0, ctx0) :- InterpExpr(e0, env, ctx);
-    :- Need(v0.HasType(Type.Bool), TypeError(e0, v0, Type.Bool));
+    :- NeedType(e0, v0, Type.Bool);
     var Return(v1, ctx1) :- InterpExpr(e1, env, ctx0);
-    :- Need(v1.HasType(Type.Bool), TypeError(e1, v1, Type.Bool));
+    :- NeedType(e1, v1, Type.Bool);
     match (op, v0, v1)
       case (And, Bool(b0), Bool(b1)) =>
         Success(Return(V.Bool(b0 && b1), if b0 then ctx1 else ctx0))
@@ -936,7 +936,7 @@ module Bootstrap.Semantics.Interp {
     else
       // Evaluate the first expression
       var Return(val, ctx) :- InterpExpr(es[0], env, ctx);
-      :- Need(val.HasType(Types.Unit), TypeError(es[0], val, Types.Unit));
+      :- NeedType(es[0], val, Types.Unit);
       // Evaluate the remaining expressions
       InterpBlock_Exprs(es[1..], env, ctx)
   }
@@ -950,6 +950,25 @@ module Bootstrap.Semantics.Interp {
     var Return(v, ctx2) :- InterpBlock_Exprs(stmts, env, ctx1);
     var ctx3 := EndScope(ctx, ctx2);
     Success(Return(v, ctx3))
+  }
+
+  function method {:opaque} InterpExprs_Block(es: seq<Expr>, env: Environment, ctx: State)
+    : (r: InterpResult<Value>)
+    // Alternative definition for ``InterpBlock_Exprs`` based on ``InterpExprs``, and which we use
+    // for reasoning purposes. When it fails, it doesn't return the same error as ``InterpBlock_Exprs``,
+    // but this is often not an issue and allows to factorize the proofs.
+  {
+    var ctx0 := ctx;
+    // Evaluate all the statements
+    var Return(vs, ctx) :- InterpExprs(es, env, ctx);
+    // Case disjunction: the block is empty or not
+    if es == [] then Success(Return(V.Unit, ctx))
+    else
+      // Check that all the statements but the last one evaluate to unit
+      reveal SupportsInterp();
+      :- Need(Seq.All((v: Value) => v.HasType(Types.Unit), vs[0..(|vs|-1)]), Invalid(Exprs.Block(es))); // TODO(SMH): TypeError requires a value...
+      // Return the value the last statement evaluated to
+      Success(Return(vs[|vs| - 1], ctx))
   }
 
   function method StartScope(ctx: State): State {
