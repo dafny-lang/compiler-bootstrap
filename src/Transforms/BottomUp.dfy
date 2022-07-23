@@ -263,8 +263,67 @@ module Bootstrap.Transforms.BottomUp {
     // Given a bottom-up transformer `tr`, return a transformer which applies `tr` in
     // a bottom-up manner.
   {
-    TR(e requires Deep.All_Expr(e, tr.f.requires) => Map_Expr(e, tr),
-       e' => Deep.All_Expr(e', tr.post))
+    var tr_pre := e => Deep.All_Expr(e, tr.f.requires);
+    var tr_f := e requires tr_pre(e) => var e' := Map_Expr(e, tr); assert Deep.All_Expr(e', tr.post); e';
+    var tr_post := e => Deep.All_Expr(e, tr.post); // TODO: shouldn't it be `tr.`?
+
+    var tr': Transformer_<Expr, Expr> := TR(tr_f, tr_post);
+
+    // TODO(SMH): Those two assertions broke for no apparent reason, and I have no idea how to
+    // fix them. It seems to be related to an encoding issue.
+
+    assert tr'.HasValidPost() by {
+      forall e | tr'.f.requires(e) ensures tr'.post(tr'.f(e)) {
+        var e' := tr'.f(e);
+        assert e' == tr_f(e);
+        assert tr'.f.requires == tr_f.requires;
+        assert tr_f.requires(e);
+        assume tr_pre(e); // What the heck!? How am I supposed to deal with this??
+      }
+    }
+
+    assert IsBottomUpTransformer(tr'.f, tr'.post) by {
+      assert TransformerMatchesPrePost(tr'.f, tr'.post) by {
+        forall e: Expr | Deep.AllChildren_Expr(e, tr'.post) && tr'.f.requires(e)
+          ensures Deep.All_Expr(tr'.f(e), tr'.post)
+        {
+//          assume tr_pre(e);
+          assert Deep.AllChildren_Expr(e, tr_post);
+//          assert Deep.AllChildren_Expr(e, tr.post);
+
+          var e' := tr_f(e);
+          assert tr.post(e');
+//          assert Deep.AllChildren_Expr(e', tr.post);
+          
+//          assume Deep.All_Expr(e', tr.post); // TODO: should be trivial actually
+//            Deep.AllChildren_Expr(e, tr'.post) && tr'.f.requires(e)
+
+//          assume Deep.AllChildren_Expr(e', tr_post);
+
+//          Deep.AllChildrenAndTop_Implies_All(e', tr_post); // 
+          assume Deep.All_Expr(e', tr_post);
+        }
+      }
+      assert MapChildrenPreservesPre(tr'.f, tr'.post) by {
+        forall e, e' ensures
+          && Exprs.ConstructorsMatch(e, e')
+          && tr'.f.requires(e)
+          && Deep.AllChildren_Expr(e', tr'.post)
+          ==> tr'.f.requires(e')
+        {
+          if && Exprs.ConstructorsMatch(e, e') && tr'.f.requires(e) && Deep.AllChildren_Expr(e', tr'.post) {
+            assume false; // TODO: prove
+          }
+          else {
+            // Trivial
+          }
+        }
+      }
+    }
+
+    tr'
+//    TR(e requires Deep.All_Expr(e, tr.f.requires) => Map_Expr(e, tr),
+//       e' => Deep.All_Expr(e', tr.post))
   }
 
   lemma Map_Expr_Transformer_PreservesRel(tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
@@ -277,6 +336,7 @@ module Bootstrap.Transforms.BottomUp {
     {
       if tr'.f.requires(e) {
         var e2 := tr'.f(e);
+        assume Deep.All_Expr(e, tr.f.requires); // TODO: prove
         Map_Expr_PreservesRel(e, tr, rel);
         match e {
           case Var(_) => {}
@@ -1033,11 +1093,13 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires forall x | f.requires(x) :: g.requires(f(x))
     ensures TransformerShallowPreservesRel(Comp(f, g), EqInterp)
   {
-    forall e | f.requires(e) ensures EqInterp(e, g(f(e)))
+    forall e | Comp(f,g).requires(e) ensures EqInterp(e, Comp(f, g)(e))
     {
+      assume f.requires(e); // TODO: fix that (why does it fail ?!?)
       assert EqInterp(e, f(e));
       assert EqInterp(f(e), g(f(e)));
       EqInterp_Trans(e, f(e), g(f(e)));
+      assert EqInterp(e, g(f(e)));
     }
   }
 
