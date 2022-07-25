@@ -60,7 +60,7 @@ module Bootstrap.Semantics.Equiv {
     && GEqCtx(eq_value, ctx.locals, ctx'.locals)
     && GEqCtx(eq_value, ctx.rollback, ctx'.rollback)
     // TODO(SMH): we should have this instead
-    && GEqCtx(eq_value, ctx.locals + ctx.rollback, ctx'.locals + ctx'.rollback)
+    // && GEqCtx(eq_value, ctx.locals + ctx.rollback, ctx'.locals + ctx'.rollback)
   }
 
   function Mk_EqState(eq_value: (WV,WV) -> bool): (State,State) -> bool
