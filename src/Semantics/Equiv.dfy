@@ -59,6 +59,8 @@ module Bootstrap.Semantics.Equiv {
   {
     && GEqCtx(eq_value, ctx.locals, ctx'.locals)
     && GEqCtx(eq_value, ctx.rollback, ctx'.rollback)
+    // TODO(SMH): we should have this instead
+    && GEqCtx(eq_value, ctx.locals + ctx.rollback, ctx'.locals + ctx'.rollback)
   }
 
   function Mk_EqState(eq_value: (WV,WV) -> bool): (State,State) -> bool
@@ -291,41 +293,14 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
-  lemma EqInterp_Expr_EqState(e: Exprs.T, env: Environment, ctx: State, ctx': State)
+  // TODO: this should be moved to EqInterp_Refl.dfy, but is needed for the proof that of EqValue_Refl,
+  // which is then used in the proof of EqInterp_Refl. See the comments there about the termination
+  // issues.
+  lemma InterpExpr_Refl(e: Exprs.T, env: Environment, ctx: State, ctx': State)
     requires SupportsInterp(e)
     requires EqState(ctx, ctx')
     ensures EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e, env, ctx'))
   {
-    // The proof should be similar to ``EqInterp_Expr_CanBeMapLifted`` (and actually
-    // simpler), but I'm not sure how to efficiently factorize the two.
-    // TODO(SMH): actually the proof of termination is an issue in the case we lookup a global
-    // variable, because the global environment always stays the same...
-    //
-    // I think we could do the proof as follows:
-    // - define an EqValueN relation which is parameterized by a fuel (which is used for
-    //   the closures - and thus not quantified in EqValue_Closure)
-    // - for the closures, the EqValue applied on the returned results would use the fuel
-    //   remaining after the bodies have been executed (this would solve the problem of
-    //   proving reflexivity about the values in the environment, when looking up globals,
-    //   in particular)
-    // - prove the reflexivity for EqValueN: forall v n. EqValueN(v, v, n)
-    // - from this theorem, we should be able to prove the reflexivity theorem. The tricky
-    //   case is for closures, in which case we should use the fact that:
-    //
-    //   forall fuel fuel' ::
-    //     var res := Interp(..., fuel);
-    //     var res' := Interp(..., fuel');
-    //     res.Success? ==>
-    //       fuel' >= fuel - res.ctx.fuel ==>
-    //         res'.Success? && res'.ctx.fuel == fuel' - (fuel - res.ctx.fuel)
-    //
-    //   This way, we would be able to properly instantiate the initial fuel to get:
-    //   
-    //   forall n. EqInterpResultValueN(..., n)
-    //
-    //   Finally, we would get: EqInterpResultValue(...) by using the induction hypothesis
-    ///  (where termination is given by the fact that the type of the return value is smaller
-    //   than the type of the closure).
     assume false; // TODO(SMH): prove
   }
 
@@ -420,7 +395,7 @@ module Bootstrap.Semantics.Equiv {
         assert EqState(ctx1, ctx1');
 
         reveal InterpCallFunctionBody();
-        EqInterp_Expr_EqState(body, env, ctx1, ctx1');
+        InterpExpr_Refl(body, env, ctx1, ctx1');
         assert EqPureInterpResultValue(res, res');
     }
     reveal EqValue_Closure();
@@ -693,7 +668,7 @@ module Bootstrap.Semantics.Equiv {
         && v == v'
         && ctx == ctx'
       case (Failure(err), Failure(err')) =>
-        err == err'
+        true // We don't request the errors to be equal
       case _ =>
         false
     }
@@ -758,7 +733,7 @@ module Bootstrap.Semantics.Equiv {
                        InterpExpr(e, env, ctx),
                        InterpExpr(e, env, ctx'))
       {
-        EqInterp_Expr_EqState(e, env, ctx, ctx');
+        InterpExpr_Refl(e, env, ctx, ctx');
       }
     }
   }
@@ -849,33 +824,6 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
-  lemma InterpBlock_Exprs_Refl(es: seq<Expr>, env: Environment, ctx: State, ctx': State)
-    requires Seq_All(SupportsInterp, es)
-    requires EqState(ctx, ctx')
-    ensures EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es, env, ctx'))
-  {
-    reveal InterpBlock_Exprs();
-    if es == [] {}
-    else {
-       // Evaluate the first expression
-      var res0 := InterpExprWithType(es[0], Types.Unit, env, ctx);
-      var res0' := InterpExprWithType(es[0], Types.Unit, env, ctx');
-      EqInterp_Refl(es[0]);
-      EqInterp_Inst(es[0], es[0], env, ctx, ctx');
-
-      // Evaluate the remaining expressions
-      if res0.Success? && res0.value.ret == V.Unit {
-        var Return(_, ctx0) := res0.value;
-        var Return(_, ctx0') := res0'.value;
-
-        InterpBlock_Exprs_Refl(es[1..], env, ctx0, ctx0');
-      }
-      else {
-        // Trivial
-      }
-    }
-  }
-
   lemma EqInterp_Inst(e: Exprs.T, e': Exprs.T, env: Environment, ctx: State, ctx': State)
     requires SupportsInterp(e)
     requires EqInterp(e, e')
@@ -955,6 +903,34 @@ module Bootstrap.Semantics.Equiv {
   {
     InterpExprs_GEqInterp_Inst(EQ(EqValue, EqState), es, es', env, ctx, ctx');
   }
+
+/*  // TODO: remove
+  lemma InterpBlock_Exprs_Refl(es: seq<Expr>, env: Environment, ctx: State, ctx': State)
+    requires Seq_All(SupportsInterp, es)
+    requires EqState(ctx, ctx')
+    ensures EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es, env, ctx'))
+  {
+    reveal InterpBlock_Exprs();
+    if es == [] {}
+    else {
+       // Evaluate the first expression
+      var res0 := InterpExprWithType(es[0], Types.Unit, env, ctx);
+      var res0' := InterpExprWithType(es[0], Types.Unit, env, ctx');
+      EqInterp_Refl(es[0]);
+      EqInterp_Inst(es[0], es[0], env, ctx, ctx');
+
+      // Evaluate the remaining expressions
+      if res0.Success? && res0.value.ret == V.Unit {
+        var Return(_, ctx0) := res0.value;
+        var Return(_, ctx0') := res0'.value;
+
+        InterpBlock_Exprs_Refl(es[1..], env, ctx0, ctx0');
+      }
+      else {
+        // Trivial
+      }
+    }
+  }*/
 
   lemma Map_PairOfMapDisplaySeq(e: Interp.Expr, e': Interp.Expr, argvs: seq<WV>, argvs': seq<WV>)
     requires EqSeqValue(argvs, argvs')
