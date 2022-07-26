@@ -51,7 +51,7 @@ module Bootstrap.Semantics.Interp {
   // TODO: rewrite as a shallow predicate applied through ``v.All``?
   predicate method WellFormedEqValue(v: V.T)
   // This predicate gives the constrainst we need to be able to *define* our equivalence relation
-  // over values and actually *use* this relation to prove equivalence properties between expressions.
+  // over values and actually *use* this relati\on to prove equivalence properties between expressions.
   //
   // The difficult point is linked to closures: when we apply transformations to the code, we often
   // apply them in a deep manner to the expressions (i.e., to all the subexpressions of an expression).
@@ -282,6 +282,10 @@ module Bootstrap.Semantics.Interp {
           Success(Return(Unit, ctx))
       case Update(vars, vals) =>
         var Return(vals, ctx) :- InterpExprs(vals, env, ctx);
+        // DISCUSS: we need to check that the variables have been declared, but there is actually
+        // no way to do that for now (a variable declared but not initialized doesn't appear in the
+        // environment - a variable declaration may only update the rollback context). But is not
+        // checking that variables have been declared really a problem?
         var ctx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
         Success(Return(Unit, ctx))
       case Block(stmts) =>
@@ -980,8 +984,26 @@ module Bootstrap.Semantics.Interp {
   }
 
   function method EndScope(ctx: State, ctx1: State): State {
-    var locals := map x | x in (ctx1.locals.Keys * ctx.locals.Keys) :: ctx1.locals[x];
-    var locals1 := locals + ctx1.rollback;
+    // It is important to rollback *then* restrict the map.
+    // Ex.:
+    // ```
+    // // locals: [], rollback: []
+    // var y := 0;
+    // // locals: [y -> 0], rollback: []
+    // {
+    //   var x := 0;
+    //   // locals: [x -> 0, y -> 0], rollback: []
+    //   var x := true; // Redeclaring `x`: forbidden by Dafny, allowed by our semantics
+    //   // locals: [x -> true, y -> 0], rollback: [x -> 0]
+    // }
+    // // If we restrict *then* rollback, we leak `x`
+    // ```
+    var locals := (ctx1.locals + ctx1.rollback);
+    // Below: we should actually have the invariant that `locals` is included in `ctx.locals`, but
+    // we don't 
+    var locals1 := map x | x in (locals.Keys * ctx.locals.Keys) :: locals[x];
+//    var locals := map x | x in (ctx1.locals.Keys * ctx.locals.Keys) :: ctx1.locals[x];
+//    var locals1 := locals + ctx1.rollback;
     State(locals := locals1, rollback := ctx.rollback)
   }
 }

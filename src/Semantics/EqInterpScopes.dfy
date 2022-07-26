@@ -26,13 +26,18 @@ module Base refines ExprInduction.Ind {
   datatype {:verify false} MValue = MValue(v: Value, v': Value)
   datatype {:verify false} MSeqValue = MSeqValue(vs: seq<Value>, vs': seq<Value>)
 
+  predicate {:verify false} EqRollback(outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
+  {
+    EqCtx(ctx.rollback + outer_rollback, ctx'.rollback + outer_rollback')
+  }
+
   predicate {:verify false} EqResult<V>(eq_value: (V,V) -> bool, outer_rollback: Context, res: InterpResult<V>, outer_rollback': Context, res': InterpResult<V>)
   {
     match (res, res')
       case (Success(Return(v, ctx)), Success(Return(v', ctx'))) =>
         && eq_value(v, v')
         && EqCtx(ctx.locals, ctx'.locals)
-        && EqCtx(ctx.rollback + outer_rollback, ctx'.rollback + outer_rollback')
+        && EqRollback(outer_rollback, ctx, outer_rollback', ctx')
       case (Failure(_), _) => true
       case _ => false
   }
@@ -50,7 +55,7 @@ module Base refines ExprInduction.Ind {
   predicate {:verify false} Inv(st: MState)
   {
     && EqCtx(st.ctx.locals, st.ctx'.locals)
-    && EqCtx(st.ctx.rollback + st.outer_rollback, st.ctx'.rollback + st.outer_rollback')
+    && EqRollback(st.outer_rollback, st.ctx, st.outer_rollback', st.ctx')
   }
 
   type {:verify false} S(!new) = MState
@@ -146,6 +151,10 @@ module Base refines ExprInduction.Ind {
       if Inv(st) {
         reveal GEqCtx();
         BuildCallState_EqState(st.ctx.locals, st.ctx'.locals, vars, argvs.vs, argvs.vs');
+        assert EqCtx(ctx1.locals, ctx1'.locals);
+        assert ctx1.rollback == ctx1'.rollback == map [] by {
+          reveal BuildCallState();
+        }
       }
     }
     st'
@@ -159,9 +168,9 @@ module Base refines ExprInduction.Ind {
     var ctx1' := st.ctx'.(locals := AugmentContext(st.ctx'.locals, vars, vals.vs'));
     var st' := MState(st.env, st.outer_rollback, ctx1, st.outer_rollback', ctx1');
 
-    reveal BuildCallState();
     assert Inv(st) ==> Inv(st') by {
       if Inv(st) {
+        reveal BuildCallState();
         reveal GEqCtx();
         BuildCallState_EqState(st.ctx.locals, st.ctx'.locals, vars, vals.vs, vals.vs');
       }
@@ -170,7 +179,6 @@ module Base refines ExprInduction.Ind {
     st'
   }
 
-  // TODO(SMH): this proof takes ~35s
   function {:verify false} StateSaveToRollback ...
     ensures Inv(st) ==> Inv(st')
   {
@@ -192,8 +200,11 @@ module Base refines ExprInduction.Ind {
         assert ctx1 == SaveToRollback(ctx, varseq) by { reveal SaveToRollback(); }
         assert ctx1' == SaveToRollback(ctx', varseq) by { reveal SaveToRollback(); }
 
-        assert EqCtx(ctx1.rollback + or, ctx1'.rollback + or') by { reveal GEqCtx(); } // Wow, this actually works
         assert EqCtx(ctx1.locals, ctx1'.locals) by { reveal GEqCtx(); }
+        var rolled := ctx1.rollback + or;
+        var rolled' := ctx1'.rollback + or';
+        assert rolled.Keys == rolled'.Keys by { reveal GEqCtx(); } // This helps reduce the proof time
+        assert EqCtx(rolled, rolled') by { reveal GEqCtx(); } // Wow, this actually works
       }
     }
 
@@ -394,17 +405,211 @@ module Base refines ExprInduction.Ind {
   import opened Base
 
   type {:verify false} Expr = Interp.Expr
-  type Context = Interp.Context
+  type {:verify false} Context = Interp.Context
 
-  ghost const EqResultSeqValue := Base.EqResultSeqValue
-  ghost const EqResultValue := Base.EqResultValue
+  ghost const {:verify false} EqResultSeqValue := Base.EqResultSeqValue
+  ghost const {:verify false} EqResultValue := Base.EqResultValue
 
-  lemma {:verify true} InterpExprs_Eq(es: seq<Expr>, env: Environment, outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
-    requires EqCtx(ctx.locals, ctx'.locals)
-    requires EqCtx(ctx.rollback + outer_rollback, ctx'.rollback + outer_rollback')
+  predicate EqStateOuterRollback(outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
+  {
+    && EqCtx(ctx.locals, ctx'.locals)
+    && EqRollback(outer_rollback, ctx, outer_rollback', ctx')
+  }
+
+  lemma {:verify false} InterpExpr_Eq(e: Expr, env: Environment, outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
+    requires EqStateOuterRollback(outer_rollback, ctx, outer_rollback', ctx')
+    ensures EqResultValue(outer_rollback, InterpExpr(e, env, ctx), outer_rollback', InterpExpr(e, env, ctx'))
+  {
+    Base.P_Satisfied(MState(env, outer_rollback, ctx, outer_rollback', ctx'), e);
+  }
+
+  lemma {:verify false} InterpExprs_Eq(es: seq<Expr>, env: Environment, outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
+    requires EqStateOuterRollback(outer_rollback, ctx, outer_rollback', ctx')
     ensures EqResultSeqValue(outer_rollback, InterpExprs(es, env, ctx), outer_rollback', InterpExprs(es, env, ctx'))
   {
     Base.Pes_Satisfied(MState(env, outer_rollback, ctx, outer_rollback', ctx'), es);
   }
+
+  lemma {:verify false} InterpBlock_Exprs_Eq(es: seq<Expr>, env: Environment, outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
+    requires EqStateOuterRollback(outer_rollback, ctx, outer_rollback', ctx')
+    ensures EqResultValue(outer_rollback, InterpBlock_Exprs(es, env, ctx), outer_rollback', InterpBlock_Exprs(es, env, ctx'))
+  {
+    InterpExprs_Block_Equiv_Strong(es, env, ctx);
+    InterpExprs_Block_Equiv_Strong(es, env, ctx');
+    Base.Pes_Satisfied(MState(env, outer_rollback, ctx, outer_rollback', ctx'), es);
+
+    reveal InterpExprs_Block();
+  }
+
+  predicate EqInterpBlockExprs_Single(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, or:Context, ctx:State, or':Context, ctx':State)
+    requires Seq_All(SupportsInterp, es)
+    requires Seq_All(SupportsInterp, es')
+    requires EqStateOuterRollback(or, ctx, or', ctx')
+    // Rk.: we need this predicate, otherwise we don't manage to guide the instantiation in ``EqInterpBlockExprs_Inst``
+  {
+    EqResultValue(or, InterpBlock_Exprs(es, env, ctx), or', InterpBlock_Exprs(es', env, ctx'))
+  }
+
+  predicate {:opaque} {:verify true} EqInterpBlockExprs(es: seq<Exprs.T>, es': seq<Exprs.T>)
+  {
+    Seq_All(SupportsInterp, es) ==>
+    (&& Seq_All(SupportsInterp, es')
+     && (forall env, or, ctx:State, or', ctx':State | EqStateOuterRollback(or, ctx, or', ctx') ::
+        EqInterpBlockExprs_Single(es, es', env, or, ctx, or', ctx')))
+  }
+
+  lemma {:verify false} EqInterpBlockExprs_Inst(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, or: Context, ctx: State, or': Context, ctx': State)
+    requires EqInterpBlockExprs(es, es')
+    requires Seq_All(SupportsInterp, es)
+    requires EqStateOuterRollback(or, ctx, or', ctx')
+    ensures Seq_All(SupportsInterp, es')
+    ensures EqResultValue(or, InterpBlock_Exprs(es, env, ctx), or', InterpBlock_Exprs(es', env, ctx'))
+  {
+    reveal EqInterpBlockExprs();
+    assert EqInterpBlockExprs_Single(es, es', env, or, ctx, or', ctx');
+  }
+
+  lemma {:verify false} InterpBlock_Exprs_Eq_Append(
+    e: Expr, tl: seq<Expr>, tl': seq<Expr>, env: Environment, or: Context, ctx: State, or': Context, ctx': State)
+    requires SupportsInterp(e)
+//    requires Seq_All(SupportsInterp, tl)
+//    requires Seq_All(SupportsInterp, tl')
+    requires forall e | e in tl :: SupportsInterp(e)
+    requires forall e | e in tl' :: SupportsInterp(e)
+    requires EqStateOuterRollback(or, ctx, or', ctx')
+    requires EqInterpBlockExprs(tl, tl')
+    requires |tl| > 0
+    ensures EqResultValue(or, InterpBlock_Exprs([e] + tl, env, ctx), or', InterpBlock_Exprs([e] + tl', env, ctx'))
+    // Auxiliary lemma for the proofs about transformations operating on blocks. This is especially
+    // useful when those transformations might update the length of the sequence of expressions
+    // in the blocks. The proof is a bit tricky, because the case where the sequence has length 1
+    // is a special case in the definition of ``EqInterpBlock_Exprs``.
+    //
+    // - `or`, `or'` : outer rollback
+  {
+    var es := [e] + tl;
+    assert e == es[0];
+
+    reveal InterpBlock_Exprs();
+
+    // Evaluate the first expression
+    var res0 := InterpExprWithType(e, Types.Unit, env, ctx);
+    var res0' := InterpExprWithType(e, Types.Unit, env, ctx');
+    InterpExpr_Eq(e, env, or, ctx, or', ctx');
+
+    // We need to make a case disjunction on whether the length of the concatenated sequences is
+    // > 1 or not
+    if |tl'| >= 1 {
+      // The "regular" case
+
+      // Evaluate the remaining expressions
+      if res0.Success? && res0.value.ret == Interp.V.Unit {
+        var Return(_, ctx0) := res0.value;
+        var Return(_, ctx0') := res0'.value;
+
+        var res1 := InterpBlock_Exprs(tl, env, ctx0);
+        var res1' := InterpBlock_Exprs(tl', env, ctx0');
+
+        EqInterpBlockExprs_Inst(tl, tl', env, or, ctx0, or', ctx0');
+      }
+      else {
+        // Trivial
+      }
+    }
+    else {
+      // Degenerate case
+      assert |tl'| == 0;
+
+      if res0.Success? {
+        var Return(v, ctx0) := res0.value;
+        var Return(v', ctx0') := res0'.value;
+
+        if v == Interp.V.Unit {
+          assert v' == Interp.V.Unit;
+          EqInterpBlockExprs_Inst(tl, tl', env, or, ctx0, or', ctx0');
+        }
+        else {
+          // Trivial case:
+          assert v' != Interp.V.Unit;
+          var res := InterpBlock_Exprs([e] + tl, env, ctx);
+          assert res.Failure?;
+        }
+      }
+      else {
+        // Trivial
+      }
+    }
+  }
+
+/*  lemma InterpBlock_Exprs_Eq_Append(e: Expr, e': Expr, tl: seq<Expr>, tl': seq<Expr>, env: Environment, ctx: State, ctx': State)
+    requires SupportsInterp(e)
+    requires SupportsInterp(e')
+    requires Seq_All(SupportsInterp, tl)
+    requires Seq_All(SupportsInterp, tl')
+    requires EqState(ctx, ctx')
+    requires EqInterp(e, e')
+    requires EqInterpBlockExprs(tl, tl')
+    requires |tl| > 0
+    ensures EqInterpResultValue(InterpBlock_Exprs([e] + tl, env, ctx), InterpBlock_Exprs([e'] + tl', env, ctx'))
+    // Auxiliary lemma for the proofs about transformations operating on blocks. This is especially
+    // useful when those transformations might update the length of the sequence of expressions
+    // in the blocks. The proof is a bit tricky, because the case where the sequence has length 1
+    // is a special case in the definition of ``EqInterpBlock_Exprs``.
+  {
+    var es := [e] + tl;
+    var es' := [e'] + tl';
+    assert e == es[0];
+
+    reveal InterpBlock_Exprs();
+
+    // Evaluate the first expression
+    var res0 := InterpExprWithType(e, Types.Unit, env, ctx);
+    var res0' := InterpExprWithType(e', Types.Unit, env, ctx');
+    EqInterp_Inst(e, e', env, ctx, ctx');
+
+    // We need to make a case disjunction on whether the length of the concatenated sequences is
+    // > 1 or not
+    if |tl'| >= 1 {
+      // The "regular" case
+
+      // Evaluate the remaining expressions
+      if res0.Success? && res0.value.ret == V.Unit {
+        var Return(_, ctx0) := res0.value;
+        var Return(_, ctx0') := res0'.value;
+
+        var res1 := InterpBlock_Exprs(tl, env, ctx0);
+        var res1' := InterpBlock_Exprs(tl', env, ctx0');
+
+        EqInterpBlockExprs_Inst(tl, tl', env, ctx0, ctx0');
+      }
+      else {
+        // Trivial
+      }
+    }
+    else {
+      // Degenerate case
+      assert |tl'| == 0;
+
+      if res0.Success? {
+        var Return(v, ctx0) := res0.value;
+        var Return(v', ctx0') := res0'.value;
+
+        if v == V.Unit {
+          assert v' == V.Unit;
+          EqInterpBlockExprs_Inst(tl, tl', env, ctx0, ctx0');
+        }
+        else {
+          // Trivial case:
+          assert v' != V.Unit;
+          var res := InterpBlock_Exprs([e] + tl, env, ctx);
+          assert res.Failure?;
+        }
+      }
+      else {
+        // Trivial
+      }
+    }
+  } */
+
 
 } // end of module Bootstrap.Semantics.EqInterpScopes

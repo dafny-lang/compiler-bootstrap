@@ -57,10 +57,19 @@ module Bootstrap.Semantics.Equiv {
   predicate GEqState(
     eq_value: (WV,WV) -> bool, ctx: State, ctx': State)
   {
+    // Rk.: at some point I tried a slightly weaker condition on the rollbacks:
+    // `ctx.locals + ctx.rollback ~= ctx'.locals + ctx'.rollback`
+    // (instead of `ctx.rollback ~= ctx'.rollback).
+    // However, with this condition we can't prove reflexivity of `EqInterp`:
+    // ```
+    // // locals: [x -> 0], rollback: [x -> 0]          locals' [x -> 0], rollback': []
+    // // Invariant is satisfied
+    // x := 1;
+    // // locals: [x -> 1], rollback: [x -> 0]          locals' [x -> 1], rollback': []
+    // // Invariant is broken!
+    // ```
     && GEqCtx(eq_value, ctx.locals, ctx'.locals)
     && GEqCtx(eq_value, ctx.rollback, ctx'.rollback)
-    // TODO(SMH): we should have this instead
-    // && GEqCtx(eq_value, ctx.locals + ctx.rollback, ctx'.locals + ctx'.rollback)
   }
 
   function Mk_EqState(eq_value: (WV,WV) -> bool): (State,State) -> bool
@@ -216,6 +225,11 @@ module Bootstrap.Semantics.Equiv {
     var Closure(ctx', vars', body') := v';
     && |vars| == |vars'|
     && (
+    // TODO: we should actually quantify over a pair of equivalent environments (and propagate
+    // that everywhere: all lemmas should take two environments as inputs). Note that the
+    // proof of reflexivity will probably require some step indexing, because the environments
+    // should be initialized as the set containing the external functions and the program we are
+    // about to run.
     forall env: Environment, argvs: seq<WV>, argvs': seq<WV> |
       && |argvs| == |argvs'| == |vars| // no partial applications are allowed in Dafny
       // We need the argument types to be smaller than the closure types, to prove termination.\
@@ -712,17 +726,6 @@ module Bootstrap.Semantics.Equiv {
     GEqInterp(EQ(EqValue, Mk_EqState(EqValue)), e, e')
   }
 
-  // TODO(SMH): make opaque?
-  predicate EqInterpBlockExprs(es: seq<Exprs.T>, es': seq<Exprs.T>)
-  {
-    Seq_All(SupportsInterp, es) ==>
-    (&& Seq_All(SupportsInterp, es')
-     && forall env, ctx, ctx' | EqState(ctx, ctx') ::
-       EqInterpResultValue(
-                      InterpBlock_Exprs(es, env, ctx),
-                      InterpBlock_Exprs(es', env, ctx')))
-  }
-
   lemma EqInterp_Refl(e: Exprs.T)
     ensures EqInterp(e, e)
   {
@@ -737,13 +740,6 @@ module Bootstrap.Semantics.Equiv {
       }
     }
   }
-
-  lemma EqInterpBlockExprs_Inst(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, ctx: State, ctx': State)
-    requires EqInterpBlockExprs(es, es')
-    requires Seq_All(SupportsInterp, es)
-    requires EqState(ctx, ctx')
-    ensures  EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es', env, ctx'))
-  {}
 
   predicate All_Rel_Forall<A, B>(rel: (A,B) -> bool, xs: seq<A>, ys: seq<B>)
   {
@@ -1036,76 +1032,6 @@ module Bootstrap.Semantics.Equiv {
 
     reveal GEqCtx();
     MapOfPairs_EqCtx(pl, pl');
-  }
-
-  lemma InterpBlock_Exprs_Eq_Append(e: Expr, e': Expr, tl: seq<Expr>, tl': seq<Expr>, env: Environment, ctx: State, ctx': State)
-    requires SupportsInterp(e)
-    requires SupportsInterp(e')
-    requires Seq_All(SupportsInterp, tl)
-    requires Seq_All(SupportsInterp, tl')
-    requires EqState(ctx, ctx')
-    requires EqInterp(e, e')
-    requires EqInterpBlockExprs(tl, tl')
-    requires |tl| > 0
-    ensures EqInterpResultValue(InterpBlock_Exprs([e] + tl, env, ctx), InterpBlock_Exprs([e'] + tl', env, ctx'))
-    // Auxiliary lemma for the proofs about transformations operating on blocks. This is especially
-    // useful when those transformations might update the length of the sequence of expressions
-    // in the blocks. The proof is a bit tricky, because the case where the sequence has length 1
-    // is a special case in the definition of ``EqInterpBlock_Exprs``.
-  {
-    var es := [e] + tl;
-    var es' := [e'] + tl';
-    assert e == es[0];
-
-    reveal InterpBlock_Exprs();
-
-    // Evaluate the first expression
-    var res0 := InterpExprWithType(e, Types.Unit, env, ctx);
-    var res0' := InterpExprWithType(e', Types.Unit, env, ctx');
-    EqInterp_Inst(e, e', env, ctx, ctx');
-
-    // We need to make a case disjunction on whether the length of the concatenated sequences is
-    // > 1 or not
-    if |tl'| >= 1 {
-      // The "regular" case
-
-      // Evaluate the remaining expressions
-      if res0.Success? && res0.value.ret == V.Unit {
-        var Return(_, ctx0) := res0.value;
-        var Return(_, ctx0') := res0'.value;
-
-        var res1 := InterpBlock_Exprs(tl, env, ctx0);
-        var res1' := InterpBlock_Exprs(tl', env, ctx0');
-
-        EqInterpBlockExprs_Inst(tl, tl', env, ctx0, ctx0');
-      }
-      else {
-        // Trivial
-      }
-    }
-    else {
-      // Degenerate case
-      assert |tl'| == 0;
-
-      if res0.Success? {
-        var Return(v, ctx0) := res0.value;
-        var Return(v', ctx0') := res0'.value;
-
-        if v == V.Unit {
-          assert v' == V.Unit;
-          EqInterpBlockExprs_Inst(tl, tl', env, ctx0, ctx0');
-        }
-        else {
-          // Trivial case:
-          assert v' != V.Unit;
-          var res := InterpBlock_Exprs([e] + tl, env, ctx);
-          assert res.Failure?;
-        }
-      }
-      else {
-        // Trivial
-      }
-    }
   }
 
   lemma CtxUnion_Eq(ctx: Context, add: Context, ctx': Context, add': Context)

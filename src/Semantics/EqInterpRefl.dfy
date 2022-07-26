@@ -14,23 +14,23 @@ module Base refines ExprInduction.Ind {
   //
   // Declarations
   //
-  type Value = Interp.Value
+  type {:verify false} Value = Interp.Value
 
-  datatype MState = MState(env: Environment, ctx: State, ctx': State)
-  datatype MValue = MValue(v: Value, v': Value)
-  datatype MSeqValue = MSeqValue(vs: seq<Value>, vs': seq<Value>)
+  datatype {:verify false} MState = MState(env: Environment, ctx: State, ctx': State)
+  datatype {:verify false} MValue = MValue(v: Value, v': Value)
+  datatype {:verify false} MSeqValue = MSeqValue(vs: seq<Value>, vs': seq<Value>)
 
-  type S(!new) = MState
-  type V(!new) = MValue
-  type VS(!new) = vs:MSeqValue | |vs.vs| == |vs.vs'| witness MSeqValue([], [])
+  type {:verify false} S(!new) = MState
+  type {:verify false} V(!new) = MValue
+  type {:verify false} VS(!new) = vs:MSeqValue | |vs.vs| == |vs.vs'| witness MSeqValue([], [])
 
-  predicate P(st: S, e: Expr)
+  predicate {:verify false} P(st: S, e: Expr)
   {
     EqState(st.ctx, st.ctx') ==>
     EqInterpResultValue(InterpExpr(e, st.env, st.ctx), InterpExpr(e, st.env, st.ctx'))
   }
   
-  predicate P_Succ(st: S, e: Expr, st': S, v: V)
+  predicate {:verify false} P_Succ(st: S, e: Expr, st': S, v: V)
   {
     && EqState(st.ctx, st.ctx')
     && EqInterpResultValue(InterpExpr(e, st.env, st.ctx), InterpExpr(e, st.env, st.ctx'))
@@ -39,18 +39,18 @@ module Base refines ExprInduction.Ind {
     && st.env == st'.env
   }
 
-  predicate P_Fail(st: S, e: Expr)
+  predicate {:verify false} P_Fail(st: S, e: Expr)
   {
     EqState(st.ctx, st.ctx') ==> InterpExpr(e, st.env, st.ctx).Failure?
   }
 
-  predicate Pes(st: S, es: seq<Expr>)
+  predicate {:verify false} Pes(st: S, es: seq<Expr>)
   {
     EqState(st.ctx, st.ctx') ==>
     EqInterpResultSeqValue(InterpExprs(es, st.env, st.ctx), InterpExprs(es, st.env, st.ctx'))
   }
 
-  predicate Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS)
+  predicate {:verify false} Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS)
   {
     && EqState(st.ctx, st.ctx')
     && EqInterpResultSeqValue(InterpExprs(es, st.env, st.ctx), InterpExprs(es, st.env, st.ctx'))
@@ -59,44 +59,44 @@ module Base refines ExprInduction.Ind {
     && st.env == st'.env
   }
 
-  predicate Pes_Fail(st: S, es: seq<Expr>)
+  predicate {:verify false} Pes_Fail(st: S, es: seq<Expr>)
   {
     !EqState(st.ctx, st.ctx') || InterpExprs(es, st.env, st.ctx).Failure?
   }
 
-  function AppendValue ...
+  function {:verify false} AppendValue ...
   {
     MSeqValue([v.v] + vs.vs, [v.v'] + vs.vs')
   }
 
-  function SeqVToVS ...
+  function {:verify false} SeqVToVS ...
   {
     if vs == [] then MSeqValue([], [])
     else
       AppendValue(MValue(vs[0].v, vs[0].v'), SeqVToVS(vs[1..]))
   }
   
-  function GetNilVS ...
+  function {:verify false} GetNilVS ...
   {
     MSeqValue([], [])
   }
 
-  ghost const UnitV := MValue(Values.Unit, Values.Unit)
+  ghost const {:verify false} UnitV := MValue(Values.Unit, Values.Unit)
 
-  function VS_Last ...
+  function {:verify false} VS_Last ...
   {
     var v := vs.vs[|vs.vs| - 1];
     var v' := vs.vs'[|vs.vs| - 1];
     MValue(v, v')
   }
 
-  predicate VS_UpdateStatePre ...
+  predicate {:verify false} VS_UpdateStatePre ...
   {
     && |argvs.vs| == |argvs.vs'| == |vars|
     && forall i | 0 <= i < |argvs.vs| :: EqValue(argvs.vs[i], argvs.vs'[i])
   }
 
-  function BuildClosureCallState ...
+  function {:verify false} BuildClosureCallState ...
     // Adding this precondition makes the InductAbs proofs easier
     ensures
       EqState(st.ctx, st.ctx') ==>
@@ -113,7 +113,7 @@ module Base refines ExprInduction.Ind {
     st'
   }
 
-  function UpdateState ...
+  function {:verify false} UpdateState ...
     // Adding this precondition makes the InductUpdate proofs easier
     ensures
       EqState(st.ctx, st.ctx') ==>
@@ -123,17 +123,17 @@ module Base refines ExprInduction.Ind {
     var ctx1' := st.ctx'.(locals := AugmentContext(st.ctx'.locals, vars, vals.vs'));
     var st' := MState(st.env, ctx1, ctx1');
 
-    reveal BuildCallState();
     assert EqState(st.ctx, st.ctx') ==> EqState(st'.ctx, st'.ctx') by {
       if EqState(st.ctx, st.ctx') {
-        BuildCallState_EqState(st.ctx.locals, st.ctx'.locals, vars, vals.vs, vals.vs');
+        BuildCallState_EqState(st.ctx.locals, st.ctx'.locals, vars, vals.vs, vals.vs'); // TODO: remove?
+        reveal BuildCallState();
       }
     }
 
     st'
   }
 
-  function StateSaveToRollback ...
+  function {:verify false} StateSaveToRollback ...
     ensures EqState(st.ctx, st.ctx') ==> EqState(st'.ctx, st'.ctx')
   {
     var ctx := SaveToRollback(st.ctx, vars);
@@ -150,7 +150,7 @@ module Base refines ExprInduction.Ind {
     st'
   }
 
-  function StateStartScope ...
+  function {:verify false} StateStartScope ...
     ensures EqState(st.ctx, st.ctx') ==> EqState(st'.ctx, st'.ctx')
   {
     var ctx := StartScope(st.ctx);
@@ -159,7 +159,7 @@ module Base refines ExprInduction.Ind {
     MState(st.env, ctx, ctx')
   }
 
-  function StateEndScope ...
+  function {:verify false} StateEndScope ...
     ensures EqState(st0.ctx, st0.ctx') && EqState(st.ctx, st.ctx') ==> EqState(st'.ctx, st'.ctx')
   {
     var ctx := EndScope(st0.ctx, st.ctx);
@@ -168,13 +168,13 @@ module Base refines ExprInduction.Ind {
     MState(st.env, ctx, ctx')
   }
 
-  function P_Step ... {
+  function {:verify false} P_Step ... {
     var Return(v, ctx1) := InterpExpr(e, st.env, st.ctx).value;
     var Return(v', ctx1') := InterpExpr(e, st.env, st.ctx').value;
     (MState(st.env, ctx1, ctx1'), MValue(v, v'))
   }
 
-  function Pes_Step ... {
+  function {:verify false} Pes_Step ... {
     var Return(vs, ctx1) := InterpExprs(es, st.env, st.ctx).value;
     var Return(vs', ctx1') := InterpExprs(es, st.env, st.ctx').value;
     (MState(st.env, ctx1, ctx1'), MSeqValue(vs, vs'))
@@ -184,15 +184,15 @@ module Base refines ExprInduction.Ind {
   // Lemmas
   //
 
-  lemma P_Fail_Sound ... {}
-  lemma P_Succ_Sound ... {}
-  lemma Pes_Fail_Sound ... {}
-  lemma Pes_Succ_Sound ... {}
+  lemma {:verify false} P_Fail_Sound ... {}
+  lemma {:verify false} P_Succ_Sound ... {}
+  lemma {:verify false} Pes_Fail_Sound ... {}
+  lemma {:verify false} Pes_Succ_Sound ... {}
 
-  lemma Pes_Succ_Inj ... {}
-  lemma SeqVToVS_Append ... {}
+  lemma {:verify false} Pes_Succ_Inj ... {}
+  lemma {:verify false} SeqVToVS_Append ... {}
 
-  lemma InductVar ... {
+  lemma {:verify false} InductVar ... {
     reveal InterpExpr();
     reveal GEqCtx();
 
@@ -213,9 +213,9 @@ module Base refines ExprInduction.Ind {
     }
   }
 
-  lemma InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); }
+  lemma {:verify false} InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); }
 
-  lemma InductAbs ... {
+  lemma {:verify false} InductAbs ... {
     reveal InterpExpr();
     reveal EqValue_Closure();
 
@@ -241,28 +241,28 @@ module Base refines ExprInduction.Ind {
     assert EqValue_Closure(cv, cv');
   }
 
-  lemma InductAbs_CallState ... {
+  lemma {:verify false} InductAbs_CallState ... {
     reveal InterpExpr();
     reveal InterpCallFunctionBody();
     reveal BuildCallState();
   }
 
-  lemma InductExprs_Nil ... { reveal InterpExprs(); }
-  lemma InductExprs_Cons ... { reveal InterpExprs(); }
+  lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); }
+  lemma {:verify false} InductExprs_Cons ... { reveal InterpExprs(); }
 
-  lemma InductApplyLazy_Fail ... { reveal InterpExpr(); reveal InterpLazy(); }
-  lemma InductApplyLazy_Succ ... { reveal InterpExpr(); reveal InterpLazy(); }
+  lemma {:verify false} InductApplyLazy_Fail ... { reveal InterpExpr(); reveal InterpLazy(); }
+  lemma {:verify false} InductApplyLazy_Succ ... { reveal InterpExpr(); reveal InterpLazy(); }
 
-  lemma InductApplyEager_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyEager_Fail ... { reveal InterpExpr(); }
 
-  lemma InductApplyEagerUnaryOp_Succ ... { reveal InterpExpr(); reveal InterpUnaryOp(); }
+  lemma {:verify false} InductApplyEagerUnaryOp_Succ ... { reveal InterpExpr(); reveal InterpUnaryOp(); }
 
-  lemma InductApplyEagerBinaryOp_Succ ... {
+  lemma {:verify false} InductApplyEagerBinaryOp_Succ ... {
     reveal InterpExpr();
     InterpBinaryOp_Eq(e, e, op, v0.v, v1.v, v0.v', v1.v');
   }
 
-  lemma InductApplyEagerTernaryOp_Succ ... {
+  lemma {:verify false} InductApplyEagerTernaryOp_Succ ... {
     reveal InterpExpr();
     reveal InterpTernaryOp();
 
@@ -273,30 +273,30 @@ module Base refines ExprInduction.Ind {
     EqValue_HasEqValue_Eq(v1.v, v1.v');
   }
 
-  lemma InductApplyEagerBuiltinDisplay ... {
+  lemma {:verify false} InductApplyEagerBuiltinDisplay ... {
     reveal InterpExpr();
     Interp_Apply_Display_EqValue(e, e, ty.kind, argvs.vs, argvs.vs');
   }
 
-  lemma InductApplyEagerFunctionCall ... {
+  lemma {:verify false} InductApplyEagerFunctionCall ... {
     reveal InterpExpr();
     InterpFunctionCall_EqState(e, e, st.env, fv.v, fv.v', argvs.vs, argvs.vs');
   }
 
-  lemma InductIf_Fail ... { reveal InterpExpr(); }
-  lemma InductIf_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductIf_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductIf_Succ ... { reveal InterpExpr(); }
 
-  lemma InductUpdate_Fail ... { reveal InterpExpr(); }
-  lemma InductUpdate_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductUpdate_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductUpdate_Succ ... { reveal InterpExpr(); }
 
-  lemma InductVarDecl_None_Succ ... { reveal InterpExpr(); }
-  lemma InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
-  lemma InductVarDecl_Some_Succ  ... { reveal InterpExpr(); }
+  lemma {:verify false} InductVarDecl_None_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductVarDecl_Some_Succ  ... { reveal InterpExpr(); }
 
   // TODO(SMH): I tried simplifying the proofs below by adding a `requires` in ``InductBlock_Fail``
   // and ``InductBlock_Succ`` to provide the assertions and the results of calling the lemmas used
   // in the proof below, but it didn't work due to SMT solvers' misteries.
-  lemma InductBlock_Fail ...
+  lemma {:verify false} InductBlock_Fail ...
   {
     reveal InterpExpr();
     reveal InterpBlock();
@@ -314,7 +314,7 @@ module Base refines ExprInduction.Ind {
     InterpExprs_Block_Equiv_Strong(stmts, env, st_start.ctx');
   }
 
-  lemma InductBlock_Succ ...
+  lemma {:verify false} InductBlock_Succ ...
   {
     reveal InterpExpr();
     reveal InterpBlock();
@@ -343,9 +343,9 @@ module Base refines ExprInduction.Ind {
   import opened Utils.Lib.Datatypes
   import opened Base
 
-  type Expr = Interp.Expr
+  type {:verify false} Expr = Interp.Expr
 
-  lemma InterpBlock_Exprs_EqRefl(es: seq<Expr>, env: Environment, ctx: State, ctx': State)
+  lemma {:verify false} InterpBlock_Exprs_EqRefl(es: seq<Expr>, env: Environment, ctx: State, ctx': State)
     // TODO(SMH): for some reason, using ``Seq_All`` makes some proofs fail. The weird thing is
     // that I can then prove `Seq_All(SupportsInterp, es)` in an assertion just before the call
     // to the lemma, but the lemma precondition keeps failing.
@@ -360,7 +360,7 @@ module Base refines ExprInduction.Ind {
     reveal InterpExprs_Block();
   }
 
-  lemma InterpExprs_EqRefl(es: seq<Expr>, env: Environment, ctx: State, ctx': State)
+  lemma {:verify false} InterpExprs_EqRefl(es: seq<Expr>, env: Environment, ctx: State, ctx': State)
     requires EqState(ctx, ctx')
     ensures EqInterpResultSeqValue(InterpExprs(es, env, ctx), InterpExprs(es, env, ctx'))
   {
@@ -402,7 +402,7 @@ module Base refines ExprInduction.Ind {
   //   Finally, we would get: EqInterpResultValue(...) by using the induction hypothesis
   //   (where termination is given by the fact that the type of the return value is smaller
   //   than the type of the closure).
-  lemma InterpExpr_EqRefl(e: Expr, env: Environment, ctx: State, ctx': State)
+  lemma {:verify false} InterpExpr_EqRefl(e: Expr, env: Environment, ctx: State, ctx': State)
     requires EqState(ctx, ctx')
     ensures EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e, env, ctx'))
   {
