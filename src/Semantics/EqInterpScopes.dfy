@@ -9,6 +9,8 @@ include "Equiv.dfy"
 include "ExprInduction.dfy"
 
 module Bootstrap.Semantics.EqInterpScopes {
+// TODO(SMH): this can be factorized with EqInterpRefl (the results we prove here are strictly stronger
+// than what we prove in EqInterpRefl actually).
 
 module Base refines ExprInduction.Ind {
   // Prove that it is ok not to enter a scope
@@ -26,9 +28,15 @@ module Base refines ExprInduction.Ind {
   datatype {:verify false} MValue = MValue(v: Value, v': Value)
   datatype {:verify false} MSeqValue = MSeqValue(vs: seq<Value>, vs': seq<Value>)
 
-  predicate {:verify false} EqRollback(outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
+  predicate {:verify false} EqOuterRollback(outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
   {
     EqCtx(ctx.rollback + outer_rollback, ctx'.rollback + outer_rollback')
+  }
+
+  // TODO(SMH): move? This is not used in this module. But this should be kept with ``EqOuterRollback``
+  predicate {:verify true} EqRolled(ctx: State, ctx': State)
+  {
+    EqCtx(ctx.locals + ctx.rollback, ctx'.locals + ctx'.rollback)
   }
 
   predicate {:verify false} EqResult<V>(eq_value: (V,V) -> bool, outer_rollback: Context, res: InterpResult<V>, outer_rollback': Context, res': InterpResult<V>)
@@ -37,11 +45,11 @@ module Base refines ExprInduction.Ind {
       case (Success(Return(v, ctx)), Success(Return(v', ctx'))) =>
         && eq_value(v, v')
         && EqCtx(ctx.locals, ctx'.locals)
-        && EqRollback(outer_rollback, ctx, outer_rollback', ctx')
+        && EqOuterRollback(outer_rollback, ctx, outer_rollback', ctx')
       case (Failure(_), _) => true
       case _ => false
   }
-    
+
   predicate {:verify false} EqResultValue(outer_rollback: Context, res: InterpResult<Value>, outer_rollback': Context, res': InterpResult<Value>)
   {
     EqResult(EqValue, outer_rollback, res, outer_rollback', res')
@@ -52,10 +60,32 @@ module Base refines ExprInduction.Ind {
     EqResult(EqSeqValue, outer_rollback, res, outer_rollback', res')
   }
 
+  // TODO(SMH): factorize with EqResult and move. The annoying thing is that functions are not curried...
+  predicate {:verify true} EqResultRolled<V>(eq_value: (V,V) -> bool, res: InterpResult<V>, res': InterpResult<V>)
+  {
+    match (res, res')
+      case (Success(Return(v, ctx)), Success(Return(v', ctx'))) =>
+        && eq_value(v, v')
+        && EqRolled(ctx, ctx')
+      case (Failure(_), _) => true
+      case _ => false
+  }
+
+  predicate {:verify true} EqResultRolledValue(res: InterpResult<Value>, res': InterpResult<Value>)
+  {
+    EqResultRolled(EqValue, res, res')
+  }
+
+  predicate {:verify true} EqResultRolledSeqValue(res: InterpResult<seq<Value>>, res': InterpResult<seq<Value>>)
+  {
+    EqResultRolled(EqSeqValue, res, res')
+  }
+
+
   predicate {:verify false} Inv(st: MState)
   {
     && EqCtx(st.ctx.locals, st.ctx'.locals)
-    && EqRollback(st.outer_rollback, st.ctx, st.outer_rollback', st.ctx')
+    && EqOuterRollback(st.outer_rollback, st.ctx, st.outer_rollback', st.ctx')
   }
 
   type {:verify false} S(!new) = MState
@@ -407,13 +437,21 @@ module Base refines ExprInduction.Ind {
   type {:verify false} Expr = Interp.Expr
   type {:verify false} Context = Interp.Context
 
+  ghost const {:verify false} EqOuterRollback := Base.EqOuterRollback
   ghost const {:verify false} EqResultSeqValue := Base.EqResultSeqValue
   ghost const {:verify false} EqResultValue := Base.EqResultValue
+  ghost const {:verify false} EqResultRolledSeqValue := Base.EqResultRolledSeqValue
+  ghost const {:verify false} EqResultRolledValue := Base.EqResultRolledValue
 
   predicate EqStateOuterRollback(outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
   {
     && EqCtx(ctx.locals, ctx'.locals)
-    && EqRollback(outer_rollback, ctx, outer_rollback', ctx')
+    && EqOuterRollback(outer_rollback, ctx, outer_rollback', ctx')
+  }
+
+  predicate EqStateRolled(ctx: State, ctx': State)
+  {
+    && EqRolled(ctx, ctx')
   }
 
   lemma {:verify false} InterpExpr_Eq(e: Expr, env: Environment, outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
@@ -441,45 +479,45 @@ module Base refines ExprInduction.Ind {
     reveal InterpExprs_Block();
   }
 
-  predicate EqInterpBlockExprs_Single(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, or:Context, ctx:State, or':Context, ctx':State)
+  predicate EqInterpBlockExprs_Single(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, ctx:State, ctx':State)
     requires Seq_All(SupportsInterp, es)
     requires Seq_All(SupportsInterp, es')
-    requires EqStateOuterRollback(or, ctx, or', ctx')
+    requires EqState(ctx, ctx')
     // Rk.: we need this predicate, otherwise we don't manage to guide the instantiation in ``EqInterpBlockExprs_Inst``
   {
-    EqResultValue(or, InterpBlock_Exprs(es, env, ctx), or', InterpBlock_Exprs(es', env, ctx'))
+    EqResultRolledValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es', env, ctx'))
   }
 
   predicate {:opaque} {:verify true} EqInterpBlockExprs(es: seq<Exprs.T>, es': seq<Exprs.T>)
   {
     Seq_All(SupportsInterp, es) ==>
     (&& Seq_All(SupportsInterp, es')
-     && (forall env, or, ctx:State, or', ctx':State | EqStateOuterRollback(or, ctx, or', ctx') ::
-        EqInterpBlockExprs_Single(es, es', env, or, ctx, or', ctx')))
+     && (forall env, ctx:State, ctx':State | EqState(ctx, ctx') ::
+        EqInterpBlockExprs_Single(es, es', env, ctx, ctx')))
   }
 
-  lemma {:verify false} EqInterpBlockExprs_Inst(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, or: Context, ctx: State, or': Context, ctx': State)
+  lemma {:verify true} EqInterpBlockExprs_Inst(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, ctx: State, ctx': State)
     requires EqInterpBlockExprs(es, es')
     requires Seq_All(SupportsInterp, es)
-    requires EqStateOuterRollback(or, ctx, or', ctx')
+    requires EqState(ctx, ctx')
     ensures Seq_All(SupportsInterp, es')
-    ensures EqResultValue(or, InterpBlock_Exprs(es, env, ctx), or', InterpBlock_Exprs(es', env, ctx'))
+    ensures EqResultRolledValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es', env, ctx'))
   {
     reveal EqInterpBlockExprs();
-    assert EqInterpBlockExprs_Single(es, es', env, or, ctx, or', ctx');
+    assert EqInterpBlockExprs_Single(es, es', env, ctx, ctx');
   }
 
-  lemma {:verify false} InterpBlock_Exprs_Eq_Append(
-    e: Expr, tl: seq<Expr>, tl': seq<Expr>, env: Environment, or: Context, ctx: State, or': Context, ctx': State)
+  lemma {:verify true} InterpBlock_Exprs_Eq_Append(
+    e: Expr, tl: seq<Expr>, tl': seq<Expr>, env: Environment, ctx: State, ctx': State)
     requires SupportsInterp(e)
 //    requires Seq_All(SupportsInterp, tl)
 //    requires Seq_All(SupportsInterp, tl')
     requires forall e | e in tl :: SupportsInterp(e)
     requires forall e | e in tl' :: SupportsInterp(e)
-    requires EqStateOuterRollback(or, ctx, or', ctx')
+    requires EqState(ctx, ctx')
     requires EqInterpBlockExprs(tl, tl')
     requires |tl| > 0
-    ensures EqResultValue(or, InterpBlock_Exprs([e] + tl, env, ctx), or', InterpBlock_Exprs([e] + tl', env, ctx'))
+    ensures EqResultRolledValue(InterpBlock_Exprs([e] + tl, env, ctx), InterpBlock_Exprs([e] + tl', env, ctx'))
     // Auxiliary lemma for the proofs about transformations operating on blocks. This is especially
     // useful when those transformations might update the length of the sequence of expressions
     // in the blocks. The proof is a bit tricky, because the case where the sequence has length 1
@@ -495,7 +533,8 @@ module Base refines ExprInduction.Ind {
     // Evaluate the first expression
     var res0 := InterpExprWithType(e, Types.Unit, env, ctx);
     var res0' := InterpExprWithType(e, Types.Unit, env, ctx');
-    InterpExpr_Eq(e, env, or, ctx, or', ctx');
+    assert EqStateOuterRollback(map [], ctx, map [], ctx') by { reveal GEqCtx(); }
+    InterpExpr_Eq(e, env, map [], ctx, map [], ctx');
 
     // We need to make a case disjunction on whether the length of the concatenated sequences is
     // > 1 or not
@@ -510,7 +549,8 @@ module Base refines ExprInduction.Ind {
         var res1 := InterpBlock_Exprs(tl, env, ctx0);
         var res1' := InterpBlock_Exprs(tl', env, ctx0');
 
-        EqInterpBlockExprs_Inst(tl, tl', env, or, ctx0, or', ctx0');
+        assert EqState(ctx0, ctx0') by { reveal GEqCtx(); }
+        EqInterpBlockExprs_Inst(tl, tl', env, ctx0, ctx0');
       }
       else {
         // Trivial
@@ -526,7 +566,8 @@ module Base refines ExprInduction.Ind {
 
         if v == Interp.V.Unit {
           assert v' == Interp.V.Unit;
-          EqInterpBlockExprs_Inst(tl, tl', env, or, ctx0, or', ctx0');
+          assert EqState(ctx0, ctx0') by { reveal GEqCtx(); }
+          EqInterpBlockExprs_Inst(tl, tl', env, ctx0, ctx0');
         }
         else {
           // Trivial case:
