@@ -289,7 +289,18 @@ module Bootstrap.Semantics.Interp {
         var ctx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
         Success(Return(Unit, ctx))
       case Block(stmts) =>
-        InterpBlock(stmts, env, ctx)
+        // This is ``InterpBlock`` inlined. We don't call ``InterpBlock`` on purpose because
+        // then ``InterpBlock`` would be mutually recursive, and unfolding it to reveal
+        // ``InterpBlock_Exprs`` would require some fuel. This lead to a lot of problems in the
+        // past, forcing us to write the call to ``InterpBlock`` just to only one more level
+        // of unfolding, which is extremely annoying. We still provide ``InterpBlock`` as a
+        // convenience function (it is not mutually recursive anymore, because not used by
+        // ``InterpExpr``), and enforce it is the same as the ``Block`` case of ``InterpExpr`
+        // through the ``InterpBlock_Correct`` lemma.
+        var ctx1 := StartScope(ctx);
+        var Return(v, ctx2) :- InterpBlock_Exprs(stmts, env, ctx1);
+        var ctx3 := EndScope(ctx, ctx2);
+        Success(Return(v, ctx3))
       case If(cond, thn, els) =>
         var Return(condv, ctx) :- InterpExpr(cond, env, ctx);
         :- NeedType(e, condv, Type.Bool);
@@ -949,10 +960,13 @@ module Bootstrap.Semantics.Interp {
       InterpBlock_Exprs(es[1..], env, ctx)
   }
 
-  // TODO(SMH): update so that a block is actually a scope
+  // TODO: maybe it doesn't make sense anymore for this function to be opaque?
   function method {:opaque} InterpBlock(stmts: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
     decreases env.fuel, stmts, 1
+    // This function is a utility function and is not used by the interpreter itself to avoid
+    // unfolding issues linked to the fuel. See the comment in the ``Block`` case of ``InterpExpr``
+    // for more explanations.
   {
     var ctx1 := StartScope(ctx);
     var Return(v, ctx2) :- InterpBlock_Exprs(stmts, env, ctx1);
@@ -1002,8 +1016,15 @@ module Bootstrap.Semantics.Interp {
     // Below: we should actually have the invariant that `locals` is included in `ctx.locals`, but
     // we don't 
     var locals1 := map x | x in (locals.Keys * ctx.locals.Keys) :: locals[x];
-//    var locals := map x | x in (ctx1.locals.Keys * ctx.locals.Keys) :: ctx1.locals[x];
-//    var locals1 := locals + ctx1.rollback;
     State(locals := locals1, rollback := ctx.rollback)
+  }
+
+  // This lemma is here for sanity purposes - see the comment for the ``Block`` case in ``InterpExpr``
+  lemma InterpBlock_Correct(e: Expr, env: Environment, ctx: State)
+    requires e.Block?
+    ensures reveal SupportsInterp(); InterpBlock(e.stmts, env, ctx) == InterpExpr(e, env, ctx)
+  {
+    reveal InterpExpr();
+    reveal InterpBlock();
   }
 }

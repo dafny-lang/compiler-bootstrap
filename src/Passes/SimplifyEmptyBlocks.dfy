@@ -535,11 +535,6 @@ module InlineLastBlock {
           reveal GEqCtx();
         }
 
-        // We need this because of the fuel (to be more precise, we need to introduce the calls
-        // to ``InterpBlock``)
-        assert InterpExpr(e, env, ctx) == InterpBlock(es, env, ctx);
-        assert InterpExpr(e', env, ctx') == InterpBlock(es', env, ctx');
-
         InlineLastBlock_Seq_Rel(es, env, keys, ctx1, ctx1');
         reveal GEqCtx();
         reveal EqScopes.Base.EqSubCtx();

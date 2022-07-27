@@ -681,7 +681,7 @@ module Bootstrap.Semantics.Equiv {
       case (Success(Return(v,ctx)), Success(Return(v',ctx'))) =>
         && v == v'
         && ctx == ctx'
-      case (Failure(err), Failure(err')) =>
+      case (Failure(_), Failure(_)) =>
         true // We don't request the errors to be equal
       case _ =>
         false
@@ -1343,6 +1343,7 @@ module Bootstrap.Semantics.Equiv {
     // just ``EqInterpResultValue_Strong`` specialized and inlined) but it made the `InductBlock_Succ`
     // case fail in `EqInterpRefl.dfy` and `EqInterpScopes.dfy`, for no apparent reason.
     ensures
+//      EqInterpResultValue_Strong(InterpBlock_Exprs(stmts, env, ctx), InterpExprs_Block(stmts, env, ctx))
       match (InterpBlock_Exprs(stmts, env, ctx), InterpExprs_Block(stmts, env, ctx))
         case (Success(Return(v, ctx1)), Success(Return(v', ctx1'))) => v == v' && ctx1 == ctx1'
         case (Failure(_), Failure(_)) => true
