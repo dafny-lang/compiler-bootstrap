@@ -58,6 +58,7 @@ module Compiler {
 
   function method CompileLiteralExpr(l: Exprs.Literal) : StrTree {
     match l {
+      case LitUnit => Str("()") // TODO(SMH): that may not be the proper way of handling unit in Java
       case LitBool(b: bool) => Str(if b then "true" else "false")
       case LitInt(i: int) => CompileInt(i)
       case LitReal(r: real) =>
@@ -224,7 +225,9 @@ module Compiler {
         }
       case Block(exprs) =>
         Concat("\n", Lib.Seq.Map(e requires e in exprs => CompileExpr(e), exprs))
-      case Bind(vars, vals, body) =>
+      case VarDecl(vdecls, ovals) =>
+        Unsupported
+      case Update(vars, vals) =>
         Unsupported
       case If(cond, thn, els) =>
         var cCond := CompileExpr(cond);
