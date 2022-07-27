@@ -10,11 +10,15 @@ include "ExprInduction.dfy"
 include "InterpStateIneq.dfy"
 
 module Bootstrap.Semantics.EqInterpScopes {
-// TODO(SMH): this can be factorized with EqInterpRefl (the results we prove here are strictly stronger
-// than what we prove in EqInterpRefl actually).
 
 module Base refines ExprInduction.Ind {
-  // Prove that it is ok not to enter a scope
+  // This module provides lemmas which state that evaluating an expression with equivalent contexts
+  // leads to equivalent results. The meaning of "equivalent contexts" here is given by ``EqResult``
+  // below. We need this quite general notion to prove, for instance, that it is ok to flatten a
+  // block ending another block (i.e., transformations like the following one preserve the semantics:
+  // `{ var x := 0; f(x); { x := 1; g(x); var x := true; h(x); } }
+  //                            ~>
+  //  { var x := 0; f(x); x := 1; g(x); var x := true; h(x); }`).
 
   //
   // Declarations
@@ -69,7 +73,8 @@ module Base refines ExprInduction.Ind {
     EqResult(EqSeqValue, outer_rollback, res, outer_rollback', res')
   }
 
-  // TODO(SMH): factorize with EqResult and move. The annoying thing is that functions are not curried...
+  // TODO(SMH): factorize with EqResult and move. The annoying thing is that functions are not curried, so it makes
+  // facorization a bit hard...
   predicate EqResultRolled<V>(eq_value: (V,V) -> bool, keys: set<string>, res: InterpResult<V>, res': InterpResult<V>)
   {
     match (res, res')
@@ -551,7 +556,7 @@ module Base refines ExprInduction.Ind {
     var res0 := InterpExprWithType(e, Types.Unit, env, ctx);
     var res0' := InterpExprWithType(e, Types.Unit, env, ctx');
     assert EqStateOuterRollback(map [], ctx, map [], ctx') by { reveal GEqCtx(); }
-    InterpExpr_Eq(e, env, map [], ctx, map [], ctx'); // TODO: Use EqInterpRefl?
+    InterpExpr_Eq(e, env, map [], ctx, map [], ctx');
     InterpExpr_StateSmaller(e, env, ctx);
     InterpExpr_StateSmaller(e, env, ctx');
 
