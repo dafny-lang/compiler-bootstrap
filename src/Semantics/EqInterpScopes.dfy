@@ -564,8 +564,6 @@ module Base refines ExprInduction.Ind {
     // useful when those transformations might update the length of the sequence of expressions
     // in the blocks. The proof is a bit tricky, because the case where the sequence has length 1
     // is a special case in the definition of ``EqInterpBlock_Exprs``.
-    //
-    // - `or`, `or'` : outer rollback
   {
     var es := [e] + tl;
     assert e == es[0];

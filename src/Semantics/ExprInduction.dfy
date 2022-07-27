@@ -326,29 +326,20 @@ abstract module Ind {
     requires P(st_cond, els)
     ensures P(st, e)
 
-  lemma InductUpdate_Fail(st: S, e: Expr, vars: seq<string>, vals: seq<Expr>)
-    requires e.Update? && e.vars == vars && e.vals == vals
-    requires !P_Fail(st, e)
-    ensures !Pes_Fail(st, vals)
-
-  lemma InductUpdate_Succ(
-    st: S, e: Expr, vars: seq<string>, vals: seq<Expr>, st1: S, values: VS)
-    requires e.Update? && e.vars == vars && e.vals == vals
-    requires !P_Fail(st, e)
-    requires Pes_Succ(st, vals, st1, values)
-    ensures VS_UpdateStatePre(st1, vars, values)
-    // We add this ensures just to make the `UpdateState` function appear (it can be useful
-    // if it contains a postcondition, for instance)...
-    ensures P_Succ(st, e, UpdateState(st1, vars, values), UnitV)
-    ensures P(st, e)
-
-  lemma InductVarDecl_None_Succ(st: S, e: Expr, vdecls: seq<Exprs.Var>)
+  // STYLE: In the lemma below, we don't need to take `st1` (nor `vars`) as input (because we enforce it is equal
+  // to `StateSaveToRollback(st, vars)` in the precondition). We adopt this style because it
+  // allows to not duplicate code in the postconditions (say, if `st1` appears in several `ensures`)
+  // and to easily access `st1` when debugging the proofs in the instantiations of the induction
+  // functor (the user doesn't need to introduce `var st1 := StateSaveToRollback(st, vars)`);
+  // This requires slightly more work in the inductive proof of `P_Satisfied`, but is totally
+  // bearable. We adopt this style in the other lemma statements.
+  lemma InductVarDecl_None_Succ(st: S, e: Expr, vdecls: seq<Exprs.Var>, vars: seq<string>, st1: S)
     requires e.VarDecl? && e.vdecls == vdecls && e.ovals.None?
     requires !P_Fail(st, e)
-    // We add this just to make the `StateSaveToRollback` function appear
-    ensures
-      var vars := VarsToNames(vdecls);
-      P_Succ(st, e, StateSaveToRollback(st, vars), UnitV)
+    requires vars == VarsToNames(vdecls)
+    requires st1 == StateSaveToRollback(st, vars)
+    // This is not necessary but can help the proofs - what really matters is that ``StateSaveToRollback`` appears somewhere
+    ensures P_Succ(st, e, st1, UnitV)
     ensures P(st, e)
 
   lemma InductVarDecl_Some_Fail(st: S, e: Expr, vdecls: seq<Exprs.Var>, vals: seq<Expr>)
@@ -356,20 +347,38 @@ abstract module Ind {
     requires !P_Fail(st, e)
     ensures !Pes_Fail(st, vals)
 
-  lemma InductVarDecl_Some_Succ(st: S, e: Expr, vdecls: seq<Exprs.Var>, vals: seq<Expr>, st1: S, values: VS)
+  // DISCUSS: we want to consistently adopt the style we described for ``InductVarDecl_None_Succ``,
+  // but this can be tricky in case a function like ``UpdateState`` takes a precondition. If this
+  // lemma seems too convoluted, we could try to get rid of the precondition for ``UpdateState``
+  // (but doesn't seem that easy nor natural to do), or we could not take `st3` as input.
+  lemma InductVarDecl_Some_Succ(
+      st: S, e: Expr, vdecls: seq<Exprs.Var>, vars: seq<string>, vals: seq<Expr>, st1: S, values: VS, st2: S, st3: S)
     requires e.VarDecl? && e.vdecls == vdecls && e.ovals.Some? && e.ovals.value == vals
     requires !P_Fail(st, e)
     requires Pes_Succ(st, vals, st1, values)
-    ensures
-      var vars := VarsToNames(vdecls);
-      var st2 := StateSaveToRollback(st1, vars);
-      VS_UpdateStatePre(st2, vars, values)
-    // We add this just to make the `StateSaveToRollback` and `UpdateState` functions appear (can
-    // help with the proofs, especially if they have postconditions)
-    ensures
-      var vars := VarsToNames(vdecls);
-      var st2 := StateSaveToRollback(st1, vars);
-      P_Succ(st, e, UpdateState(st2, vars, values), UnitV)
+    requires vars == VarsToNames(vdecls)
+    requires st2 == StateSaveToRollback(st1, vars)
+    requires VS_UpdateStatePre(st2, vars, values) ==> st3 == UpdateState(st2, vars, values) // Slightly convoluted, but ``UpdateState`` has a pre
+    ensures VS_UpdateStatePre(st2, vars, values)
+    // This is not necessary but can help the proofs - what really matters is that ``StateSaveToRollback``
+    // and ``UpdateState`` appear somewhere
+    ensures P_Succ(st, e, st3, UnitV)
+    ensures P(st, e)
+
+  lemma InductUpdate_Fail(st: S, e: Expr, vars: seq<string>, vals: seq<Expr>)
+    requires e.Update? && e.vars == vars && e.vals == vals
+    requires !P_Fail(st, e)
+    ensures !Pes_Fail(st, vals)
+
+  lemma InductUpdate_Succ(
+    st: S, e: Expr, vars: seq<string>, vals: seq<Expr>, st1: S, values: VS, st2: S)
+    requires e.Update? && e.vars == vars && e.vals == vals
+    requires !P_Fail(st, e)
+    requires Pes_Succ(st, vals, st1, values)
+    requires VS_UpdateStatePre(st1, vars, values) ==> st2 == UpdateState(st1, vars, values) // Slightly convoluted, but ``UpdateState`` has a pre
+    ensures VS_UpdateStatePre(st1, vars, values)
+    // This post is not necessary: what matters is that ``UpdateState`` appears somewhere
+    ensures P_Succ(st, e, st2, UnitV) // TODO: factorize ``UpdateState``
     ensures P(st, e)
 
   lemma InductBlock_Fail(st: S, e: Expr, stmts: seq<Expr>, st_start: S)
@@ -378,8 +387,6 @@ abstract module Ind {
     requires st_start == StateStartScope(st)
     ensures !Pes_Fail(st_start, stmts)
 
-  // TODO: make the other lemmas adopt this style, where intermediate values like st_start or vf appear
-  // as input parameters
   lemma InductBlock_Succ(st: S, e: Expr, stmts: seq<Expr>, st_start: S, st_stmts: S, vs: VS, st_end: S, vf: V)
     requires e.Block? && e.stmts == stmts
     requires !P_Fail(st, e)
@@ -387,7 +394,6 @@ abstract module Ind {
     requires Pes_Succ(st_start, stmts, st_stmts, vs)
     requires vf == if vs == NilVS then UnitV else VS_Last(vs) // TODO(SMH): I'm not super fan of that
     requires st_end == StateEndScope(st, st_stmts)
-    // We add this just to make the `StateEndScope` function appear - TODO: remove?
     ensures P_Succ(st, e, st_end, vf)
 
 
@@ -605,10 +611,24 @@ abstract module Ind {
           assert !Pes_Fail(st, ovals.value);
 
           var (st1, values) := Pes_Step(st, ovals.value);
-          InductVarDecl_Some_Succ(st, e, vdecls, ovals.value, st1, values);
+          var st2 := StateSaveToRollback(st1, vars);
+
+          // Slightly convoluted case: we need to provide `st3 == VS_UpdateStatePre(st2, vars, values)`
+          // to `InductVarDecl_Some_Succ`, but `UpdateState` has a precondition which is given by the
+          // postcondition of `InductUpdate_Succ`.
+          if !VS_UpdateStatePre(st2, vars, values) {
+            var st3 := st2; // Dummy
+            InductVarDecl_Some_Succ(st, e, vdecls, vars, ovals.value, st1, values, st2, st3); // This leads to a contradiction
+            assert false;
+          }
+          else {
+            var st3 := UpdateState(st2, vars, values);
+            InductVarDecl_Some_Succ(st, e, vdecls, vars, ovals.value, st1, values, st2, st3);
+          }
         }
         else {
-          InductVarDecl_None_Succ(st, e, vdecls);
+          var st1 := StateSaveToRollback(st, vars);
+          InductVarDecl_None_Succ(st, e, vdecls, vars, st1);
         }
 
       case Update(vars, vals) =>
@@ -618,9 +638,19 @@ abstract module Ind {
         InductUpdate_Fail(st, e, vars, vals);
         assert !Pes_Fail(st, vals);
         var (st1, values) := Pes_Step(st, vals);
-        InductUpdate_Succ(st, e, vars, vals, st1, values);
 
-        InductUpdate_Succ(st, e, vars, vals, st1, values);
+        // Slightly convoluted case: we need to provide `st2 == UpdateState(st1, vars, values)`
+        // to `InductUpdate_Succ`, but `UpdateState` has a precondition which is given by the
+        // postcondition of `InductUpdate_Succ`.
+        if !VS_UpdateStatePre(st1, vars, values) {
+          var st2 := st1; // Dummy
+          InductUpdate_Succ(st, e, vars, vals, st1, values, st2); // This leads to a contradiction
+          assert false;
+        }
+        else {
+          var st2 := UpdateState(st1, vars, values);
+          InductUpdate_Succ(st, e, vars, vals, st1, values, st2);
+        }
 
       case Block(stmts) =>
         var st_start := StateStartScope(st);
