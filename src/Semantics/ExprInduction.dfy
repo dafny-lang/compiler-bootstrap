@@ -7,7 +7,7 @@ include "../Utils/StrTree.dfy"
 include "Interp.dfy"
 include "Equiv.dfy"
 
-abstract module Bootstrap.Semantics.ExprInduction.Ind {
+abstract module Bootstrap.Semantics.ExprInduction {
   // The following abstract module defines a functor to factorize the proofs about the interpreter.
   // It works as follows.
   //
@@ -29,7 +29,7 @@ abstract module Bootstrap.Semantics.ExprInduction.Ind {
   // The "induction functor" is an attempt at factorizing those proofs, by providing an interface
   // which is roughly structured as follows:
   // ```
-  // abstract module Ind {
+  // abstract module ExprInduction {
   //   // Property of interest, to be defined by the user
   //   predicate P(e: Expr)
   //
@@ -56,7 +56,7 @@ abstract module Bootstrap.Semantics.ExprInduction.Ind {
   //
   // An instantiation of the "induction functor" would look like this:
   // ```
-  // module EqInterpRefl {
+  // module EqInterpRefl refines ExprInduction {
   //   // Define the property of interest
   //   predicate P(e: Expr) {
   //     forall env, ctx, ctx' ::
