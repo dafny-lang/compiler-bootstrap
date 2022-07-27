@@ -42,9 +42,11 @@ module Bootstrap.Semantics.Pure {
         }
       case Block(_) => true
       case VarDecl(_, _) =>
-        // We could allow that, but the proofs are then hard.
-        // If you want theorems stating that the state doesn't change for more complex ASTs,
-        // see ``VarFootprint``
+        // We could allow that, but the proofs are then hard (and stating the purity theorem
+        // is also non-trivial).
+        // The criteria we use here is very local, and we might want to come up with a more
+        // general one, which would compute the "footprint" of an expression (the set of
+        // re-declared variables, updated variables, etc.).
         false
       case Update(_, _) => false
       case If(_, _, _) => true

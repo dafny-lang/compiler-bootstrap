@@ -551,7 +551,7 @@ module Base refines ExprInduction.Ind {
     var res0 := InterpExprWithType(e, Types.Unit, env, ctx);
     var res0' := InterpExprWithType(e, Types.Unit, env, ctx');
     assert EqStateOuterRollback(map [], ctx, map [], ctx') by { reveal GEqCtx(); }
-    InterpExpr_Eq(e, env, map [], ctx, map [], ctx');
+    InterpExpr_Eq(e, env, map [], ctx, map [], ctx'); // TODO: Use EqInterpRefl?
     InterpExpr_StateSmaller(e, env, ctx);
     InterpExpr_StateSmaller(e, env, ctx');
 
