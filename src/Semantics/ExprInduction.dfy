@@ -333,6 +333,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   // functor (the user doesn't need to introduce `var st1 := StateSaveToRollback(st, vars)`);
   // This requires slightly more work in the inductive proof of `P_Satisfied`, but is totally
   // bearable. We adopt this style in the other lemma statements.
+  // DISCUSS: ok with this style?
   lemma InductVarDecl_None_Succ(st: S, e: Expr, vdecls: seq<Exprs.Var>, vars: seq<string>, st1: S)
     requires e.VarDecl? && e.vdecls == vdecls && e.ovals.None?
     requires !P_Fail(st, e)
@@ -387,6 +388,15 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires st_start == StateStartScope(st)
     ensures !Pes_Fail(st_start, stmts)
 
+  // DISCUSS: we can't have this automatic proofs for this lemma, because we implicitly rely on the
+  // fact that ``InterpBlock_Exprs`` behaves like ``InterpExprs``, which requires a call to lemma
+  // ``InterpExprs_Block_Equiv_Strong`` (see the induction functor instantiation in
+  // ``InterpBlock_Exprs_StateSmaller`` for instance - also note that ``InterpExprs_Block_Equiv_Strong``
+  // has some issues, see the comments there).
+  // There are two ways of avoiding that:
+  // - rewrite ``InterpBlock`` in terms of ``InterpExprs`` (see the discussion for ``InterpBlock``)
+  // - add more lemmas and predicates in the induction functors, for the specific case of ``InterpBlock_Exprs``
+  //   (this seems cumbersome)
   lemma InductBlock_Succ(st: S, e: Expr, stmts: seq<Expr>, st_start: S, st_stmts: S, vs: VS, st_end: S, vf: V)
     requires e.Block? && e.stmts == stmts
     requires !P_Fail(st, e)
