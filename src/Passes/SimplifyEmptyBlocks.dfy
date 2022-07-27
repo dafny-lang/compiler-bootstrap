@@ -143,7 +143,7 @@ module FilterCommon {
     ensures InterpExpr(EmptyBlock, env, ctx) == Success(Return(Unit, ctx))
   {
     var res := InterpExpr(EmptyBlock, env, ctx);
-    assert res == InterpBlock([], env, ctx) by { reveal InterpExpr(); }
+    assert res == InterpBlock([], env, ctx) by { reveal InterpExpr(); reveal InterpBlock(); }
 
     var ctx1 := ctx.(rollback := map []);
     assert InterpBlock_Exprs([], env, ctx1) == Success(Return(Unit, ctx1)) by { reveal InterpBlock_Exprs(); }

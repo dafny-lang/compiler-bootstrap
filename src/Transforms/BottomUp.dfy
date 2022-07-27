@@ -436,11 +436,6 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       case Block(_) => {
         EqInterp_Expr_Block_CanBeMapLifted(e, e', env, ctx, ctx');
       }
-      case _ => {
-        // Unsupported branch
-        reveal SupportsInterp(); // We need this to see that some variants are not supported
-        assert false;
-      }
     }
   }
 
@@ -724,23 +719,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires InterpTernaryOp(e, top, v0, v1, v2).Success?
     ensures EqPureInterpResultValue(InterpTernaryOp(e, top, v0, v1, v2), InterpTernaryOp(e', top, v0', v1', v2'))
   {
-    // TODO: using this lemma makes Dafny crash...
-    // InterpTernaryOp_Eq(e, e', top, v0, v1, v2, v0', v1', v2');
-
-    reveal InterpTernaryOp();
-
-    var res := InterpTernaryOp(e, top, v0, v1, v2);
-    var res' := InterpTernaryOp(e', top, v0', v1', v2');
-
-    match top {
-      case Sequences(op) => {}
-      case Multisets(op) => {
-        EqValue_HasEqValue_Eq(v1, v1');
-      }
-      case Maps(op) => {
-        EqValue_HasEqValue_Eq(v1, v1');
-      }
-    }
+    InterpTernaryOp_Eq(e, e', top, v0, v1, v2, v0', v1', v2');
   }
 
   lemma {:verify false} EqInterp_Expr_Display_CanBeMapLifted(
