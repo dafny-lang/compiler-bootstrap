@@ -200,12 +200,7 @@ module Base refines ExprInduction.Ind {
     reveal InterpBlock_Exprs();
     reveal InterpExprs_Block();
 
-    var env := st.env;
-
-    // We need this because of the fuel
-    assert InterpExpr(e, env, st.ctx) == InterpBlock(stmts, env, st.ctx);
-    
-    InterpExprs_Block_Equiv_Strong(stmts, env, st_start.ctx);
+    InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx);
   }
 
   lemma InductBlock_Succ ...
@@ -215,13 +210,8 @@ module Base refines ExprInduction.Ind {
     reveal InterpExprs();
     reveal InterpBlock_Exprs();
     reveal InterpExprs_Block();
-
-    var env := st.env;
-
-    // We need this because of the fuel
-    assert InterpExpr(e, env, st.ctx) == InterpBlock(stmts, env, st.ctx);
     
-    InterpExprs_Block_Equiv_Strong(stmts, env, st_start.ctx);
+    InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx);
   }
 
 } // end of module Bootstrap.Semantics.EqInterpRefl.Base
