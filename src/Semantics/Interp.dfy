@@ -241,14 +241,25 @@ module Bootstrap.Semantics.Interp {
     match e {
       case Var(v) =>
         LiftPureResult(ctx, InterpVar(v, ctx, env))
+
       case Abs(vars, body) =>
         var cv: V.T := V.Closure(ctx.locals, vars, body);
         assert WellFormedValue(cv); // TODO: prove
         Success(Return(cv, ctx))
+
       case Literal(lit) =>
         Success(Return(InterpLiteral(lit), ctx))
+
       case Apply(Lazy(op), args: seq<Expr>) =>
-        InterpLazy(e, env, ctx)
+        // This is ``InterpLazy`` inlined.
+        // See the comments for the ``Block`` case.
+        reveal SupportsInterp();
+        Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
+        var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
+        var Return(v0, ctx0) :- InterpExpr(e0, env, ctx);
+        var res1 := InterpExpr(e1, env, ctx0);
+        InterpLazy_Eval(op, e0, e1, v0, ctx0, res1)
+
       case Apply(Eager(op), args: seq<Expr>) =>
         var Return(argvs, ctx) :- InterpExprs(args, env, ctx);
         LiftPureResult(ctx, match op {
@@ -264,6 +275,7 @@ module Bootstrap.Semantics.Interp {
             case FunctionCall() =>
               InterpFunctionCall(e, env, argvs[0], argvs[1..])
           })
+
       case VarDecl(vdecls, ovals) =>
         var vars := VarsToNames(vdecls);
         // Evaluate the rhs, if there is
@@ -280,6 +292,7 @@ module Bootstrap.Semantics.Interp {
           var ctx := SaveToRollback(ctx, vars);
           // Continue
           Success(Return(Unit, ctx))
+
       case Update(vars, vals) =>
         var Return(vals, ctx) :- InterpExprs(vals, env, ctx);
         // DISCUSS: we need to check that the variables have been declared, but there is actually
@@ -288,15 +301,16 @@ module Bootstrap.Semantics.Interp {
         // checking that variables have been declared really a problem?
         var ctx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
         Success(Return(Unit, ctx))
+
       case Block(stmts) =>
         // This is ``InterpBlock`` inlined. We don't call ``InterpBlock`` on purpose because
-        // then ``InterpBlock`` would be mutually recursive, and unfolding it to reveal
-        // ``InterpBlock_Exprs`` would require some fuel. This lead to a lot of problems in the
-        // past, forcing us to write the call to ``InterpBlock`` just to only one more level
-        // of unfolding, which is extremely annoying. We still provide ``InterpBlock`` as a
-        // convenience function (it is not mutually recursive anymore, because not used by
-        // ``InterpExpr``), and enforce it is the same as the ``Block`` case of ``InterpExpr`
-        // through the ``InterpBlock_Correct`` lemma.
+        // then ``InterpBlock`` and ``InterpExpr`` would be mutually recursive, and unfolding
+        // ``InterpBlock`` to reveal the call to ``InterpBlock_Exprs`` would require some fuel.
+        // This lead to a lot of problems in the past, forcing us to write the call to ``InterpBlock``
+        // just to allow one more level of unfolding, which is extremely annoying (the process of
+        // debugging proofs when you don't have such issues in mind is tedious). We still provide
+        // ``InterpBlock`` as a convenience function, and enforce it is the same as the ``Block``
+        // case of ``InterpExpr` through the ``InterpBlock_Correct`` lemma.
         var ctx1 := StartScope(ctx);
         var Return(v, ctx2) :- InterpBlock_Exprs(stmts, env, ctx1);
         var ctx3 := EndScope(ctx, ctx2);
@@ -427,15 +441,9 @@ module Bootstrap.Semantics.Interp {
         V.Seq(chars)
   }
 
-  function method {:opaque} InterpLazy(e: Expr, env: Environment, ctx: State)
+  function method InterpLazy_Eval(op: Exprs.LazyOp, e0: Expr, e1: Expr, v0: Value, ctx0: State, res1: InterpResult<Value>)
     : InterpResult<Value>
-    requires e.Apply? && e.aop.Lazy?
-    decreases env.fuel, e, 0
   {
-    reveal SupportsInterp();
-    Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
-    var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
-    var Return(v0, ctx0) :- InterpExpr(e0, env, ctx);
     :- NeedType(e0, v0, Type.Bool);
     match (op, v0)
       case (And, Bool(false)) => Success(Return(V.Bool(false), ctx0))
@@ -443,9 +451,23 @@ module Bootstrap.Semantics.Interp {
       case (Imp, Bool(false)) => Success(Return(V.Bool(true), ctx0))
       case (_,   Bool(b)) =>
         assert op in {Exprs.And, Exprs.Or, Exprs.Imp};
-        var Return(v1, ctx1) :- InterpExpr(e1, env, ctx0);
+        var Return(v1, ctx1) :- res1;
         :- NeedType(e1, v1, Type.Bool);
         Success(Return(v1, ctx1))
+  }
+
+  // This function is provided for convenience, and actually not used by ``InterpExpr``; for
+  // detailed explanations, see the comments for ``InterpBlock``
+  function method {:opaque} InterpLazy(e: Expr, env: Environment, ctx: State)
+    : InterpResult<Value>
+    requires e.Apply? && e.aop.Lazy?
+  {
+    reveal SupportsInterp();
+    Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
+    var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
+    var Return(v0, ctx0) :- InterpExpr(e0, env, ctx);
+    var res1 := InterpExpr(e1, env, ctx0);
+    InterpLazy_Eval(op, e0, e1, v0, ctx0, res1)
   }
 
   // Alternate implementation of ``InterpLazy``: less efficient but more closely
@@ -946,7 +968,6 @@ module Bootstrap.Semantics.Interp {
   // TODO: maybe it doesn't make sense anymore for this function to be opaque?
   function method {:opaque} InterpBlock(stmts: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
-    decreases env.fuel, stmts, 1
     // This function is a utility function and is not used by the interpreter itself to avoid
     // unfolding issues linked to the fuel. See the comment in the ``Block`` case of ``InterpExpr``
     // for more explanations.
@@ -1038,5 +1059,14 @@ module Bootstrap.Semantics.Interp {
   {
     reveal InterpExpr();
     reveal InterpBlock();
+  }
+
+  // This lemma is here for sanity purposes - see the comment for the ``Lazy`` case in ``InterpExpr``
+  lemma InterpLazy_Correct(e: Expr, env: Environment, ctx: State)
+    requires e.Apply? && e.aop.Lazy?
+    ensures InterpExpr(e, env, ctx) == InterpLazy(e, env, ctx)
+  {
+    reveal InterpExpr();
+    reveal InterpLazy();
   }
 }

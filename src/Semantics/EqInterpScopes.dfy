@@ -387,8 +387,8 @@ module Base refines ExprInduction.Ind {
   lemma InductExprs_Nil ... { reveal InterpExprs(); }
   lemma InductExprs_Cons ... { reveal InterpExprs(); }
 
-  lemma InductApplyLazy_Fail ... { reveal InterpExpr(); reveal InterpLazy(); }
-  lemma InductApplyLazy_Succ ... { reveal InterpExpr(); reveal InterpLazy(); }
+  lemma InductApplyLazy_Fail ... { reveal InterpExpr(); }
+  lemma InductApplyLazy_Succ ... { reveal InterpExpr(); }
 
   lemma InductApplyEager_Fail ... { reveal InterpExpr(); }
 

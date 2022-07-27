@@ -252,20 +252,19 @@ abstract module Ind {
   lemma InductApplyLazy_Fail(st: S, e: Expr, arg0: Expr, arg1: Expr)
     requires e.Apply? && e.aop.Lazy? && e.args == [arg0, arg1]
     requires !P_Fail(st, e)
-    requires P_Fail(st, arg0)
-    ensures P(st, e)
+    ensures !P_Fail(st, arg0)
 
   lemma InductApplyLazy_Succ(st: S, e: Expr, arg0: Expr, arg1: Expr, st1: S, v0: V)
     requires e.Apply? && e.aop.Lazy? && e.args == [arg0, arg1]
     requires !P_Fail(st, e)
     requires P_Succ(st, arg0, st1, v0)
-    requires P(st1, arg1) // We can't assume that we successfully evaluated the second argument, because the operator is lazy
+    requires P(st1, arg1) // We can only assume that we successfully evaluated the first argument (not the second one), because the operator is lazy
     ensures P(st, e)
 
   lemma InductApplyEager_Fail(st: S, e: Expr, args: seq<Expr>)
     requires e.Apply? && e.aop.Eager? && e.args == args
-    requires Pes_Fail(st, args)
-    ensures P(st, e)
+    requires !P_Fail(st, e)
+    ensures !Pes_Fail(st, args)
 
   lemma InductApplyEagerUnaryOp_Succ(st: S, e: Expr, op: UnaryOps.T, arg0: Expr, st1: S, v0: V)
     requires e.Apply? && e.aop.Eager? && e.aop.eOp.UnaryOp? && e.aop.eOp.uop == op && e.args == [arg0]
@@ -316,7 +315,8 @@ abstract module Ind {
 
   lemma InductIf_Fail(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr)
     requires e.If? && e.cond == cond && e.thn == thn && e.els == els
-    ensures P_Fail(st, cond) ==> P(st, e)
+    requires !P_Fail(st, e)
+    ensures !P_Fail(st, cond)
 
   lemma InductIf_Succ(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr, st_cond: S, condv: V)
     requires e.If? && e.cond == cond && e.thn == thn && e.els == els
@@ -329,8 +329,7 @@ abstract module Ind {
   lemma InductUpdate_Fail(st: S, e: Expr, vars: seq<string>, vals: seq<Expr>)
     requires e.Update? && e.vars == vars && e.vals == vals
     requires !P_Fail(st, e)
-    requires Pes_Fail(st, vals) // Actually, if we have this we have a contradiction - TODO: move to the ensures?
-    ensures P(st, e)
+    ensures !Pes_Fail(st, vals)
 
   lemma InductUpdate_Succ(
     st: S, e: Expr, vars: seq<string>, vals: seq<Expr>, st1: S, values: VS)
@@ -476,113 +475,110 @@ abstract module Ind {
         var arg1 := e.args[1];
         P_Satisfied(st, arg0); // Recursion
 
-        if P_Fail(st, arg0) {
-          InductApplyLazy_Fail(st, e, arg0, arg1);
-        }
-        else {
-          var (st1, v0) := P_Step(st, arg0);
-          P_Satisfied(st1, arg1); // Recursion
-          InductApplyLazy_Succ(st, e, arg0, arg1, st1, v0);
-        }
+        InductApplyLazy_Fail(st, e, arg0, arg1);
+        assert !P_Fail(st, arg0);
+
+        var (st1, v0) := P_Step(st, arg0);
+        P_Satisfied(st1, arg1); // Recursion
+        InductApplyLazy_Succ(st, e, arg0, arg1, st1, v0);
 
       case Apply(Eager(aop), _) =>
         Pes_Satisfied(st, e.args); // Recursion
 
-        if Pes_Fail(st, e.args) {
-          InductApplyEager_Fail(st, e, e.args);
-        }
-        else {
-          var (st', vs) := Pes_Step(st, e.args);
+        InductApplyEager_Fail(st, e, e.args);
+        assert !Pes_Fail(st, e.args);
 
-          match aop
-            case UnaryOp(op) =>
-              var arg0 := e.args[0];
-              assert e.args == [arg0] + [];
-              var (st1, v0, st2, vs1) := InductExprs_Step(st, arg0, []);
+        var (st', vs) := Pes_Step(st, e.args);
 
-              // Prove that the sequence of arguments evaluates to: [v0]
-              var es := [];
-              assert Pes_Succ(st1, es, st2, vs1);
-              assert st2 == st';
-              assert AppendValue(v0, vs1) == vs;
-              InductExprs_Nil(st1);
-              assert Pes_Succ(st1, es, st1, NilVS);
-              Pes_Succ_Inj(st1, es, st1, st2, NilVS, vs1);
-              SeqVToVS_Append(v0, []);
-              assert [v0] + [] == [v0];
-              assert SeqVToVS([v0]) == AppendValue(v0, NilVS);
-              InductApplyEagerUnaryOp_Succ(st, e, op, arg0, st1, v0);
+        match aop {
+          case UnaryOp(op) =>
+            var arg0 := e.args[0];
+            assert e.args == [arg0] + [];
+            var (st1, v0, st2, vs1) := InductExprs_Step(st, arg0, []);
 
-            case BinaryOp(op) =>
-              var arg0 := e.args[0];
-              var arg1 := e.args[1];
-              assert e.args == [arg0, arg1];
+            // Prove that the sequence of arguments evaluates to: [v0]
+            var es := [];
+            assert Pes_Succ(st1, es, st2, vs1);
+            assert st2 == st';
+            assert AppendValue(v0, vs1) == vs;
+            InductExprs_Nil(st1);
+            assert Pes_Succ(st1, es, st1, NilVS);
+            Pes_Succ_Inj(st1, es, st1, st2, NilVS, vs1);
+            SeqVToVS_Append(v0, []);
+            assert [v0] + [] == [v0];
+            assert SeqVToVS([v0]) == AppendValue(v0, NilVS);
+            InductApplyEagerUnaryOp_Succ(st, e, op, arg0, st1, v0);
 
-              assert e.args == [arg0] + [arg1];
-              var (st1, v0, st2, vs') := InductExprs_Step(st, arg0, [arg1]);
+          case BinaryOp(op) =>
+            var arg0 := e.args[0];
+            var arg1 := e.args[1];
+            assert e.args == [arg0, arg1];
 
-              assert [arg1] == [arg1] + [];
-              var (st2', v1, st3, vs'') := InductExprs_Step(st1, arg1, []);
+            assert e.args == [arg0] + [arg1];
+            var (st1, v0, st2, vs') := InductExprs_Step(st, arg0, [arg1]);
 
-              // Prove that the sequence of arguments evaluates to: [v0, v1]
-              var es := [];
-              InductExprs_Nil(st2');
-              assert Pes_Succ(st2', es, st2', NilVS);
-              Pes_Succ_Inj(st2', es, st2', st3, NilVS, vs'');
-              SeqVToVS_Append(v1, []);
-              SeqVToVS_Append(v0, [v1]);
-              assert [v1] + [] == [v1];
-              assert [v0] + [v1] == [v0, v1];
-              assert SeqVToVS([v0, v1]) == AppendValue(v0, AppendValue(v1, NilVS));
+            assert [arg1] == [arg1] + [];
+            var (st2', v1, st3, vs'') := InductExprs_Step(st1, arg1, []);
 
-              InductApplyEagerBinaryOp_Succ(st, e, op, arg0, arg1, st1, v0, st2', v1);
+            // Prove that the sequence of arguments evaluates to: [v0, v1]
+            var es := [];
+            InductExprs_Nil(st2');
+            assert Pes_Succ(st2', es, st2', NilVS);
+            Pes_Succ_Inj(st2', es, st2', st3, NilVS, vs'');
+            SeqVToVS_Append(v1, []);
+            SeqVToVS_Append(v0, [v1]);
+            assert [v1] + [] == [v1];
+            assert [v0] + [v1] == [v0, v1];
+            assert SeqVToVS([v0, v1]) == AppendValue(v0, AppendValue(v1, NilVS));
 
-            case TernaryOp(op) =>
-              var arg0 := e.args[0];
-              var arg1 := e.args[1];
-              var arg2 := e.args[2];
-              assert e.args == [arg0, arg1, arg2];
+            InductApplyEagerBinaryOp_Succ(st, e, op, arg0, arg1, st1, v0, st2', v1);
 
-              assert e.args == [arg0] + [arg1, arg2];
-              var (st1, v0, st2, vs') := InductExprs_Step(st, arg0, [arg1, arg2]);
+          case TernaryOp(op) =>
+            var arg0 := e.args[0];
+            var arg1 := e.args[1];
+            var arg2 := e.args[2];
+            assert e.args == [arg0, arg1, arg2];
 
-              assert [arg1, arg2] == [arg1] + [arg2];
-              var (st2', v1, st3, vs'') := InductExprs_Step(st1, arg1, [arg2]);
+            assert e.args == [arg0] + [arg1, arg2];
+            var (st1, v0, st2, vs') := InductExprs_Step(st, arg0, [arg1, arg2]);
 
-              assert [arg2] == [arg2] + [];
-              var (st3', v2, st4, vs''') := InductExprs_Step(st2', arg2, []);
+            assert [arg1, arg2] == [arg1] + [arg2];
+            var (st2', v1, st3, vs'') := InductExprs_Step(st1, arg1, [arg2]);
 
-              // Prove that the sequence of arguments evaluates to: [v0, v1]
-              var es := [];
-              InductExprs_Nil(st3');
-              assert Pes_Succ(st3', es, st3', NilVS);
-              Pes_Succ_Inj(st3', es, st3', st4, NilVS, vs''');
-              SeqVToVS_Append(v2, []);
-              SeqVToVS_Append(v1, [v2]);
-              SeqVToVS_Append(v0, [v1, v2]);
-              assert [v2] + [] == [v2];
-              assert [v1] + [v2] == [v1, v2];
-              assert [v0] + [v1, v2] == [v0, v1, v2];
-              assert SeqVToVS([v0, v1, v2]) == AppendValue(v0, AppendValue(v1, AppendValue(v2, NilVS)));
+            assert [arg2] == [arg2] + [];
+            var (st3', v2, st4, vs''') := InductExprs_Step(st2', arg2, []);
 
-              InductApplyEagerTernaryOp_Succ(st, e, op, arg0, arg1, arg2, st1, v0, st2', v1, st3', v2);
+            // Prove that the sequence of arguments evaluates to: [v0, v1]
+            var es := [];
+            InductExprs_Nil(st3');
+            assert Pes_Succ(st3', es, st3', NilVS);
+            Pes_Succ_Inj(st3', es, st3', st4, NilVS, vs''');
+            SeqVToVS_Append(v2, []);
+            SeqVToVS_Append(v1, [v2]);
+            SeqVToVS_Append(v0, [v1, v2]);
+            assert [v2] + [] == [v2];
+            assert [v1] + [v2] == [v1, v2];
+            assert [v0] + [v1, v2] == [v0, v1, v2];
+            assert SeqVToVS([v0, v1, v2]) == AppendValue(v0, AppendValue(v1, AppendValue(v2, NilVS)));
 
-            case Builtin(Display(ty)) =>
-              var (st1, argvs) := Pes_Step(st, e.args);
-              
-              InductApplyEagerBuiltinDisplay(st, e, ty, e.args, st1, argvs);
+            InductApplyEagerTernaryOp_Succ(st, e, op, arg0, arg1, arg2, st1, v0, st2', v1, st3', v2);
 
-            case Builtin(Print) =>
-              assert false; // Unreachable for now
+          case Builtin(Display(ty)) =>
+            var (st1, argvs) := Pes_Step(st, e.args);
 
-            case FunctionCall =>
-              var f := e.args[0];
-              var args := e.args[1..];
+            InductApplyEagerBuiltinDisplay(st, e, ty, e.args, st1, argvs);
 
-              assert e.args == [f] + args;
-              var (st1, fv, st2, argvs) := InductExprs_Step(st, f, args);
+          case Builtin(Print) =>
+            assert false; // Unreachable for now
 
-              InductApplyEagerFunctionCall(st, e, f, args, st1, fv, st2, argvs);
+          case FunctionCall =>
+            var f := e.args[0];
+            var args := e.args[1..];
+
+            assert e.args == [f] + args;
+            var (st1, fv, st2, argvs) := InductExprs_Step(st, f, args);
+
+            InductApplyEagerFunctionCall(st, e, f, args, st1, fv, st2, argvs);
         }
 
       case If(cond, thn, els) =>
@@ -590,17 +586,14 @@ abstract module Ind {
         P_Satisfied(st, cond);
 
         // Evaluate the condition
-        if P_Fail(st, cond) {
-          InductIf_Fail(st, e, cond, thn, els);
-        }
-        else {            
-          var (st_cond, condv) := P_Step(st, cond);
+        InductIf_Fail(st, e, cond, thn, els);
+        assert !P_Fail(st, cond);
+        var (st_cond, condv) := P_Step(st, cond);
 
-          P_Satisfied(st_cond, thn); // Recursion
-          P_Satisfied(st_cond, els); // Recursion
-          
-          InductIf_Succ(st, e, cond, thn, els, st_cond, condv);
-        }
+        P_Satisfied(st_cond, thn); // Recursion
+        P_Satisfied(st_cond, els); // Recursion
+
+        InductIf_Succ(st, e, cond, thn, els, st_cond, condv);
 
       case VarDecl(vdecls, ovals) =>        
         var vars := VarsToNames(vdecls);
@@ -608,13 +601,11 @@ abstract module Ind {
         if ovals.Some? {
           Pes_Satisfied(st, ovals.value); // Recursion
 
-          if Pes_Fail(st, ovals.value) {
-            InductVarDecl_Some_Fail(st, e, vdecls, ovals.value);
-          }
-          else {
-            var (st1, values) := Pes_Step(st, ovals.value);
-            InductVarDecl_Some_Succ(st, e, vdecls, ovals.value, st1, values);
-          }
+          InductVarDecl_Some_Fail(st, e, vdecls, ovals.value);
+          assert !Pes_Fail(st, ovals.value);
+
+          var (st1, values) := Pes_Step(st, ovals.value);
+          InductVarDecl_Some_Succ(st, e, vdecls, ovals.value, st1, values);
         }
         else {
           InductVarDecl_None_Succ(st, e, vdecls);
@@ -624,15 +615,12 @@ abstract module Ind {
         // Recursion
         Pes_Satisfied(st, vals);
 
-        if Pes_Fail(st, vals) {
-          InductUpdate_Fail(st, e, vars, vals);
-        }
-        else {
-          var (st1, values) := Pes_Step(st, vals);
-          InductUpdate_Succ(st, e, vars, vals, st1, values);
+        InductUpdate_Fail(st, e, vars, vals);
+        assert !Pes_Fail(st, vals);
+        var (st1, values) := Pes_Step(st, vals);
+        InductUpdate_Succ(st, e, vars, vals, st1, values);
 
-          InductUpdate_Succ(st, e, vars, vals, st1, values);
-        }
+        InductUpdate_Succ(st, e, vars, vals, st1, values);
 
       case Block(stmts) =>
         var st_start := StateStartScope(st);
@@ -640,18 +628,16 @@ abstract module Ind {
         // Recursion
         Pes_Satisfied(st_start, stmts);
         
-        if Pes_Fail(st_start, stmts) {
-          InductBlock_Fail(st, e, stmts, st_start);
-        }
-        else {
-          var (st_stmts, vs) := Pes_Step(st_start, stmts);
-          var vf := if vs == NilVS then UnitV else VS_Last(vs);
+        InductBlock_Fail(st, e, stmts, st_start);
+        assert !Pes_Fail(st_start, stmts);
 
-          var st_end := StateEndScope(st, st_stmts);
-          InductBlock_Succ(st, e, stmts, st_start, st_stmts, vs, st_end, vf);
-          assert P_Succ(st, e, st_end, vf);
-          P_Succ_Sound(st, e, st_end, vf);
-        }
+        var (st_stmts, vs) := Pes_Step(st_start, stmts);
+        var vf := if vs == NilVS then UnitV else VS_Last(vs);
+
+        var st_end := StateEndScope(st, st_stmts);
+        InductBlock_Succ(st, e, stmts, st_start, st_stmts, vs, st_end, vf);
+        assert P_Succ(st, e, st_end, vf);
+        P_Succ_Sound(st, e, st_end, vf);
     }
   }
 
