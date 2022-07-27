@@ -109,10 +109,6 @@ module FilterCommon {
   import opened Semantics.Equiv
   import opened Semantics.Interp
 
-  function method TODO(): bool {
-    false
-  }
-
   type Expr = Syntax.Expr
   type Context = Interp.Context
 
