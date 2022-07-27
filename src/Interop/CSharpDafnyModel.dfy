@@ -13,6 +13,7 @@ module {:extern "Microsoft.Dafny"} {:compile false} Microsoft.Dafny {
   class {:extern} {:compile false} VisibilityScope {}
   class {:extern} {:compile false} ErrorReporter {}
   class {:extern} {:compile false} TypeConstraint {}
+  class {:extern} {:compile false} BuiltIns {}
   trait {:extern} {:compile false} {:termination false} Cloner {}
 
   class {:extern} {:compile false} Resolver {}

@@ -186,13 +186,19 @@ module Bootstrap.Transforms.BottomUp {
       case Literal(lit_) => e
       case Abs(vars, body) => Expr.Abs(vars, Map_Expr_WithRel(body, tr, rel))
       case Apply(aop, exprs) =>
-        var exprs' := Seq.Map(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
+        // BUG(https://github.com/dafny-lang/dafny/issues/2435): we can't apply `Map_Expr_WithRel`
+        // through `Seq.Map` because then the compiled code is incorrect.
+        // For this reason we apply `Map_Expr` instead of `Map_Expr_WithRel` and leverage the fact
+        // that those two functions return the same output.
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
         Map_All_IsMap(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
         var e' := Expr.Apply(aop, exprs');
         assert Exprs.ConstructorsMatch(e, e');
         e'
       case Block(exprs) =>
-        var exprs' := Seq.Map(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
         Map_All_IsMap(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
         var e' := Expr.Block(exprs');
         assert Exprs.ConstructorsMatch(e, e');
@@ -201,14 +207,16 @@ module Bootstrap.Transforms.BottomUp {
         var ovals' :=
           match ovals {
             case Some(vals) =>
+              Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
               Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
-              Exprs.Some(Seq.Map(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals))
+              Exprs.Some(Seq.Map(e requires e in vals => Map_Expr(e, tr), vals))
             case None => Exprs.None
           };
         var e' := Expr.VarDecl(vdecls, ovals');
         e'
       case Update(vars, vals) =>
-        var vals' := Seq.Map(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
+        var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
+        Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
         var e' := Expr.Update(vars, vals');
         e'
@@ -932,7 +940,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
     decreases e, 0
-  {      
+  {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
 

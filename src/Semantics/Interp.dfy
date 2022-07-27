@@ -315,6 +315,7 @@ module Bootstrap.Semantics.Interp {
         var Return(v, ctx2) :- InterpBlock_Exprs(stmts, env, ctx1);
         var ctx3 := EndScope(ctx, ctx2);
         Success(Return(v, ctx3))
+
       case If(cond, thn, els) =>
         var Return(condv, ctx) :- InterpExpr(cond, env, ctx);
         :- NeedType(e, condv, Type.Bool);
