@@ -7,9 +7,7 @@ include "../Utils/StrTree.dfy"
 include "Interp.dfy"
 include "Equiv.dfy"
 
-module Bootstrap.Semantics.ExprInduction {
-
-abstract module Ind {
+abstract module Bootstrap.Semantics.ExprInduction.Ind {
   // The following abstract module defines a functor to factorize the proofs about the interpreter.
   // It works as follows.
   //
@@ -65,7 +63,7 @@ abstract module Ind {
   //     EqState(ctx, ctx') ==> EqInterpResultValue(Interp(e, env, ctx), Interp(e, env, ctx'))
   //   }
   //
-  //   // Prove the induction lemmas
+  //   // Prove the induction lemmas.
   //   // Many of those lemmas should go through automatically! Remember: in the `if then else" case,
   //   // we just need the induction hypothesis to be applied on the condition and the branches, and
   //   // this is given by the lemma preconditions.
@@ -725,7 +723,5 @@ abstract module Ind {
       }
     }
   }
-}
-
-} // end of module Bootstrap.Semantics.ExprInduction
+} // end of module Bootstrap.Semantics.ExprInduction.Ind
 

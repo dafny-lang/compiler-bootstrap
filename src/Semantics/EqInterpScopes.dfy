@@ -9,9 +9,7 @@ include "Equiv.dfy"
 include "ExprInduction.dfy"
 include "InterpStateIneq.dfy"
 
-module Bootstrap.Semantics.EqInterpScopes {
-
-module Base refines ExprInduction.Ind {
+module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction.Ind {
   // This module provides lemmas which state that evaluating an expression with equivalent contexts
   // leads to equivalent results. The meaning of "equivalent contexts" here is given by ``EqResult``
   // below. We need this quite general notion to prove, for instance, that it is ok to flatten a
@@ -432,7 +430,7 @@ module Base refines ExprInduction.Ind {
 
   // TODO(SMH): I tried simplifying the proofs below by adding a `requires` in ``InductBlock_Fail``
   // and ``InductBlock_Succ`` to provide the assertions and the results of calling the lemmas used
-  // in the proof below, but it didn't work due to SMT solvers' misteries.
+  // in the proof below, but it didn't work due to Z3's misteries.
   lemma InductBlock_Fail ...
   {
     reveal InterpExpr();
@@ -459,6 +457,10 @@ module Base refines ExprInduction.Ind {
 
 } // end of module Bootstrap.Semantics.EqInterpScopes.Base
 
+
+module Bootstrap.Semantics.EqInterpScopes {
+  // This module derives lemmas from ``Bootstrap.Semantics.EqInterpScopes.Base``.
+  
   import opened AST.Syntax
   import opened Utils.Lib
   import opened AST.Predicates

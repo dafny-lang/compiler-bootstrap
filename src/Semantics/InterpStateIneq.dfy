@@ -8,11 +8,10 @@ include "Interp.dfy"
 include "Equiv.dfy"
 include "ExprInduction.dfy"
 
-module Bootstrap.Semantics.InterpStateIneq {
-  // This module provides lemmas which prove that the environment is monotonous (the set of
-  // variables grows).
+// This file provides lemmas which prove that the environment is monotonous (the set of
+// variables grows).
 
-module Base refines ExprInduction.Ind {
+module Bootstrap.Semantics.InterpStateIneq.Base refines ExprInduction.Ind {
   //
   // Declarations
   //
@@ -216,6 +215,7 @@ module Base refines ExprInduction.Ind {
 
 } // end of module Bootstrap.Semantics.EqInterpRefl.Base
 
+module Bootstrap.Semantics.InterpStateIneq {
   import opened AST.Syntax
   import opened Utils.Lib
   import opened AST.Predicates
