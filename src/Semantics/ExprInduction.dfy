@@ -243,7 +243,9 @@ abstract module Ind {
   lemma InductExprs_Nil(st: S)
     ensures !Pes_Fail(st, []) ==> Pes_Succ(st, [], st, NilVS) // Pes_Fail: because, for instance, the state may not satisfy the proper invariant
 
-  // TODO(SMH): I grouped everything (success and failure case) in this lemma. Maybe do the same for some other?...
+  // TODO(SMH): I grouped everything (success and failure case) in this lemma. Maybe do the same for some others?
+  // For instance, it might be worth doing it for the "trivial" cases, which should never require work from the
+  // user side (ex.: `if then else`).
   lemma InductExprs_Cons(st: S, e: Expr, es: seq<Expr>)
     ensures P_Fail(st, e) ==> Pes_Fail(st, [e] + es)
     ensures !P_Fail(st, e) ==> forall st1, v :: P_Succ(st, e, st1, v) && Pes_Fail(st1, es) ==> Pes_Fail(st, [e] + es)
