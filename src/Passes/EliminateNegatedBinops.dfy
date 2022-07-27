@@ -53,7 +53,6 @@ module Bootstrap.Passes.EliminateNegatedBinops {
       case _ => op
   }
 
-  // TODO(SMH): add a "_Single" prefix
   function method FlipNegatedBinop(op: BinaryOps.BinaryOp)
     : (op': BinaryOps.BinaryOp)
     ensures !IsNegatedBinop(op')
