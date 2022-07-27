@@ -1339,6 +1339,9 @@ module Bootstrap.Semantics.Equiv {
   }
 
   lemma InterpExprs_Block_Equiv_Strong(stmts: seq<Interp.Expr>, env: Environment, ctx: State)
+    // TODO(SMH): at some point I used ``EqInterpResultValue_Strong`` in the ensures (which is
+    // just ``EqInterpResultValue_Strong`` specialized and inlined) but it made the `InductBlock_Succ`
+    // case fail in `EqInterpRefl.dfy` and `EqInterpScopes.dfy`, for no apparent reason.
     ensures
       match (InterpBlock_Exprs(stmts, env, ctx), InterpExprs_Block(stmts, env, ctx))
         case (Success(Return(v, ctx1)), Success(Return(v', ctx1'))) => v == v' && ctx1 == ctx1'
