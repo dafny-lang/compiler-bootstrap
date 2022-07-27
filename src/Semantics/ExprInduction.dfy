@@ -10,6 +10,78 @@ include "Equiv.dfy"
 module Bootstrap.Semantics.ExprInduction {
 
 abstract module Ind {
+  // The following abstract module defines a functor to factorize the proofs about the interpreter.
+  // It works as follows.
+  //
+  // Writing any proof about the interpreter (for instance, that evaluating a pure expression leaves
+  // the state unchanged, or that evaluating the same expression from two different "equivalent" states
+  // leads to equivalent results) is very tedious because we need to copy-paste a lot of code. Moreover,
+  // most of the proof is often boring, though error-prone because it is easy to, say, not write
+  // the calls to the induction hypothesis with the proper arguments (and we are blind while doing
+  // the proofs...). However, given the proper hypotheses, most of those proofs should go through
+  // pretty easily.
+  //
+  // For instance, let's say you want to prove the property `forall e. P(e)` where
+  // `P(e) := forall ctx, ctx'. ctx ~= ctx' ==> Interp(e, ctx) ~= Interp(e, ctx')` (for some notion
+  // of equivalence). The proof is of course made by induction, and cases like `if b then thn else els`
+  // should be trivial: all you need to do is call the induction hypothesis on `b`, `thn` and `els`,
+  // and the proof should go through automatically. However, you still need to do it, which consumes
+  // time, takes a lot of lines of code, and can be error-prone.
+  // 
+  // The "induction functor" is an attempt at factorizing those proofs, by providing an interface
+  // which is roughly structured as follows:
+  // ```
+  // abstract module Ind {
+  //   // Property of interest, to be defined by the user
+  //   predicate P(e: Expr)
+  //
+  //   // Set of lemmas needed to prove one case in an induction step, and to be proven by the user.
+  //   // Those lemmas are written so that the induction hypotheses necessary to perform the proofs
+  //   // are given as preconditions:
+  //   lemma InductIf(e: Expr)
+  //     requires e.If?
+  //     requires P(e.cond) // Induction hypothesis
+  //     requires P(e.thn)  // Induction hypothesis
+  //     requires P(e.els)  // Induction hypothesis
+  //     ensures P(e)
+  //
+  //   ... // Other lemmas for the remaining cases of the AST
+  //
+  //   // The proof of induction, performed once and for all
+  //   lemma P_Satisfied(e: Expr)
+  //     ensures P(e)
+  //   {
+  //     ... // Match on the expression, call the proper "Induct..." lemmas, etc.
+  //   }
+  // }
+  // ```
+  //
+  // An instantiation of the "induction functor" would look like this:
+  // ```
+  // module EqInterpRefl {
+  //   // Define the property of interest
+  //   predicate P(e: Expr) {
+  //     forall env, ctx, ctx' ::
+  //     EqState(ctx, ctx') ==> EqInterpResultValue(Interp(e, env, ctx), Interp(e, env, ctx'))
+  //   }
+  //
+  //   // Prove the induction lemmas
+  //   // Many of those lemmas should go through automatically! Remember: in the `if then else" case,
+  //   // we just need the induction hypothesis to be applied on the condition and the branches, and
+  //   // this is given by the lemma preconditions.
+  //   lemma InductIf ... {}
+  //
+  //   ... // Other lemmas
+  //
+  //   // And we get `forall e. P(e)` from `P_Satisfied`, whose proof is given for free by the functor.
+  // }
+  // ```
+  //
+  // If you want to see a simple instantiation example in which most proofs go through automatically,
+  // see `InterpStateIneq`. If you want to see a more complex example, see `EqInterpScopes`.
+  //
+  // Rk.: the predicate `P` doesn't have the same signature in the real functor, but the idea is similar.
+
   import opened AST.Syntax
   import opened Utils.Lib
   import opened AST.Predicates
@@ -24,15 +96,31 @@ abstract module Ind {
   // Declarations
   //
 
+  // A state
   type S(!new)
+
+  // A value
   type V(!new)
+
+  // A sequence of values
   type VS(!new)
 
-  // ``P`` is the property of interest
+  // ``P`` is the property of interest that we want to prove about the interpreter. It is often
+  // possible to distinguish two cases in the proof: the case corresponding to a successful
+  // execution of the interpreter, and the case corresponding to a failing execution. For instance,
+  // let's say you want to prove that evaluating a pure expression leaves the state unchanged:
+  // the property is trivially true in case the interpreter fails its execution. For this reason,
+  // we decompose ``P`` into ``P_Fail`` (failed execution) and ``P_Succ`` (successful execution,
+  // which also takes as inputs the state and value resulting from the execution).
+  //
+  // One important property to enforce is that:
+  // `P(st, e) <==> P_Fail(st, e) || exists st', v :: P_Succ(st, e, st', v)`
+  // This is enforced by: ``P_Fail_Sound``, ``P_Succ_Sound`` and ``P_Step``.
   predicate P(st: S, e: Expr)
   predicate P_Succ(st: S, e: Expr, st': S, v: V) // Success
   predicate P_Fail(st: S, e: Expr) // Failure
 
+  // ``Pes`` is the property of interest over sequences of expressions.
   predicate Pes(st: S, es: seq<Expr>)
   predicate Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS) // Success
   predicate Pes_Fail(st: S, es: seq<Expr>) // Failure
@@ -42,11 +130,11 @@ abstract module Ind {
 
   predicate VS_UpdateStatePre(st: S, vars: seq<string>, argvs: VS)
 
-  // For the ``Abs`` case
+  // For the ``Abs`` case: builds the closure state from the current state
   function BuildClosureCallState(st: S, vars: seq<string>, body: Expr, env: Environment, argvs: VS): (st':S)
     requires VS_UpdateStatePre(st, vars, argvs)
 
-  // For the ``Update`` case
+  // For the ``Update`` case: returns a new state updated with new bindings
   function UpdateState(st: S, vars: seq<string>, vals: VS): (st':S)
     requires VS_UpdateStatePre(st, vars, vals)
 
@@ -56,10 +144,11 @@ abstract module Ind {
   function StateStartScope(st: S): (st':S)
   function StateEndScope(st0: S, st: S): (st':S)
 
-  // DISCUSS: can't get the postcondition with a constant
+  // DISCUSS: can't write the postcondition on ``NilVS``, hence this auxiliary function
   function GetNilVS(): (vs:VS)
     ensures vs == SeqVToVS([])
 
+  // Empty sequence of values
   ghost const NilVS:VS := GetNilVS()
   ghost const UnitV:V
 

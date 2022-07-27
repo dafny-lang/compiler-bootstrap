@@ -15,10 +15,42 @@ module Base refines ExprInduction.Ind {
   // This module provides lemmas which state that evaluating an expression with equivalent contexts
   // leads to equivalent results. The meaning of "equivalent contexts" here is given by ``EqResult``
   // below. We need this quite general notion to prove, for instance, that it is ok to flatten a
-  // block ending another block (i.e., transformations like the following one preserve the semantics:
-  // `{ var x := 0; f(x); { x := 1; g(x); var x := true; h(x); } }
-  //                            ~>
-  //  { var x := 0; f(x); x := 1; g(x); var x := true; h(x); }`).
+  // block ending another block, or in other words that transformations like the following one preserve
+  // the semantics of the program:
+  // ```
+  // {
+  //   var x := 0;
+  //   f(x);
+  //   {
+  //     x := 1;
+  //     g(x);
+  //     var x := true;
+  //     var y := 2;
+  //     h(x, y);
+  //   }
+  //   // (i)
+  // }
+  // 
+  //     ~~>
+  //
+  // {
+  //   var x := 0;
+  //   f(x);
+  //   x := 1;
+  //   g(x);
+  //   var x := true;
+  //   var y := 2;
+  //   h(x, y);
+  //   // (i)
+  // }
+  // ```
+  //
+  // An important point in the transformation above is that when reaching (i), the environments
+  // in the two programs is not the same: for instance, in the transformed program we have a
+  // binding `y -> 2`, which is not present in the environment of the original program (because
+  // it went out of scope). However, if we pop one more scope we do get equivalent environments.
+  // Building on this insight, we prove an invariant which involves an "outer rollback", the
+  // rollback from the scope just above the current scope.
 
   //
   // Declarations
