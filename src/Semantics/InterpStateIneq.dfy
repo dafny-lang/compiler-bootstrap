@@ -11,7 +11,7 @@ include "ExprInduction.dfy"
 // This file provides lemmas which prove that the environment is monotonous (the set of
 // variables grows).
 
-module Bootstrap.Semantics.InterpStateIneq.Base refines ExprInduction.Ind {
+module Bootstrap.Semantics.InterpStateIneq.Base refines ExprInduction {
   //
   // Declarations
   //

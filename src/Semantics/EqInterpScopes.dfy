@@ -9,7 +9,7 @@ include "Equiv.dfy"
 include "ExprInduction.dfy"
 include "InterpStateIneq.dfy"
 
-module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction.Ind {
+module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
   // This module provides lemmas which state that evaluating an expression with equivalent contexts
   // leads to equivalent results. The meaning of "equivalent contexts" here is given by ``EqResult``
   // below. We need this quite general notion to prove, for instance, that it is ok to flatten a
