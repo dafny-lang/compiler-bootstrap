@@ -9,6 +9,7 @@ include "../Semantics/Equiv.dfy"
 include "../Semantics/Pure.dfy"
 include "../Semantics/EqInterpRefl.dfy"
 include "../Semantics/EqInterpScopes.dfy"
+include "../Semantics/InterpStateIneq.dfy"
 include "../Transforms/BottomUp.dfy"
 include "EliminateNegatedBinops.dfy"
 
@@ -97,7 +98,7 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   import opened Transforms.Generic
   import opened Transforms.Proofs.BottomUp_
 
-  type {:verify false} Expr = Syntax.Expr
+  type Expr = Syntax.Expr
 
 module FilterCommon {
   import Utils.Lib
@@ -108,41 +109,41 @@ module FilterCommon {
   import opened Semantics.Equiv
   import opened Semantics.Interp
 
-  function method {:verify false} TODO(): bool {
+  function method TODO(): bool {
     false
   }
 
-  type {:verify false} Expr = Syntax.Expr
+  type Expr = Syntax.Expr
   type Context = Interp.Context
 
-  const {:verify false} EmptyBlock: Interp.Expr := reveal SupportsInterp(); Expr.Block([])
+  const EmptyBlock: Interp.Expr := reveal SupportsInterp(); Expr.Block([])
 
   // TODO: move?
-  predicate method {:verify false} IsEmptyBlock(e: Expr)
+  predicate method IsEmptyBlock(e: Expr)
   {
     e.Block? && e.stmts == []
   }
 
-  lemma {:verify false} IsEmptyBlock_Eq(e: Expr)
+  lemma IsEmptyBlock_Eq(e: Expr)
     ensures IsEmptyBlock(e) <==> e == EmptyBlock
     // For sanity
   {}
 
   // TODO: move?
-  predicate method {:verify false} IsNotEmptyBlock(e: Expr)
+  predicate method IsNotEmptyBlock(e: Expr)
   {
     !IsEmptyBlock(e)
   }
 
-  predicate {:verify false} Tr_Expr_Post(e: Expr) {
+  predicate Tr_Expr_Post(e: Expr) {
     true
   }
 
-  predicate {:verify false} Tr_Expr_Rel(e: Expr, e': Expr) {
+  predicate Tr_Expr_Rel(e: Expr, e': Expr) {
     EqInterp(e, e')
   }
 
-  lemma {:verify false} Interp_EmptyBlock(env: Environment, ctx: State)
+  lemma Interp_EmptyBlock(env: Environment, ctx: State)
     ensures InterpExpr(EmptyBlock, env, ctx) == Success(Return(Unit, ctx))
   {
     var res := InterpExpr(EmptyBlock, env, ctx);
@@ -152,11 +153,8 @@ module FilterCommon {
     assert InterpBlock_Exprs([], env, ctx1) == Success(Return(Unit, ctx1)) by { reveal InterpBlock_Exprs(); }
 
     var ctx2 := ctx1;
-    var locals3 := map x | x in (ctx2.locals.Keys * ctx.locals.Keys) :: ctx2.locals[x];
-    var locals3' := locals3 + ctx2.rollback;
-    var ctx3 := State(locals := locals3', rollback := ctx.rollback);
-
-    assert locals3' == ctx.locals;
+    var ctx3 := EndScope(ctx, ctx2);
+    assert ctx3 == ctx;
 
     assert res == Success(Return(Unit, ctx3)) by { reveal InterpBlock(); }
   }
@@ -177,22 +175,23 @@ module FilterEmptyBlocks {
   import opened Semantics.Equiv
   import EqRefl = Semantics.EqInterpRefl
   import EqScopes = Semantics.EqInterpScopes
+  import opened Semantics.InterpStateIneq
   import opened Transforms.Generic
   import opened Transforms.Proofs.BottomUp_
 
   import opened FilterCommon
 
-  type {:verify false} Expr = Syntax.Expr
+  type Expr = Syntax.Expr
   type Context = FilterCommon.Context
 
-  function method {:verify false} FilterEmptyBlocks_Seq(es: seq<Expr>): (es': seq<Expr>)
+  function method FilterEmptyBlocks_Seq(es: seq<Expr>): (es': seq<Expr>)
     ensures Seq_All(SupportsInterp, es) ==> Seq_All(SupportsInterp, es')
     ensures |es| >= |es'|
   {
     Seq.Filter(es, IsNotEmptyBlock)
   }
 
-  function method {:verify false} FilterEmptyBlocks_Single(e: Expr): Expr
+  function method FilterEmptyBlocks_Single(e: Expr): Expr
   {
     if e.Block? then
       Expr.Block(FilterEmptyBlocks_Seq(e.stmts))
@@ -200,10 +199,12 @@ module FilterEmptyBlocks {
       e
   }
 
-  lemma {:verify false} FilterEmptyBlocks_Seq_Rel(es: seq<Expr>, env: Environment, ctx: State, ctx': State)
+  lemma FilterEmptyBlocks_Seq_Rel(es: seq<Expr>, env: Environment, keys:set<string>, ctx: State, ctx': State)
     requires Seq_All(SupportsInterp, es)
     requires EqState(ctx, ctx')
-    ensures EqScopes.EqResultRolledValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(FilterEmptyBlocks_Seq(es), env, ctx'))
+    requires EqScopes.StateHasKeys(ctx, keys)
+    requires EqScopes.StateHasKeys(ctx', keys)
+    ensures EqScopes.EqResultRolledValue(keys, InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(FilterEmptyBlocks_Seq(es), env, ctx'))
   {
     reveal InterpBlock_Exprs();
     reveal Seq.Filter();
@@ -217,7 +218,8 @@ module FilterEmptyBlocks {
     // a smarter way.
     if es == [] {
       // Trivial
-      reveal GEqCtx();
+      reveal GEqCtx(); // TODO: remove?
+      reveal EqScopes.Base.EqSubCtx();
     }
     else if |es| == 1 {
       assert es == [es[0]];
@@ -238,11 +240,15 @@ module FilterEmptyBlocks {
         }
 
         reveal GEqCtx();
+        reveal EqScopes.Base.EqSubCtx();
       }
       else {
         assert es' == es;
         EqRefl.InterpExpr_EqRefl(es[0], env, ctx, ctx');
+        InterpExpr_StateSmaller(es[0], env, ctx);
+        InterpExpr_StateSmaller(es[0], env, ctx');
         reveal GEqCtx();
+        reveal EqScopes.Base.EqSubCtx();
       }
     }
     else {
@@ -261,7 +267,7 @@ module FilterEmptyBlocks {
         assert res0 == InterpExprWithType(es[0], Types.Unit, env, ctx);
 
         assert es' == FilterEmptyBlocks_Seq(es[1..]);
-        FilterEmptyBlocks_Seq_Rel(es[1..], env, ctx, ctx');
+        FilterEmptyBlocks_Seq_Rel(es[1..], env, keys, ctx, ctx');
       }
       else {
         // The first expression is not filtered
@@ -270,20 +276,20 @@ module FilterEmptyBlocks {
         var tl := es[1..];
         var tl' := FilterEmptyBlocks_Seq(tl);
 
-        assert EqScopes.EqInterpBlockExprs(tl, tl') by {
-          forall env, ctx, ctx' | EqState(ctx, ctx')
-            ensures EqScopes.EqInterpBlockExprs_Single(tl, tl', env, ctx, ctx')
+        assert EqScopes.EqInterpBlockExprs(tl, tl', keys) by {
+          forall env, ctx, ctx' | EqState(ctx, ctx') && EqScopes.StateHasKeys(ctx, keys) && EqScopes.StateHasKeys(ctx', keys)
+            ensures EqScopes.EqInterpBlockExprs_Single(tl, tl', env, keys, ctx, ctx')
           {
-            FilterEmptyBlocks_Seq_Rel(tl, env, ctx, ctx');
+            FilterEmptyBlocks_Seq_Rel(tl, env, keys, ctx, ctx');
           }
           reveal EqScopes.EqInterpBlockExprs();
         }
-        EqScopes.InterpBlock_Exprs_Eq_Append(es[0], tl, tl', env, ctx, ctx');
+        EqScopes.InterpBlock_Exprs_Eq_Append(es[0], tl, tl', env, keys, ctx, ctx');
       }
     }
   }
 
-  lemma {:verify false} FilterEmptyBlocks_Single_Rel(e: Expr)
+  lemma FilterEmptyBlocks_Single_Rel(e: Expr)
     ensures Tr_Expr_Rel(e, FilterEmptyBlocks_Single(e))
   {
     if e.Block? && SupportsInterp(e) {
@@ -305,20 +311,23 @@ module FilterEmptyBlocks {
             reveal GEqCtx();
           }
 
-          FilterEmptyBlocks_Seq_Rel(es, env, ctx1, ctx1');
+          var keys := ctx.locals.Keys;
+          assert keys == ctx'.locals.Keys by { reveal GEqCtx(); }
+          
+          FilterEmptyBlocks_Seq_Rel(es, env, keys, ctx1, ctx1');
           var res2 := InterpBlock_Exprs(es, env, ctx1);
           var res2' := InterpBlock_Exprs(FilterEmptyBlocks_Seq(es), env, ctx1');
-          assert EqScopes.EqResultRolledValue(res2, res2') by { reveal GEqCtx(); }
+          assert EqScopes.EqResultRolledValue(keys, res2, res2') by { reveal GEqCtx(); }
 
           if res2.Success? {
             var Return(v, ctx2) := res2.value;
             var Return(v', ctx2') := res2'.value;
             assert EqValue(v, v');
-            assert EqScopes.EqStateRolled(ctx2, ctx2');
+            assert EqScopes.EqStateRolled(keys, ctx2, ctx2');
 
             var ctx3 := EndScope(ctx, ctx2);
             var ctx3' := EndScope(ctx', ctx2');
-            assert EqState(ctx3, ctx3') by { reveal GEqCtx(); }
+            assert EqState(ctx3, ctx3') by { reveal GEqCtx(); reveal EqScopes.Base.EqSubCtx(); }
             reveal GEqCtx();
           }
           else {}
@@ -349,6 +358,7 @@ module InlineLastBlock {
   import opened Semantics.EqInterpRefl
   import EqRefl = Semantics.EqInterpRefl
   import EqScopes = Semantics.EqInterpScopes
+  import opened Semantics.InterpStateIneq
   import opened Transforms.Generic
   import opened Transforms.Proofs.BottomUp_
 
@@ -358,7 +368,7 @@ module InlineLastBlock {
   type Context = Interp.Context
   type Value = Interp.Value
 
-  function method {:verify true} InlineLastBlock_Seq(es: seq<Expr>): (es': seq<Expr>)
+  function method InlineLastBlock_Seq(es: seq<Expr>): (es': seq<Expr>)
     ensures Seq_All(SupportsInterp, es) ==> Seq_All(SupportsInterp, es')
     // If the last expression of a sequence of expressions is a block, inline its content.
     //
@@ -383,92 +393,19 @@ module InlineLastBlock {
       [es[0]] + InlineLastBlock_Seq(es[1..])
   }
 
-  function method {:verify true} InlineLastBlock_Single(e: Expr): Expr
+  function method InlineLastBlock_Single(e: Expr): Expr
   {
     if e.Block? then Expr.Block(InlineLastBlock_Seq(e.stmts))
     else e
   }
 
-/*  // TODO(SMH): ~3 minutes of proof time is probably not reasonable...
-  lemma {:verify true} InlineLastBlock_Seq_Rel_State_Eq(
-    or: Context, ctx: State, or': Context, ctx': State, or1: Context, or1': Context, ctx2: State, ctx3: State, ctx3': State)
-    requires EqScopes.EqStateOuterRollback(or, ctx, or', ctx')
-    requires forall x | x in ctx.locals.Keys :: x in ctx2.locals.Keys
-    requires forall x | x in ctx'.locals.Keys :: x in ctx3'.locals.Keys
-    // We don't need to take `or1`, `or1'`, `ctx3` as inputs, but on the other hand it makes writing
-    // the lemma simpler. Also, the only reason why we have this lemma is that it isolates a very
-    // specific proof obligation which takes a while...
-    requires or1 == ctx.rollback + or // TODO: remove
-    requires or1' == map [] + or' // TODO: remove
-    requires ctx3 == EndScope(ctx, ctx2) // TODO: remove
-    requires EqCtx(ctx2.locals, ctx3'.locals)
-    requires EqCtx(ctx2.rollback + or1, ctx3'.rollback + or1')
-    ensures forall x | x in ctx.locals :: x in ctx3.locals
-    ensures forall x | x in ctx.locals :: x in ctx3'.locals
-    ensures 
-      var rolled := (ctx3.locals + ctx3.rollback) + or;
-      var rolled' := (ctx3'.locals + ctx3'.rollback) + or';
-      forall x | x in ctx.locals :: EqValue(rolled[x], rolled'[x])
-    // Auxiliary lemma - we use it to isolate a proof obligation which takes quite a long time
-    // in ``InlineLastBlock_Seq_Rel``.
-  {
-    assert or1' == or';
-    assert ctx.locals.Keys == ctx'.locals.Keys by { reveal GEqCtx(); } // We need this
-
-    assert ctx3.locals == map x | x in ctx.locals.Keys :: (ctx2.locals + ctx2.rollback)[x];
-    assert ctx3.rollback == ctx.rollback;
-
-    var rolled := (ctx3.locals + ctx3.rollback) + or;
-    var rolled' := (ctx3'.locals + ctx3'.rollback) + or';
-    assert forall x | x in ctx.locals :: EqValue(rolled[x], rolled'[x]) by { reveal GEqCtx(); }
-  }*/
-
-/*  predicate EqStateEndScope(keys: set<string>, or: Context, ctx: State, or': Context, ctx': State)
-  {
-    var ctx1 := (ctx.locals + ctx.rollback) + or;
-    var ctx1' := (ctx'.locals + ctx'.rollback) + or';
-    forall x | x in keys :: x in ctx1.Keys && x in ctx1'.Keys && EqValue(ctx1[x], ctx1'[x])
-  }*/
-
-/*  predicate EqInterpValueEndScope(keys: set<string>, or: Context, res: InterpResult<Value>, or': Context, res': InterpResult<Value>)
-  {
-    match (res, res')
-      case (Success(Return(v, ctx)), Success(Return(v', ctx'))) =>
-        && EqStateEndScope(keys, or, ctx, or', ctx')
-        && EqValue(v, v')
-      case (Failure(_), _) =>
-        true
-      case _ =>
-        false
-  }*/
-
-  predicate EqStateEndScope(keys: set<string>, ctx: State, ctx': State)
-  {
-    var ctx1 := ctx.locals + ctx.rollback;
-    var ctx1' := ctx'.locals + ctx'.rollback;
-    && forall x | x in keys * ctx.locals.Keys * ctx'.locals.Keys :: EqValue(ctx1[x], ctx1'[x])
-  }
-
-  predicate EqInterpResultEndScopeValue(keys: set<string>, res: InterpResult<Value>, res': InterpResult<Value>)
-  {
-    match (res, res')
-      case (Success(Return(v, ctx)), Success(Return(v', ctx'))) =>
-        && EqValue(v, v')
-        && EqStateEndScope(keys, ctx, ctx')
-      case (Failure(_), _) => true
-      case _ => false
-  }
-  
-  lemma {:verify true} InlineLastBlock_Seq_Rel(es: seq<Expr>, env: Environment, keys: set<string>, ctx: State, ctx': State)
+  lemma InlineLastBlock_Seq_Rel(es: seq<Expr>, env: Environment, keys: set<string>, ctx: State, ctx': State)
     requires forall e | e in es :: SupportsInterp(e)
-//    requires EqState(ctx, ctx')
     requires EqState(ctx, ctx')
-    requires keys <= ctx.locals.Keys
-    requires keys <= ctx'.locals.Keys
+    requires EqScopes.StateHasKeys(ctx, keys)
+    requires EqScopes.StateHasKeys(ctx', keys)
     ensures forall e | e in InlineLastBlock_Seq(es) :: SupportsInterp(e)
-//    ensures EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(InlineLastBlock_Seq(es), env, ctx'))
-    ensures EqInterpResultEndScopeValue(keys, InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(InlineLastBlock_Seq(es), env, ctx'))
-    // - `or`, `or'` : outer rollback
+    ensures EqScopes.EqResultRolledValue(keys, InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(InlineLastBlock_Seq(es), env, ctx'))
   {
     reveal InterpBlock_Exprs();
 
@@ -479,7 +416,7 @@ module InlineLastBlock {
 
     if es == [] {
       // Trivial
-      assert EqInterpResultEndScopeValue(keys, res, res') by { reveal GEqCtx(); }
+      assert EqScopes.EqResultRolledValue(keys, res, res') by { reveal GEqCtx(); reveal EqScopes.Base.EqSubCtx(); }
     }
     else if |es| == 1 {
       if es[0].Block? {
@@ -491,24 +428,14 @@ module InlineLastBlock {
         assert InterpExpr(es[0], env, ctx) == InterpBlock(es[0].stmts, env, ctx);
 
         var ctx1 := StartScope(ctx);
-//        var ctx1' := StartScope(ctx');
-//        assert EqState(ctx1, ctx1') by {
-//          reveal GEqCtx();
-//        }
-
         assert es' == es[0].stmts;
 
-        var or1 := ctx.rollback;
-        var or1' := map [];
+        var or := ctx.rollback;
+        var or' := map [];
         var ctx_start := ctx1;
         var ctx_start' := ctx';
-//        assert EqCtx((ctx_start.locals + ctx_start.rollback) + or1, (ctx_start'.locals + ctx_start'.rollback) + or1') by {
-//          reveal GEqCtx();
-//        }
-        assert EqCtx(ctx_start.rollback + or1, ctx_start'.rollback + or1') by {
-          reveal GEqCtx();
-        }
-        EqScopes.InterpExprs_Eq(es', env, or1, ctx_start, or1', ctx_start');
+        assert EqCtx(ctx_start.rollback + or, ctx_start'.rollback + or') by { reveal GEqCtx(); }
+        EqScopes.InterpExprs_Eq(es', env, or, ctx_start, or', ctx_start');
 
         assert InterpExpr(es[0], env, ctx) == InterpBlock(es', env, ctx) by { reveal InterpExpr(); }
 
@@ -528,30 +455,33 @@ module InlineLastBlock {
 
           // The following assertions are given by ``EqScopes.InterpExprs_Eq``
           assert EqCtx(ctx2.locals, ctx3'.locals);
-          assert EqScopes.EqOuterRollback(or1, ctx2, or1', ctx3');
-          assert EqCtx(ctx2.rollback + or1, ctx3'.rollback + or1');
+          assert EqScopes.EqOuterRollback(or, ctx2, or', ctx3');
+          assert EqCtx(ctx2.rollback + or, ctx3'.rollback + or');
 
-          assume false;
-
-          assume forall x | x in ctx.locals.Keys :: x in ctx2.locals.Keys; // TODO
-          assert ctx3.locals == map x | x in ctx.locals.Keys :: (ctx2.locals + ctx2.rollback)[x];
-          assert ctx3.rollback == ctx.rollback;
-
-          assume forall x | x in ctx'.locals.Keys :: x in ctx3'.locals.Keys; // TODO
-
-//          assert ctx.locals.Keys == ctx'.locals.Keys by { reveal GEqCtx(); } // We need this
-
-          var rolled := (ctx3.locals + ctx3.rollback);// + or1;
-          var rolled' := (ctx3'.locals + ctx3'.rollback);// + or1';
-          assert forall x | x in keys ::
-            && x in rolled.Keys
-            && x in rolled'.Keys
-            && EqValue(rolled[x], rolled'[x]) by {
-            reveal GEqCtx();
+          assert ctx'.locals.Keys + ctx'.rollback.Keys <= ctx3'.locals.Keys + ctx3'.rollback.Keys by {
+            InterpBlock_Exprs_StateSmaller(es', env, ctx_start');
           }
 
-          assume false;
-          assert EqInterpResultEndScopeValue(keys, res, res') by { reveal GEqCtx(); }
+          assert ctx.locals.Keys <= ctx2.locals.Keys + ctx2.rollback.Keys by {
+            InterpBlock_Exprs_StateSmaller(es', env, ctx_start);
+          }
+
+          assert EqScopes.Base.EqRolled(keys, ctx3, ctx3') by {
+            assert ctx3.locals == map x | x in ctx.locals.Keys :: (ctx2.locals + ctx2.rollback)[x];
+            assert ctx3.rollback == ctx.rollback;
+
+            var rolled := (ctx3.locals + ctx3.rollback);
+            var rolled' := (ctx3'.locals + ctx3'.rollback);
+            assert keys <= rolled.Keys;
+            assert keys <= rolled'.Keys;
+            assert forall x | x in keys :: EqValue(rolled[x], rolled'[x]) by {
+              reveal GEqCtx();
+            }
+
+            reveal EqScopes.Base.EqSubCtx();
+          }
+
+          assert EqScopes.EqResultRolledValue(keys, res, res');
         }
         else {}
       }
@@ -559,8 +489,10 @@ module InlineLastBlock {
         assert es == es';
         assert Seq_All(SupportsInterp, es);
         EqRefl.InterpBlock_Exprs_EqRefl(es, env, ctx, ctx');
+        InterpBlock_Exprs_StateSmaller(es, env, ctx);
+        InterpBlock_Exprs_StateSmaller(es, env, ctx');
         assert EqInterpResultValue(res, res');
-        assert EqInterpResultEndScopeValue(keys, res, res') by { reveal GEqCtx(); }
+        assert EqScopes.EqResultRolledValue(keys, res, res') by { reveal GEqCtx(); reveal EqScopes.Base.EqSubCtx(); }
       }
     }
     else {
@@ -568,105 +500,20 @@ module InlineLastBlock {
       var tl := es[1..];
       var tl' := InlineLastBlock_Seq(tl);
 
-      assert EqScopes.EqInterpBlockExprs(tl, tl') by {
-        forall env, ctx, ctx' | EqState(ctx, ctx')
-          ensures EqScopes.EqInterpBlockExprs_Single(tl, tl', env, ctx, ctx')
+      assert EqScopes.EqInterpBlockExprs(tl, tl', keys) by {
+        forall env, ctx, ctx' | EqState(ctx, ctx') && EqScopes.StateHasKeys(ctx, keys) && EqScopes.StateHasKeys(ctx', keys)
+          ensures EqScopes.EqInterpBlockExprs_Single(tl, tl', env, keys, ctx, ctx')
         {
           InlineLastBlock_Seq_Rel(tl, env, keys, ctx, ctx');
         }
         reveal EqScopes.EqInterpBlockExprs();
       }
-      EqScopes.InterpBlock_Exprs_Eq_Append(es[0], tl, tl', env, ctx, ctx');
+      EqScopes.InterpBlock_Exprs_Eq_Append(es[0], tl, tl', env, keys, ctx, ctx');
     }
   }
 
-/*  lemma {:verify true} InlineLastBlock_Seq_Rel(es: seq<Expr>, env: Environment, ctx: State, ctx': State)
-    requires forall e | e in es :: SupportsInterp(e)
-    requires EqState(ctx, ctx')
-    ensures forall e | e in InlineLastBlock_Seq(es) :: SupportsInterp(e)
-    ensures EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(InlineLastBlock_Seq(es), env, ctx'))
-  {
-    reveal InterpBlock_Exprs();
-
-    var es' := InlineLastBlock_Seq(es);
-
-    var res := InterpBlock_Exprs(es, env, ctx);
-    var res' := InterpBlock_Exprs(es', env, ctx');
-
-    if es == [] {
-      // Trivial
-    }
-    else if |es| == 1 {
-      if es[0].Block? {
-        reveal InterpExpr();
-        reveal InterpBlock();
-
-        // Doesn't work without this assertion - is it because of the fuel?
-        assert res == InterpExpr(es[0], env, ctx);
-        assert InterpExpr(es[0], env, ctx) == InterpBlock(es[0].stmts, env, ctx);
-
-        var ctx1 := StartScope(ctx);
-        var ctx1' := StartScope(ctx');
-        assert EqState(ctx1, ctx1') by {
-          reveal GEqCtx();
-        }
-
-        assert es' == es[0].stmts;
-
-        var outer_rollback := ctx.rollback;
-        var outer_rollback' := map [];
-        var ctx_start := ctx1;
-        var ctx_start' := ctx';
-        assert EqCtx((ctx_start.locals + ctx_start.rollback) + outer_rollback, (ctx_start'.locals + ctx_start'.rollback) + outer_rollback') by {
-          reveal GEqCtx();
-        }
-        EqInterpScopes.InterpExprs_Eq(es', env, outer_rollback, ctx_start, outer_rollback', ctx_start');
-
-        assert InterpExpr(es[0], env, ctx) == InterpBlock(es', env, ctx) by { reveal InterpExpr(); }
-
-        InterpExprs_Block_Equiv_Strong(es', env, ctx_start);
-        InterpExprs_Block_Equiv_Strong(es', env, ctx_start');
-
-        if res.Success? {
-//          reveal InterpExpr();
-          reveal InterpBlock();
-          reveal InterpExprs_Block();
-
-          var Return(v, ctx2) := InterpBlock_Exprs(es', env, ctx_start).value;
-          assert res == Success(Return(v, EndScope(ctx, ctx2)));
-
-          
-          assume TODO(); // TODO: fix proof
-        }
-        else {}
-      }
-      else {
-        assert es == es';
-        assert Seq_All(SupportsInterp, es);
-        InterpBlock_Exprs_EqRefl(es, env, ctx, ctx');
-      }
-    }
-    else {
-      // The first expression appears in both sequences
-      EqInterp_Refl(es[0]);
-      EqInterp_Inst(es[0], es'[0], env, ctx, ctx');
-
-      // Prove that the sequence concatenations are evaluated in a similar manner
-      var tl := es[1..];
-      var tl' := InlineLastBlock_Seq(tl);
-
-      forall env, ctx, ctx' | EqState(ctx, ctx')
-        ensures EqInterpResultValue(InterpBlock_Exprs(tl, env, ctx), InterpBlock_Exprs(tl', env, ctx'))
-      {
-        InlineLastBlock_Seq_Rel(tl, env, ctx, ctx');
-      }
-      InterpBlock_Exprs_Eq_Append(es[0], tl, tl', env, ctx, ctx');
-    }
-  }*/
-
-
   // Rk.: modulo the names, this is exactly the same proof as for ``FilterEmptyBlocks_Single_Rel``
-  lemma {:verify true} InlineLastBlock_Single_Rel(e: Expr)
+  lemma InlineLastBlock_Single_Rel(e: Expr)
     ensures Tr_Expr_Rel(e, InlineLastBlock_Single(e))
   {
     if e.Block? && SupportsInterp(e) {
@@ -682,6 +529,9 @@ module InlineLastBlock {
         reveal InterpExpr();
         reveal InterpBlock();
 
+        assert ctx.locals.Keys == ctx'.locals.Keys by { reveal GEqCtx(); }
+        var keys := ctx.locals.Keys;
+
         var ctx1 := StartScope(ctx);
         var ctx1' := StartScope(ctx');
 
@@ -689,12 +539,14 @@ module InlineLastBlock {
           reveal GEqCtx();
         }
 
-        // TODO
-        // InlineLastBlock_Seq_Rel(es, env, ctx1, ctx1');
+        // We need this because of the fuel (to be more precise, we need to introduce the calls
+        // to ``InterpBlock``)
+        assert InterpExpr(e, env, ctx) == InterpBlock(es, env, ctx);
+        assert InterpExpr(e', env, ctx') == InterpBlock(es', env, ctx');
 
-        assume TODO(); // TODO: fix proof
-        
+        InlineLastBlock_Seq_Rel(es, env, keys, ctx1, ctx1');
         reveal GEqCtx();
+        reveal EqScopes.Base.EqSubCtx();
       }
 
       assert SupportsInterp(e');
@@ -706,7 +558,6 @@ module InlineLastBlock {
   }
 }
 
-/*
 module SimplifyIfThenElse {
   // Tranformation 3
   
@@ -726,9 +577,9 @@ module SimplifyIfThenElse {
 
   import opened FilterCommon
 
-  type {:verify true} Expr = Syntax.Expr
+  type Expr = Syntax.Expr
 
-  function method {:verify true} SimplifyEmptyIfThenElse_Single(e: Expr): Expr
+  function method SimplifyEmptyIfThenElse_Single(e: Expr): Expr
     // Tranformation 3.1: `if b then {} else {} ---> {}`
     //
     // Eliminating `b` might lead to a program which fails less. We might want to be
@@ -740,7 +591,7 @@ module SimplifyIfThenElse {
     else e
   }
 
-  lemma {:verify true} SimplifyEmptyIfThenElse_Single_Rel(e: Expr)
+  lemma SimplifyEmptyIfThenElse_Single_Rel(e: Expr)
     ensures Tr_Expr_Rel(e, SimplifyEmptyIfThenElse_Single(e))
   {
     if e.If? && IsPure(e.cond) && IsEmptyBlock(e.thn) && IsEmptyBlock(e.els) && SupportsInterp(e) {
@@ -780,16 +631,16 @@ module SimplifyIfThenElse {
     }
   }
 
-  // TODO: factorize with ``EliminateNegatedBinops``?
-  function method {:verify true} NegateExpr(e: Expr): (e':Expr)
+  // TODO(SMH): factorize with ``EliminateNegatedBinops``?
+  function method NegateExpr(e: Expr): (e':Expr)
     ensures SupportsInterp(e) ==> SupportsInterp(e')
   {
     reveal SupportsInterp();
     Exprs.Apply(Exprs.Eager(Exprs.UnaryOp(UnaryOps.BoolNot)), [e])
   }
 
-  // TODO: factorize with ``EliminateNegatedBinops``?
-  lemma {:verify true} InterpExpr_NegateExpr(e: Expr, env: Environment, ctx: State)
+  // TODO(SMH): factorize with ``EliminateNegatedBinops``?
+  lemma InterpExpr_NegateExpr(e: Expr, env: Environment, ctx: State)
     requires SupportsInterp(e)
     ensures
       match InterpExpr(e, env, ctx)
@@ -819,7 +670,7 @@ module SimplifyIfThenElse {
     else {}
   }
 
-  function method {:verify true} NegateIfThenElse_Single(e: Expr): (e': Expr)
+  function method NegateIfThenElse_Single(e: Expr): (e': Expr)
     ensures SupportsInterp(e) ==> SupportsInterp(e')
     // Auxiliary transformation: `if b then e0 else e1 ---> if !b then e1 else e0`
   {
@@ -829,7 +680,7 @@ module SimplifyIfThenElse {
   }
   
   
-  lemma {:verify true} NegateIfThenElse_Single_Rel(e: Expr)
+  lemma NegateIfThenElse_Single_Rel(e: Expr)
     ensures Tr_Expr_Rel(e, NegateIfThenElse_Single(e))
   {
     if e.If? && SupportsInterp(e) {
@@ -877,7 +728,7 @@ module SimplifyIfThenElse {
     }
   }
 
-  function method {:verify true} NegateIfThenElseIfEmptyThen_Single(e: Expr): (e': Expr)
+  function method NegateIfThenElseIfEmptyThen_Single(e: Expr): (e': Expr)
     ensures SupportsInterp(e) ==> SupportsInterp(e')
     // Tranformation 3.2: `if b then {} else e ---> if !b then e else {}`
   {
@@ -886,7 +737,7 @@ module SimplifyIfThenElse {
     else e
   }
 
-  lemma {:verify true} NegateIfThenElseIfEmptyThen_Single_Rel(e: Expr)
+  lemma NegateIfThenElseIfEmptyThen_Single_Rel(e: Expr)
     ensures Tr_Expr_Rel(e, NegateIfThenElseIfEmptyThen_Single(e))
   {
     if e.If? && IsEmptyBlock(e.thn) {
@@ -897,7 +748,7 @@ module SimplifyIfThenElse {
     }
   }
 
-  function method {:verify true} Simplify_Single(e: Expr): (e': Expr)
+  function method Simplify_Single(e: Expr): (e': Expr)
     ensures SupportsInterp(e) ==> SupportsInterp(e')
     ensures Tr_Expr_Rel(e, e')
     // The full transformation 3
@@ -934,9 +785,9 @@ module Simplify {
   import InlineLastBlock
   import SimplifyIfThenElse
 
-  type {:verify true} Expr = Syntax.Expr
+  type Expr = Syntax.Expr
 
-  function method {:verify true} Simplify_Single(e: Expr): (e': Expr)
+  function method Simplify_Single(e: Expr): (e': Expr)
     ensures SupportsInterp(e) ==> SupportsInterp(e')
     ensures EqInterp(e, e')
     // This function puts all the transformation together
@@ -957,26 +808,26 @@ module Simplify {
     e3
   }
 
-  predicate {:verify true} Tr_Pre(p: Program) {
+  predicate Tr_Pre(p: Program) {
     true
   }
 
-  predicate {:verify true} Tr_Expr_Post(e: Exprs.T) {
+  predicate Tr_Expr_Post(e: Exprs.T) {
     true
   }
 
-  predicate {:verify true} Tr_Post(p: Program)
+  predicate Tr_Post(p: Program)
   {
     Deep.All_Program(p, Tr_Expr_Post)
   }
 
-  const {:verify true} Tr_Expr : BottomUpTransformer :=
+  const Tr_Expr : BottomUpTransformer :=
     ( Deep.All_Expr_True_Forall(Tr_Expr_Post);
       assert IsBottomUpTransformer(Simplify_Single, Tr_Expr_Post);
       TR(Simplify_Single,
          Tr_Expr_Post))
 
-  function method {:verify true} Apply_Method(m: Method) : (m': Method)
+  function method Apply_Method(m: Method) : (m': Method)
     ensures Deep.All_Method(m', Tr_Expr_Post)
     ensures Tr_Expr_Rel(m.methodBody, m'.methodBody)
     // Apply the transformation to a method.
@@ -993,7 +844,7 @@ module Simplify {
     Map_Method(m, Tr_Expr)
   }
 
-  function method {:verify true} Apply(p: Program) : (p': Program)
+  function method Apply(p: Program) : (p': Program)
     requires Tr_Pre(p)
     ensures Tr_Post(p')
     ensures Tr_Expr_Rel(p.mainMethod.methodBody, p'.mainMethod.methodBody)
@@ -1006,6 +857,6 @@ module Simplify {
     Map_Program(p, Tr_Expr)
   }
 }
-*/
+
 }
 
