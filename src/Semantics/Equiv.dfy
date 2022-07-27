@@ -166,48 +166,59 @@ module Bootstrap.Semantics.Equiv {
     // BUG(https://github.com/dafny-lang/dafny/issues/2260)
     // As ``EqValue`` appears a lot in foralls, using the `reveal` trick seemed too cumbersome
     // to be a valid option.
+    //
+    // Rk.: we initially wrote this definition with a match on the pair `(v, v')`:
+    // ```
+    // match (v, v') {
+    //   case (Unit, Unit) => true
+    //   case (Bool(b), Bool(b')) => b == b'
+    //   ...
+    // ```
+    // This caused problems for two reasons:
+    // - as we wanted exhaustivity checking, we had to write cases like the following at the end
+    //   of the match:
+    //  ```
+    //  case (Unit, _) => false
+    //  case (Bool(b), _) => false
+    //  ...
+    //  ```
+    // - worst, it lead to a combinatorial explosion in the generated Boogie file. In the specific
+    //   case of ``InterpTernaryOp_Eq``, calling this lemma somewhere caused stack overflows
+    //   because of the three `EqValue(...)` preconditions.
   {
-    match (v, v') {
-      case (Unit, Unit) => true
-      case (Bool(b), Bool(b')) => b == b'
-      case (Char(c), Char(c')) => c == c'
-      case (Int(i), Int(i')) => i == i'
-      case (Real(r), Real(r')) => r == r'
-      case (BigOrdinal(o), BigOrdinal(o')) => o == o'
-      case (BitVector(width, value), BitVector(width', value')) =>
-        && width == width'
-        && value == value'
-      case (Map(m), Map(m')) =>
-        ValueTypeHeight_Children_Lem(v); // For termination
-        ValueTypeHeight_Children_Lem(v'); // For termination
-        && m.Keys == m'.Keys
-        && |m| == |m'| // We *do* need this
-        && (forall x | x in m :: EqValue(m[x], m'[x]))
-      case (Multiset(ms), Multiset(ms')) =>
-        ms == ms'
-      case (Seq(sq), Seq(sq')) =>
-        ValueTypeHeight_Children_Lem(v); // For termination
-        ValueTypeHeight_Children_Lem(v'); // For termination
-        && |sq| == |sq'|
-        && (forall i | 0 <= i < |sq| :: EqValue(sq[i], sq'[i]))
-      case (Set(st), Set(st')) =>
-        && st == st'
-      case (Closure(ctx, vars, body), Closure(ctx', vars', body')) =>
-        EqValue_Closure(v, v')
-
-      // DISCUSS: Better way to write this?  Need exhaustivity checking
-      case (Unit, _) => false
-      case (Bool(b), _) => false
-      case (Char(c), _) => false
-      case (Int(i), _) => false
-      case (Real(r), _) => false
-      case (BigOrdinal(o), _) => false
-      case (BitVector(width, value), _) => false
-      case (Map(m), _) => false
-      case (Multiset(ms), _) => false
-      case (Seq(sq), _) => false
-      case (Set(st), _) => false
-      case (Closure(ctx, vars, body), _) => false
+    match v {
+      case Unit => v'.Unit?
+      case Bool(b) => v'.Bool? && b == v'.b
+      case Char(c) => v'.Char? && c == v'.c
+      case Int(i) =>  v'.Int?  && i == v'.i
+      case Real(r) => v'.Real? && r == v'.r
+      case BigOrdinal(o) => v'.BigOrdinal? && o == v'.o
+      case BitVector(width, value) =>
+        && v'.BitVector?
+        && width == v'.width
+        && value == v'.value
+      case Map(m) =>
+        && v'.Map?
+        && (ValueTypeHeight_Children_Lem(v); // For termination
+           ValueTypeHeight_Children_Lem(v'); // For termination
+           && m.Keys == v'.m.Keys
+           && |m| == |v'.m| // We *do* need this
+           && (forall x | x in m :: EqValue(m[x], v'.m[x])))
+      case Multiset(ms) =>
+        && v'.Multiset?
+        && ms == v'.ms
+      case Seq(sq) =>
+        && v'.Seq?
+        && (ValueTypeHeight_Children_Lem(v); // For termination
+           ValueTypeHeight_Children_Lem(v'); // For termination
+           && |sq| == |v'.sq|
+           && (forall i | 0 <= i < |sq| :: EqValue(sq[i], v'.sq[i])))
+      case Set(st) =>
+        && v'.Set?
+        && st == v'.st
+      case Closure(_, _, _) =>
+        && v'.Closure?
+        && EqValue_Closure(v, v')
     }
   }
 
@@ -1240,7 +1251,6 @@ module Bootstrap.Semantics.Equiv {
     requires EqValue(v0, v0')
     requires EqValue(v1, v1')
     requires EqValue(v2, v2')
-    requires InterpTernaryOp(e, top, v0, v1, v2).Success?
     ensures EqPureInterpResultValue(InterpTernaryOp(e, top, v0, v1, v2), InterpTernaryOp(e', top, v0', v1', v2'))
   {
     reveal InterpTernaryOp();
