@@ -1217,7 +1217,8 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
-  lemma InterpTernaryOp_Eq(
+  // TODO(SMH): this proof takes ~1 minute
+  lemma {:timeLimit 120} InterpTernaryOp_Eq(
     e: Interp.Expr, e': Interp.Expr, top: TernaryOp, v0: WV, v1: WV, v2: WV, v0': WV, v1': WV, v2': WV
   )
     requires EqValue(v0, v0')

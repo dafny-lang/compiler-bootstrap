@@ -23,41 +23,44 @@ module Bootstrap.Semantics.Values {
     | Set(st: set<Value>)
     | Closure(ctx: Context, vars: seq<string>, body: Exprs.T)
   {
-    predicate method HasType(ty: Types.T) {
+    predicate method HasType(ty: Types.T)
+      // Similarly to ``Equiv.EqValue``, this definition was initially written with a match
+      // over the pair `(this, ty)`. We changed this: see the comment in ``Equiv.EqValue``
+      // for detailed explanations.
+    {
       this.WellFormed1() &&
-      match (this, ty) // FIXME tests on other side
-        case (Unit, Unit) => true
-        case (Bool(b), Bool()) => true
-        case (Char(c), Char()) => true
-        case (Int(i), Int()) => true
-        case (Real(r), Real()) => true
-        case (BigOrdinal(o), BigOrdinal()) => true
-        case (BitVector(width, value), BitVector(twidth)) =>
-          width == twidth
-        case (Map(m), Collection(true, Map(kT), eT)) =>
-          forall x | x in m :: x.HasType(kT) && m[x].HasType(eT)
-        case (Multiset(ms), Collection(true, Multiset, eT)) =>
-          forall x | x in ms :: x.HasType(eT)
-        case (Seq(sq), Collection(true, Seq, eT)) =>
-          forall x | x in sq :: x.HasType(eT)
-        case (Set(st), Collection(true, Set, eT)) =>
-          forall x | x in st :: x.HasType(eT)
-        case (Closure(ctx, vars, body), Function(args, ret)) =>
-          true // FIXME: Need a typing relation on terms, not just values
-
-        // DISCUSS: Better way to write this?  Need exhaustivity checking
-        case (Unit, _) => false
-        case (Bool(b), _) => false
-        case (Char(c), _) => false
-        case (Int(i), _) => false
-        case (Real(r), _) => false
-        case (BigOrdinal(o), _) => false
-        case (BitVector(width, value), _) => false
-        case (Map(m), _) => false
-        case (Multiset(ms), _) => false
-        case (Seq(sq), _) => false
-        case (Set(st), _) => false
-        case (Closure(ctx, vars, body), _) => false
+      match this // FIXME tests on other side
+        case Unit => ty.Unit?
+        case Bool(b) => ty.Bool?
+        case Char(c) => ty.Char?
+        case Int(i) => ty.Int?
+        case Real(r) => ty.Real?
+        case BigOrdinal(o) => ty.BigOrdinal?
+        case BitVector(width, value) =>
+          && ty.BitVector?
+          && width == ty.width
+        case Map(m) =>
+          && ty.Collection?
+          && ty.finite
+          && ty.kind.Map?
+          && forall x | x in m :: x.HasType(ty.kind.keyType) && m[x].HasType(ty.eltType)
+        case Multiset(ms) =>
+          && ty.Collection?
+          && ty.finite
+          && ty.kind.Multiset?
+          && forall x | x in ms :: x.HasType(ty.eltType)
+        case Seq(sq) =>
+          && ty.Collection?
+          && ty.finite
+          && ty.kind.Seq?
+          && forall x | x in sq :: x.HasType(ty.eltType)
+        case Set(st) =>
+          && ty.Collection?
+          && ty.finite
+          && ty.kind.Set?
+          && forall x | x in st :: x.HasType(ty.eltType)
+        case Closure(ctx, vars, body) =>
+          && ty.Function? // FIXME: Need a typing relation on terms, not just values
     }
 
     function method Children() : (cs: set<Value>)
