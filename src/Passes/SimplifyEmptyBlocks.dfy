@@ -340,6 +340,9 @@ module FilterEmptyBlocks {
 
 module InlineLastBlock {
   // Tranformation 2
+  //
+  // Rk.: the key element in the correctness proof is the invariant provided by the
+  // lemmas in the ``EqInterpScopes`` module.
   
   import Utils.Lib
   import Utils.Lib.Debug
