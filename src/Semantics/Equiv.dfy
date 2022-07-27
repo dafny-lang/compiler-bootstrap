@@ -911,34 +911,6 @@ module Bootstrap.Semantics.Equiv {
     InterpExprs_GEqInterp_Inst(EQ(EqValue, EqState), es, es', env, ctx, ctx');
   }
 
-/*  // TODO: remove
-  lemma InterpBlock_Exprs_Refl(es: seq<Expr>, env: Environment, ctx: State, ctx': State)
-    requires Seq_All(SupportsInterp, es)
-    requires EqState(ctx, ctx')
-    ensures EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es, env, ctx'))
-  {
-    reveal InterpBlock_Exprs();
-    if es == [] {}
-    else {
-       // Evaluate the first expression
-      var res0 := InterpExprWithType(es[0], Types.Unit, env, ctx);
-      var res0' := InterpExprWithType(es[0], Types.Unit, env, ctx');
-      EqInterp_Refl(es[0]);
-      EqInterp_Inst(es[0], es[0], env, ctx, ctx');
-
-      // Evaluate the remaining expressions
-      if res0.Success? && res0.value.ret == V.Unit {
-        var Return(_, ctx0) := res0.value;
-        var Return(_, ctx0') := res0'.value;
-
-        InterpBlock_Exprs_Refl(es[1..], env, ctx0, ctx0');
-      }
-      else {
-        // Trivial
-      }
-    }
-  }*/
-
   lemma Map_PairOfMapDisplaySeq(e: Interp.Expr, e': Interp.Expr, argvs: seq<WV>, argvs': seq<WV>)
     requires EqSeqValue(argvs, argvs')
     ensures EqPureInterpResult(EqSeqPairEqValueValue,

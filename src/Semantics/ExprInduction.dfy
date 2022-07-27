@@ -272,7 +272,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires P_Succ(st, arg0, st1, v0)
     requires Pes(st, [arg0])
     requires !Pes_Fail(st, [arg0])
-    requires Pes_StepValue(st, [arg0]) == SeqVToVS([v0])
+    requires Pes_Step(st, [arg0]) == (st1, SeqVToVS([v0]))
     ensures P(st, e)
 
   lemma InductApplyEagerBinaryOp_Succ(st: S, e: Expr, op: BinaryOps.T, arg0: Expr, arg1: Expr, st1: S, v0: V, st2: S, v1: V)
@@ -282,7 +282,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires P_Succ(st1, arg1, st2, v1)
     requires Pes(st, [arg0, arg1])
     requires !Pes_Fail(st, [arg0, arg1])
-    requires Pes_StepValue(st, [arg0, arg1]) == SeqVToVS([v0, v1])
+    requires Pes_Step(st, [arg0, arg1]) == (st2, SeqVToVS([v0, v1]))
     ensures P(st, e)
 
   lemma InductApplyEagerTernaryOp_Succ(
@@ -294,7 +294,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires P_Succ(st2, arg2, st3, v2)
     requires Pes(st, [arg0, arg1, arg2])
     requires !Pes_Fail(st, [arg0, arg1, arg2])
-    requires Pes_StepValue(st, [arg0, arg1, arg2]) == SeqVToVS([v0, v1, v2])
+    requires Pes_Step(st, [arg0, arg1, arg2]) == (st3, SeqVToVS([v0, v1, v2]))
     ensures P(st, e)
 
   lemma InductApplyEagerBuiltinDisplay(st: S, e: Expr, ty: Types.Type, args: seq<Expr>, st1: S, argvs: VS)
@@ -512,7 +512,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
             assert e.args == [arg0] + [];
             var (st1, v0, st2, vs1) := InductExprs_Step(st, arg0, []);
 
-            // Prove that the sequence of arguments evaluates to: [v0]
+            // Prove that the sequence of arguments evaluates to: (st', [v0])
             var es := [];
             assert Pes_Succ(st1, es, st2, vs1);
             assert st2 == st';
@@ -536,7 +536,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
             assert [arg1] == [arg1] + [];
             var (st2', v1, st3, vs'') := InductExprs_Step(st1, arg1, []);
 
-            // Prove that the sequence of arguments evaluates to: [v0, v1]
+            // Prove that the sequence of arguments evaluates to: (st', [v0, v1])
             var es := [];
             InductExprs_Nil(st2');
             assert Pes_Succ(st2', es, st2', NilVS);
@@ -564,7 +564,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
             assert [arg2] == [arg2] + [];
             var (st3', v2, st4, vs''') := InductExprs_Step(st2', arg2, []);
 
-            // Prove that the sequence of arguments evaluates to: [v0, v1]
+            // Prove that the sequence of arguments evaluates to: (st', [v0, v1])
             var es := [];
             InductExprs_Nil(st3');
             assert Pes_Succ(st3', es, st3', NilVS);

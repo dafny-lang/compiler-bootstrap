@@ -397,15 +397,10 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
     InterpBinaryOp_Eq(e, e, op, v0.v, v1.v, v0.v', v1.v');
   }
 
-  lemma InductApplyEagerTernaryOp_Succ ... {
+  lemma {:fuel SeqVToVS, 2} InductApplyEagerTernaryOp_Succ ... {
     reveal InterpExpr();
-    reveal InterpTernaryOp();
-
-    // TODO: using this lemma makes Dafny crash:
-    // InterpTernaryOp_Eq(e, e, op, v0.v, v1.v, v2.v, v0.v', v1.v', v2.v');
-
-    EqValue_HasEqValue_Eq(v0.v, v0.v');
-    EqValue_HasEqValue_Eq(v1.v, v1.v');
+    assert SeqVToVS([v0, v1, v2]) == MSeqValue([v0.v, v1.v, v2.v], [v0.v', v1.v', v2.v']);
+    InterpTernaryOp_Eq(e, e, op, v0.v, v1.v, v2.v, v0.v', v1.v', v2.v');
   }
 
   lemma InductApplyEagerBuiltinDisplay ... {
