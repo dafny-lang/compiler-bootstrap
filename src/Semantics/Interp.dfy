@@ -987,6 +987,7 @@ module Bootstrap.Semantics.Interp {
     Success(val)
   }
 
+  // TODO: remove the opaque keyword?
   function method {:opaque} SaveToRollback(ctx: State, vars: seq<string>)
     : State
     // This function is used when evaluating variable declarations:
