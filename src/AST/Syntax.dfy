@@ -373,13 +373,23 @@ module Exprs {
       }
     }
 
-    static lemma Bind_Size_Decrease(e: Expr)
-      requires e.Bind?
-      ensures Exprs_Size(e.bvals) < e.Size()
-      ensures e.bbody.Size() < e.Size()
+    static lemma Size_Decreases(e: Expr)
+      ensures e.Abs? ==> e.body.Size() < e.Size()
+      ensures e.If? ==> e.cond.Size() < e.Size() && e.thn.Size() < e.Size() && e.els.Size() < e.Size()
+      ensures e.Bind? ==> Exprs_Size(e.bvals) < e.Size() && e.bbody.Size() < e.Size()
     {
-      Exprs_Size_Append(e.bvals, [e.bbody]);
-      Exprs_Size_Index(e.Children(), |e.Children()| - 1);
+      var es := e.Children();
+      match e
+        case Abs(_, body) =>
+          assert body == es[0];
+        case If(cond, thn, els) =>
+          assert es[0] == cond;
+          assert es[1] == thn;
+          assert es[2] == els;
+        case Bind(_, bvals, bbody) =>
+          Exprs_Size_Append(bvals, [bbody]);
+          Exprs_Size_Index(es, |es| - 1);
+        case _ =>
     }
   }
 
