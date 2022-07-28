@@ -257,8 +257,17 @@ module Bootstrap.Semantics.Interp {
         Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
         var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
         var Return(v0, ctx0) :- InterpExpr(e0, env, ctx);
-        var res1 := InterpExpr(e1, env, ctx0);
-        InterpLazy_Eval(op, e0, e1, v0, ctx0, res1)
+        :- NeedType(e0, v0, Type.Bool);
+        match (op, v0) {
+          case (And, Bool(false)) => Success(Return(V.Bool(false), ctx0))
+          case (Or,  Bool(true))  => Success(Return(V.Bool(true), ctx0))
+          case (Imp, Bool(false)) => Success(Return(V.Bool(true), ctx0))
+          case (_,   Bool(b)) =>
+            assert op in {Exprs.And, Exprs.Or, Exprs.Imp};
+            var Return(v1, ctx1) :- InterpExpr(e1, env, ctx0);
+            :- NeedType(e1, v1, Type.Bool);
+            Success(Return(v1, ctx1))
+        }
 
       case Apply(Eager(op), args: seq<Expr>) =>
         var Return(argvs, ctx) :- InterpExprs(args, env, ctx);
@@ -441,21 +450,6 @@ module Bootstrap.Semantics.Interp {
         V.Seq(chars)
   }
 
-  function method InterpLazy_Eval(op: Exprs.LazyOp, e0: Expr, e1: Expr, v0: Value, ctx0: State, res1: InterpResult<Value>)
-    : InterpResult<Value>
-  {
-    :- NeedType(e0, v0, Type.Bool);
-    match (op, v0)
-      case (And, Bool(false)) => Success(Return(V.Bool(false), ctx0))
-      case (Or,  Bool(true))  => Success(Return(V.Bool(true), ctx0))
-      case (Imp, Bool(false)) => Success(Return(V.Bool(true), ctx0))
-      case (_,   Bool(b)) =>
-        assert op in {Exprs.And, Exprs.Or, Exprs.Imp};
-        var Return(v1, ctx1) :- res1;
-        :- NeedType(e1, v1, Type.Bool);
-        Success(Return(v1, ctx1))
-  }
-
   // This function is provided for convenience, and actually not used by ``InterpExpr``; for
   // detailed explanations, see the comments for ``InterpBlock``
   function method {:opaque} InterpLazy(e: Expr, env: Environment, ctx: State)
@@ -466,8 +460,16 @@ module Bootstrap.Semantics.Interp {
     Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
     var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
     var Return(v0, ctx0) :- InterpExpr(e0, env, ctx);
-    var res1 := InterpExpr(e1, env, ctx0);
-    InterpLazy_Eval(op, e0, e1, v0, ctx0, res1)
+    :- NeedType(e0, v0, Type.Bool);
+    match (op, v0)
+      case (And, Bool(false)) => Success(Return(V.Bool(false), ctx0))
+      case (Or,  Bool(true))  => Success(Return(V.Bool(true), ctx0))
+      case (Imp, Bool(false)) => Success(Return(V.Bool(true), ctx0))
+      case (_,   Bool(b)) =>
+        assert op in {Exprs.And, Exprs.Or, Exprs.Imp};
+        var Return(v1, ctx1) :- InterpExpr(e1, env, ctx0);
+        :- NeedType(e1, v1, Type.Bool);
+        Success(Return(v1, ctx1))
   }
 
   // Alternate implementation of ``InterpLazy``: less efficient but more closely

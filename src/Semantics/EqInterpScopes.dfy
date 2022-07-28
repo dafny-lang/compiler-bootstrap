@@ -399,6 +399,7 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
 
   lemma {:fuel SeqVToVS, 2} InductApplyEagerTernaryOp_Succ ... {
     reveal InterpExpr();
+    // TODO(SMH): ``SeqVToVS`` is called on literals: we shouldn't need fuel 2
     assert SeqVToVS([v0, v1, v2]) == MSeqValue([v0.v, v1.v, v2.v], [v0.v', v1.v', v2.v']);
     InterpTernaryOp_Eq(e, e, op, v0.v, v1.v, v2.v, v0.v', v1.v', v2.v');
   }
