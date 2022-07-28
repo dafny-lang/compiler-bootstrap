@@ -48,6 +48,7 @@ module Bootstrap.Semantics.Pure {
         // general one, which would compute the "footprint" of an expression (the set of
         // re-declared variables, updated variables, etc.).
         false
+      case Bind(_, _, _) => true
       case Update(_, _) => false
       case If(_, _, _) => true
   }
@@ -80,6 +81,8 @@ module Bootstrap.Semantics.Pure {
         InterpExpr_Lazy_IsPure_SameState(e, env, ctx);
       case Apply(Eager(op), args) =>
         InterpExpr_Eager_IsPure_SameState(e, env, ctx);
+      case Bind(_, _, _) =>
+        InterpExpr_Bind_IsPure_SameState(e, env, ctx);
       case VarDecl(vdecls, ovals) =>
       case Block(stmts) =>
         InterpExpr_Block_IsPure_SameState(e, env, ctx);
@@ -135,6 +138,34 @@ module Bootstrap.Semantics.Pure {
     var args := e.args;
 
     InterpExprs_IsPure_SameState(args, env, ctx);
+  }
+
+  lemma InterpExpr_Bind_IsPure_SameState(e: PureExpr, env: Environment, ctx: State)
+    requires e.Bind?
+    ensures InterpResultHasState(InterpExpr(e, env, ctx), ctx)
+    decreases e, 0
+  {
+    reveal SupportsInterp();
+    reveal InterpExpr();
+    reveal IsPure();
+    reveal InterpLazy();
+
+    var Bind(bvars, vals, body) := e;
+
+    var vars := VarsToNames(bvars);
+    var ctx1 := StartScope(ctx);
+    var res2 := InterpExprs(vals, env, ctx1);
+
+    if res2.Success? {
+      InterpExprs_IsPure_SameState(vals, env, ctx1);
+      var Return(vals, ctx2) := res2.value;
+
+      reveal SaveToRollback();
+      var ctx3 := SaveToRollback(ctx2, vars);
+      var ctx4 := ctx3.(locals := AugmentContext(ctx3.locals, vars, vals));
+      InterpExpr_IsPure_SameState(body, env, ctx4);
+    }
+    else {}
   }
 
   lemma InterpExpr_Block_IsPure_SameState(e: PureExpr, env: Environment, ctx: State)

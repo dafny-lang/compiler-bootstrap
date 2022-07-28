@@ -188,6 +188,9 @@ module Bootstrap.Semantics.InterpStateIneq.Base refines ExprInduction {
   lemma InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
   lemma InductVarDecl_Some_Succ  ... { reveal InterpExpr(); reveal SaveToRollback(); }
 
+  lemma InductBind_Fail ... { reveal InterpExpr(); reveal SaveToRollback(); }
+  lemma InductBind_Succ ... { reveal InterpExpr(); reveal SaveToRollback(); }
+
   // TODO(SMH): I tried simplifying the proofs below by adding a `requires` in ``InductBlock_Fail``
   // and ``InductBlock_Succ`` to provide the result of calling ``InterpExprs_Block_Equiv_Strong``,
   // but it didn't work due to SMT solvers' misteries.

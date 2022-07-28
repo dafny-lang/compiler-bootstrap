@@ -153,6 +153,12 @@ module Bootstrap.Transforms.BottomUp {
         var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
         var e' := Expr.Update(vars, vals');
         e'
+      case Bind(vars, vals, body) =>
+        var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
+        Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
+        var e' := Expr.Bind(vars, vals', Map_Expr(body, tr));
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
       case If(cond, thn, els) =>
         var e' := Expr.If(Map_Expr(cond, tr), Map_Expr(thn, tr), Map_Expr(els, tr));
         assert Exprs.ConstructorsMatch(e, e');
@@ -217,6 +223,15 @@ module Bootstrap.Transforms.BottomUp {
         var vals' := Seq.Map(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
         var e' := Expr.Update(vars, vals');
+        e'
+      case Bind(vars, vals, body) =>
+        var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
+        Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
+        Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
+        var body' := Map_Expr(body, tr);
+        assert body' == Map_Expr_WithRel(body, tr, rel); // We need this
+        var e' := Expr.Bind(vars, vals', body');
+        assert Exprs.ConstructorsMatch(e, e');
         e'
       case If(cond, thn, els) =>
         var e' := Expr.If(Map_Expr_WithRel(cond, tr, rel), Map_Expr_WithRel(thn, tr, rel), Map_Expr_WithRel(els, tr, rel));
@@ -290,6 +305,8 @@ module Bootstrap.Transforms.BottomUp {
           case VarDecl(vdecls, ovals) =>
             assert rel(e, tr'.f(e));
           case Update(vars, vals) =>
+            assert rel(e, tr'.f(e));
+          case Bind(vars, vals, body) =>
             assert rel(e, tr'.f(e));
           case If(cond, thn, els) => {
             assert rel(e, tr'.f(e));
@@ -432,6 +449,9 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       }
       case Update(_, _) => {
         EqInterp_Expr_Update_CanBeMapLifted(e, e', env, ctx, ctx');
+      }
+      case Bind(_, _, _) => {
+        EqInterp_Expr_Bind_CanBeMapLifted_Lem(e, e', env, ctx, ctx');
       }
       case Block(_) => {
         EqInterp_Expr_Block_CanBeMapLifted(e, e', env, ctx, ctx');
@@ -970,6 +990,66 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
 
     assert res == Success(Return(Unit, ctx1));
     assert res' == Success(Return(Unit, ctx1'));
+  }
+
+  lemma EqInterp_Expr_Bind_CanBeMapLifted_Lem(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
+    requires e.Bind?
+    requires e'.Bind?
+    requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
+    ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
+    decreases e, 0
+  {
+    reveal EqInterp_CanBeMapLifted_Pre();
+    reveal EqInterp_CanBeMapLifted_Post();
+
+    reveal InterpExpr();
+    reveal SupportsInterp();
+
+    var res := InterpExpr(e, env, ctx);
+    var res' := InterpExpr(e', env, ctx');
+
+    var Bind(bvars, vals, body) := e;
+    var Bind(bvars', vals', body') := e';
+    assert bvars == bvars';
+
+    var vars := VarsToNames(bvars);
+
+    var ctx1 := StartScope(ctx);
+    var ctx1' := StartScope(ctx');
+    assert EqState(ctx1, ctx1') by { reveal GEqCtx(); }
+
+    assert All_Rel_Forall(EqInterp, vals, vals') by {
+      forall i:nat | i < |vals| ensures EqInterp(vals[i], vals'[i]) {
+        assert vals[i] == e.Children()[i];
+        assert vals'[i] == e'.Children()[i];
+      }
+    }
+    assert EqInterp(body, body') by {
+      assert body == e.Children()[|vals|];
+      assert body' == e'.Children()[|vals|];
+    }
+
+    // The rhs evaluate to similar results
+    var res2 := InterpExprs(vals, env, ctx1);
+    var res2' := InterpExprs(vals', env, ctx1');
+    InterpExprs_EqInterp_Inst(vals, vals', env, ctx1, ctx1');
+    assert EqInterpResultSeqValue(res2, res2');
+    var Return(valsvs, ctx2) := res2.value;
+    var Return(valsvs', ctx2') := res2'.value;
+
+    var ctx3 := SaveToRollback(ctx2, vars);
+    var ctx3' := SaveToRollback(ctx2', vars);
+    SaveToRollback_Equiv(ctx2, ctx2', vars);
+    assert EqState(ctx3, ctx3');
+
+    AugmentContext_Equiv(ctx3.locals, ctx3'.locals, vars, valsvs, valsvs');
+    var ctx4 := ctx3.(locals := AugmentContext(ctx3.locals, vars, valsvs));
+    var ctx4' := ctx3'.(locals := AugmentContext(ctx3'.locals, vars, valsvs'));
+    assert EqState(ctx4, ctx4');
+
+    EqInterp_Inst(body, body', env, ctx4, ctx4');
+
+    reveal GEqCtx();
   }
 
   lemma EqInterp_CanBeMapLifted()

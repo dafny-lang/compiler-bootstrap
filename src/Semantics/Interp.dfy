@@ -36,6 +36,7 @@ module Bootstrap.Semantics.Interp {
       case Abs(vars, body) => true
       case Apply(Lazy(op), args) => true
       case Apply(Eager(op), args) => EagerOpSupportsInterp(op)
+      case Bind(vars, vals, body) => true
       case VarDecl(vars, ovals) => true
       case Update(vars, vals) => true
       case Block(stmts) => true
@@ -285,6 +286,25 @@ module Bootstrap.Semantics.Interp {
               InterpFunctionCall(e, env, argvs[0], argvs[1..])
           })
 
+      case Bind(bvars, vals: seq<Expr>, body: Expr) =>
+        // This is ``InterpBind`` inlined (see the discussion for the ``Block`` case)
+        var vars := VarsToNames(bvars);
+        // A bind acts like a scope containing variable declarations:
+        // - Open a scope
+        var ctx1 := StartScope(ctx);
+        // - Evaluate the rhs
+        var Return(vals, ctx2) :- InterpExprs(vals, env, ctx1);
+        // - Save the shadowed variables to the rollback
+        var ctx3 := SaveToRollback(ctx2, vars);
+        // - Augment the context with the new bindings
+        var ctx4 := ctx3.(locals := AugmentContext(ctx3.locals, vars, vals));
+        // - Execute the body
+        var Return(v, ctx5) :- InterpExpr(body, env, ctx4);
+        // - End the scope
+        var ctx6 := EndScope(ctx, ctx5);
+        // Return
+        Success(Return(v, ctx6))
+
       case VarDecl(vdecls, ovals) =>
         var vars := VarsToNames(vdecls);
         // Evaluate the rhs, if there is
@@ -513,6 +533,32 @@ module Bootstrap.Semantics.Interp {
     reveal SupportsInterp();
     reveal InterpLazy();
     reveal InterpLazy_Eagerly();
+  }
+
+  // This function is provided for convenience, and actually not used by ``InterpExpr``; for
+  // detailed explanations, see the comments for ``InterpBlock``
+  function method {:opaque} InterpBind(e: Expr, env: Environment, ctx: State)
+    : InterpResult<Value>
+    requires e.Bind?
+  {
+    reveal SupportsInterp();
+    var Bind(bvars, vals, body) := e;
+    var vars := VarsToNames(bvars);
+    // A bind acts like a scope containing variable declarations:
+    // - Open a scope
+    var ctx1 := StartScope(ctx);
+    // - Evaluate the rhs
+    var Return(vals, ctx2) :- InterpExprs(vals, env, ctx1);
+    // - Save the shadowed variables to the rollback
+    var ctx3 := SaveToRollback(ctx2, vars);
+    // - Augment the context with the new bindings
+    var ctx4 := ctx3.(locals := AugmentContext(ctx3.locals, vars, vals));
+    // - Execute the body
+    var Return(v, ctx5) :- InterpExpr(body, env, ctx4);
+    // - End the scope
+    var ctx6 := EndScope(ctx, ctx5);
+    // Return
+    Success(Return(v, ctx6))
   }
 
   function method {:opaque} InterpUnaryOp(expr: Expr, op: Syntax.UnaryOp, v0: Value)
@@ -1070,5 +1116,14 @@ module Bootstrap.Semantics.Interp {
   {
     reveal InterpExpr();
     reveal InterpLazy();
+  }
+
+  // This lemma is here for sanity purposes - see the comment for the ``Bind`` case in ``InterpExpr``
+  lemma InterpBind_Correct(e: Expr, env: Environment, ctx: State)
+    requires e.Bind?
+    ensures InterpExpr(e, env, ctx) == InterpBind(e, env, ctx)
+  {
+    reveal InterpExpr();
+    reveal InterpBind();
   }
 }
