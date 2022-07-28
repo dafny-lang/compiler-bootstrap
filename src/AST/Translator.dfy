@@ -427,10 +427,12 @@ module Bootstrap.AST.Translator {
     Success(DE.Abs(bvars, body))
   }
 
-  function method TranslateLetExpr(le: C.LetExpr)
+  function method TranslateLetExpr(as_bind: bool, le: C.LetExpr)
     : (e: TranslationResult<Expr>)
     reads *
     decreases ASTHeight(le), 0
+    // - `as_bind`: do we translate the let expression as a ``Bind``, or do we desugar it to a
+    //   ``Block`` containing a ``VarDecl``?
   {
     :- Need(le.Exact, UnsupportedExpr(le));
     var lhss := ListUtils.ToSeq(le.LHSs);
@@ -444,10 +446,13 @@ module Bootstrap.AST.Translator {
     :- Need(|bvs| == |elems|, UnsupportedExpr(le));
     assume Decreases(le.Body, le);
     var body :- TranslateExpression(le.Body);
-    var vdecl := DE.VarDecl(bvs, DE.Some(elems));
-    var block := DE.Block([vdecl, body]);
-    assert P.All_Expr(block, DE.WellFormed); // Doesn't work without this assertion
-    Success(block)
+    if as_bind then
+      Success(DE.Bind(bvs, elems, body))
+    else
+      var vdecl := DE.VarDecl(bvs, DE.Some(elems));
+      var block := DE.Block([vdecl, body]);
+      assert P.All_Expr(block, DE.WellFormed); // Doesn't work without this assertion
+      Success(block)
   }
 
   function method TranslateConcreteSyntaxExpression(ce: C.ConcreteSyntaxExpression)
@@ -506,7 +511,7 @@ module Bootstrap.AST.Translator {
     else if c is C.LambdaExpr then
       TranslateLambdaExpr(c as C.LambdaExpr)
     else if c is C.LetExpr then
-      TranslateLetExpr(c as C.LetExpr)
+      TranslateLetExpr(true, c as C.LetExpr)
     else if c is C.ITEExpr then
       TranslateITEExpr(c as C.ITEExpr)
     else if c is C.ConcreteSyntaxExpression then

@@ -2,6 +2,7 @@ include "../../Interop/CSharpDafnyASTModel.dfy"
 include "../../Interop/CSharpInterop.dfy"
 include "../../Interop/CSharpDafnyInterop.dfy"
 include "../../AST/Translator.dfy"
+include "../../Passes/BindToVarDecl.dfy"
 include "../../Passes/SimplifyEmptyBlocks.dfy"
 include "../../Passes/EliminateNegatedBinops.dfy"
 include "../../Transforms/BottomUp.dfy"
@@ -16,6 +17,7 @@ module {:extern "Bootstrap.Backends.CSharp"} Bootstrap.Backends.CSharp {
   import AST.Predicates
   import AST.Translator
   import Transforms.BottomUp
+  import Passes.BindToVarDecl
   import Passes.SimplifyEmptyBlocks
   import Passes.EliminateNegatedBinops
   import opened AST.Predicates.Deep
@@ -25,7 +27,6 @@ module Compiler {
   import opened Interop.CSharpDafnyInterop
   import opened AST.Syntax
   import AST.Predicates
-  import Passes.SimplifyEmptyBlocks
   import Passes.EliminateNegatedBinops
   import opened AST.Predicates.Deep
 
@@ -232,6 +233,8 @@ module Compiler {
         Unsupported
       case Update(vars, vals) =>
         Unsupported
+      case Bind(_, _, _) =>
+        Unsupported
       case If(cond, thn, els) =>
         var cCond := CompileExpr(cond);
         var cThn := CompileExpr(thn);
@@ -299,7 +302,8 @@ module Compiler {
       var st := new CSharpDafnyInterop.SyntaxTreeAdapter(wr);
       match Translator.TranslateProgram(dafnyProgram) {
         case Success(translated) =>
-          var lowered := SimplifyEmptyBlocks.Simplify.Apply(translated);
+          var lowered := BindToVarDecl.Apply(translated);
+          lowered := SimplifyEmptyBlocks.Simplify.Apply(translated);
           lowered := EliminateNegatedBinops.Apply(lowered);
 
           // Because of the imprecise encoding of functions, we need to call a weakening

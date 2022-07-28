@@ -97,6 +97,9 @@ abstract module Base {
           Seq.All(e requires e in exprs => All_Expr(e, P), exprs)
         case Block(exprs) =>
           Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
+        case Bind(vars, vals, body) =>
+          && Seq.All((e requires e in vals => All_Expr(e, P)), vals)
+          && All_Expr(body, P)
         case VarDecl(vdecls, ovals) =>
           && ovals.Some? ==> Seq.All((e requires e in ovals.value => All_Expr(e, P)), ovals.value)
         case Update(vars, vals) =>
@@ -115,6 +118,9 @@ abstract module Base {
           Seq.All(e requires e in exprs => All_Expr(e, P), exprs)
         case Block(exprs) =>
           Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
+        case Bind(vars, vals, body) =>
+          && Seq.All((e requires e in vals => All_Expr(e, P)), vals)
+          && All_Expr(body, P)
         case VarDecl(vdecls, ovals) =>
           && ovals.Some? ==> Seq.All((e requires e in ovals.value => All_Expr(e, P)), ovals.value)
         case Update(vars, vals) =>

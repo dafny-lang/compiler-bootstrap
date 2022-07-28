@@ -257,6 +257,7 @@ module Exprs {
     | Abs(vars: seq<string>, body: Expr)
     | Apply(aop: ApplyOp, args: seq<Expr>)
     | Block(stmts: seq<Expr>)
+    | Bind(bvars: seq<Var>, bvals: seq<Expr>, bbody: Expr)
     | VarDecl(vdecls: seq<Var>, ovals: OptExprs)
     // DISCUSS: `ovals` may make `VarDecl` slightly redundant with `Update` (i.e., we
     // can always decompose `VarDecl` with initialization expressions as `VarDecl` followed
@@ -281,6 +282,11 @@ module Exprs {
           Seq.MaxF(var f := (e: Expr) requires e in args => e.Depth(); f, args, 0)
         case Block(stmts) =>
           Seq.MaxF(var f := (e: Expr) requires e in stmts => e.Depth(); f, stmts, 0)
+        case Bind(vars, vals, body) =>
+          Math.Max(
+            Seq.MaxF(var f := (e: Expr) requires e in vals => e.Depth(); f, vals, 0),
+            body.Depth()
+          )
         case VarDecl(vdecls, ovals) =>
           match ovals {
             case Some(vals) =>
@@ -306,6 +312,7 @@ module Exprs {
         case Abs(vars, body) => [body]
         case Apply(aop, exprs) => exprs
         case Block(exprs) => exprs
+        case Bind(vars, vals, body) => vals + [body]
         case VarDecl(vdecls, ovals) =>
           match ovals {
             case Some(vals) => vals
@@ -341,6 +348,30 @@ module Exprs {
         assert es[0] in es;
         es[0].Size() + Exprs_Size(es[1..])
     }
+
+    static lemma Exprs_Size_Append(es: seq<Expr>, es': seq<Expr>)
+      ensures Exprs_Size(es + es') == Exprs_Size(es) + Exprs_Size(es')
+    {
+      if es == [] {
+        assert es + es' == es';
+        assert Exprs_Size(es) == 0;
+      }
+      else {
+        assert es + es' == [es[0]] + (es[1..] + es');
+        Exprs_Size_Append(es[1..], es');
+      }
+    }
+
+    static lemma Exprs_Size_Index(es: seq<Expr>, i: nat)
+      requires i < |es|
+      ensures es[i].Size() <= Exprs_Size(es)
+    {
+      if i == 0 {}
+      else {
+        assert es[i] == es[1..][i - 1];
+        Exprs_Size_Index(es[1..], i - 1);
+      }
+    }
   }
 
   const Exprs_Size := Expr.Exprs_Size
@@ -359,6 +390,8 @@ module Exprs {
         |es| >= 1 // Needs a function to call
       case Apply(Eager(Builtin(Display(ty))), es) =>
         ty.Collection? && ty.finite
+      case Bind(vars, vals, _) =>
+        |vars| == |vals|
       case VarDecl(vdecls, ovals) =>
         ovals.Some? ==> |vdecls| == |ovals.value|
       case Update(vars, vals) =>
@@ -381,6 +414,8 @@ module Exprs {
         e'.Block? && |stmts| == |e'.stmts|
       case If(cond, thn, els) =>
         e'.If?
+      case Bind(bvars, bvals, bbody) =>
+        e'.Bind? && bvars == e'.bvars && |bvals| == |e'.bvals|
       case VarDecl(vdecls, ovals) =>
         // TODO(SMH): we might not want to check that the variable types match (there
         // may be aliases)
