@@ -693,10 +693,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
         var vars := VarsToNames(bvars);
         var st1 := StateStartScope(st);
 
-        assert Exprs.Exprs_Size(bvals) <= Exprs.Exprs_Size(e.Children()) by {
-          assert e.Children() == bvals + [bbody];
-          Exprs.Expr.Exprs_Size_Append(bvals, [bbody]);
-        }
+        assert Exprs.Exprs_Size(bvals) < e.Size() by { Exprs.Expr.Bind_Size_Decrease(e); }
         Pes_Satisfied(st1, bvals); // Recursion
         assert !Pes_Fail(st1, bvals) by { InductBind_Fail(st, e, bvars, bvals, bbody, vars, st1); }
 
@@ -710,10 +707,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
         else {
           var st4 := UpdateState(st3, vars, vals);
 
-          assert bbody.Size() <= Exprs.Exprs_Size(e.Children()) by {
-            assert bbody == e.Children()[|e.Children()| - 1];
-            Exprs.Expr.Exprs_Size_Index(e.Children(), |e.Children()| - 1);
-          }
+          assert bbody.Size() < e.Size() by { Exprs.Expr.Bind_Size_Decrease(e); }
           P_Satisfied(st4, bbody); // Recursion
           assert !P_Fail(st4, bbody) by { InductBind_Fail(st, e, bvars, bvals, bbody, vars, st1); }
 

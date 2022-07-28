@@ -372,6 +372,15 @@ module Exprs {
         Exprs_Size_Index(es[1..], i - 1);
       }
     }
+
+    static lemma Bind_Size_Decrease(e: Expr)
+      requires e.Bind?
+      ensures Exprs_Size(e.bvals) < e.Size()
+      ensures e.bbody.Size() < e.Size()
+    {
+      Exprs_Size_Append(e.bvals, [e.bbody]);
+      Exprs_Size_Index(e.Children(), |e.Children()| - 1);
+    }
   }
 
   const Exprs_Size := Expr.Exprs_Size
