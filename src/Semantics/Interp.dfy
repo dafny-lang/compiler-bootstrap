@@ -986,6 +986,24 @@ module Bootstrap.Semantics.Interp {
     Success(val)
   }
 
+  // TODO: remove the opaque keyword?
+  function method {:opaque} SaveToRollback(ctx: State, vars: seq<string>)
+    : State
+    // This function is used when evaluating variable declarations:
+    // - save the non-local variables which are about to be shadowed into the rollback context
+    // - set the declared variables as "uninitialized" (by removing them from the local
+    //   context)
+  {
+    // Convert the sequence of variables to a set
+    var vars := set x | x in vars;
+    // We have to save the variables which:
+    // - are already present in the context (with a value)
+    // - are not in rollback
+    var save := map x | x in (vars * ctx.locals.Keys) - ctx.rollback.Keys :: ctx.locals[x];
+    // Update the contexts
+    ctx.(locals := ctx.locals - vars, rollback := ctx.rollback + save)
+  }
+
   // TODO(SMH): update this to not enforce the intermediary blocks to evaluate to `Unit`,
   // and use ``InterpExprs``. We will add a condition on ``Expr`` stating that there can't
   // be empty blocks, and will use `{ () }` as a placeholder for an empty block whenever
@@ -1024,23 +1042,6 @@ module Bootstrap.Semantics.Interp {
     var Return(v, ctx2) :- InterpBlock_Exprs(stmts, env, ctx1);
     var ctx3 := EndScope(ctx, ctx2);
     Success(Return(v, ctx3))
-  }
-
-  function method {:opaque} SaveToRollback(ctx: State, vars: seq<string>)
-    : State
-    // This function is used when evaluating variable declarations:
-    // - save the non-local variables which are about to be shadowed into the rollback context
-    // - set the declared variables as "uninitialized" (by removing them from the local
-    //   context)
-  {
-    // Convert the sequence of variables to a set
-    var vars := set x | x in vars;
-    // We have to save the variables which:
-    // - are already present in the context (with a value)
-    // - are not in rollback
-    var save := map x | x in (vars * ctx.locals.Keys) - ctx.rollback.Keys :: ctx.locals[x];
-    // Update the contexts
-    ctx.(locals := ctx.locals - vars, rollback := ctx.rollback + save)
   }
 
 /*  function method InterpBind(e: Expr, env: Environment, ctx: State, vars: seq<string>, vals: seq<Value>, body: Expr)
