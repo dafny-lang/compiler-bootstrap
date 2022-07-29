@@ -305,6 +305,9 @@ module Exprs {
 
     function method Children() : (s: seq<Expr>)
       ensures forall e' | e' in s :: e'.Depth() < this.Depth()
+      ensures this.Abs? ==> |s| == 1 && this.body == s[0]
+      ensures this.If? ==> |s| == 3 && this.cond == s[0] && this.thn == s[1] && this.els == s[2]
+      ensures this.Bind? ==> |s| == |this.bvals| + 1 && this.bvals == s[0..|this.bvals|] && this.bbody == s[|this.bvals|]
     {
       match this {
         case Var(_) => []
@@ -381,11 +384,7 @@ module Exprs {
       var es := e.Children();
       match e
         case Abs(_, body) =>
-          assert body == es[0];
         case If(cond, thn, els) =>
-          assert es[0] == cond;
-          assert es[1] == thn;
-          assert es[2] == els;
         case Bind(_, bvals, bbody) =>
           Exprs_Size_Append(bvals, [bbody]);
           Exprs_Size_Index(es, |es| - 1);

@@ -1,72 +1,205 @@
-include "../Interop/CSharpDafnyASTModel.dfy"
-include "../Interop/CSharpInterop.dfy"
-include "../Interop/CSharpDafnyInterop.dfy"
-include "../Interop/CSharpDafnyASTInterop.dfy"
+//include "../Interop/CSharpDafnyASTModel.dfy"
+//include "../Interop/CSharpInterop.dfy"
+//include "../Interop/CSharpDafnyInterop.dfy"
+//include "../Interop/CSharpDafnyASTInterop.dfy"
 include "../Utils/Library.dfy"
 include "../Utils/StrTree.dfy"
-include "Interp.dfy"
-include "Equiv.dfy"
-include "ExprInduction.dfy"
-include "InterpStateIneq.dfy"
+include "../Semantics/Interp.dfy"
+include "../Semantics/Equiv.dfy"
+include "../Semantics/ExprInduction.dfy"
+//include "InterpStateIneq.dfy"
 
-module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
-  // This module provides lemmas which state that evaluating an expression with equivalent contexts
-  // leads to equivalent results. The meaning of "equivalent contexts" here is given by ``EqResult``
-  // below. We need this quite general notion to prove, for instance, that it is ok to flatten a
-  // block ending another block, or in other words that transformations like the following one preserve
-  // the semantics of the program:
-  // ```
-  // {
-  //   var x := 0;
-  //   f(x);
-  //   {
-  //     x := 1;
-  //     g(x);
-  //     var x := true;
-  //     var y := 2;
-  //     h(x, y);
-  //   }
-  //   // (i)
-  // }
-  // 
-  //     ~~>
-  //
-  // {
-  //   var x := 0;
-  //   f(x);
-  //   x := 1;
-  //   g(x);
-  //   var x := true;
-  //   var y := 2;
-  //   h(x, y);
-  //   // (i)
-  // }
-  // ```
-  //
-  // An important point in the transformation above is that when reaching (i), the environments
-  // in the two programs is not the same: for instance, in the transformed program we have a
-  // binding `y -> 2`, which is not present in the environment of the original program (because
-  // it went out of scope). However, if we pop one more scope we do get equivalent environments.
-  // Building on this insight, we prove an invariant which involves an "outer rollback", the
-  // rollback from the scope just above the current scope.
+module Bootstrap.Transforms.InlineVar.Base {
+  import opened AST.Syntax
+  import opened Utils.Lib
+  import opened Utils.Lib.Datatypes
+  import opened AST.Predicates
+  import Semantics.Interp
+  import opened Semantics.Equiv
+  import opened Generic
+  import Shallow
 
-  //
-  // Declarations
-  //
+  type Environment = Interp.Environment
+  type State = Interp.State
+  type Expr = Interp.Expr
+  const VarsToNames := Interp.VarsToNames
+
+  // TODO(SMH): move?
+  function method VarsOfExpr(e: Expr): set<string>
+    decreases e.Size(), 0
+    // Return the set of all variables used in an expression (accessed, updated or even declared)
+  {
+    reveal Interp.SupportsInterp();
+    Expr.Size_Decreases(e); // For termination
+    match e {
+      case Var(v) => {v}
+      case Literal(_) => {}
+      case Abs(vars, body) => (set x | x in vars) + VarsOfExpr(body)
+      case Apply(aop, exprs) =>
+        VarsOfExprs(exprs)
+      case Block(exprs) =>
+        VarsOfExprs(exprs)
+      case VarDecl(vdecls, ovals) =>
+        var s := if ovals.Some? then VarsOfExprs(ovals.value) else {};
+        s + set x | x in VarsToNames(vdecls)
+      case Update(vars, vals) =>
+        (set x | x in vars) + VarsOfExprs(vals)
+      case Bind(vars, vals, body) =>
+        (set x | x in VarsToNames(vars)) + VarsOfExprs(vals) + VarsOfExpr(body)
+      case If(cond, thn, els) =>
+        VarsOfExpr(cond) + VarsOfExpr(thn) + VarsOfExpr(els)
+    }
+  }
+
+  function method VarsOfExprs(es: seq<Expr>): set<string>
+    decreases Expr.Exprs_Size(es), 1
+  {
+    if es == [] then {}
+    else VarsOfExpr(es[0]) + VarsOfExprs(es[1..])
+  }
+
+  type Subst = map<string, Expr>
+  const EmptyBlock: Interp.Expr := reveal Interp.SupportsInterp(); Expr.Block([])
+
+  predicate method CanInlineVar(p: (Exprs.Var, Expr) -> bool, after: set<string>, v: Exprs.Var, rhs: Expr)
+  {
+    && p(v, rhs) // The filtering predicate allows to inline this variable
+    && v.name !in after // The variable is not shadowed later
+    && (VarsOfExpr(rhs) * after) == {} // The variables used in the rhs are not shadowed later
+  }
+
+  function method AddToSubst(subst: Subst, v: Exprs.Var, rhs: Expr): Subst
+  {
+    subst[v.name := rhs]
+  }
+  
+  function method InlineInExpr(p: (Exprs.Var, Expr) -> bool, subst: Subst, after: set<string>, e: Expr):
+    Result<(Subst, Expr), ()>
+    decreases e.Size(), 0
+    // Inline the variables on which `p` evaluates to `true`, if possible.
+    //
+    // For now we do something quite simple.
+    //
+    // - `subst`: the accumulated substitutions
+    // - `after`: the set of variables present in the expressions that will get evaluated *after* `e`
+  {
+    reveal Interp.SupportsInterp();
+    Expr.Size_Decreases(e); // For termination
+    match e {
+      case Var(v) =>
+        if v in subst.Keys then Success((subst, subst[v])) else Success((subst, e))
+
+      case Literal(_) => Success((subst, e))
+
+      case Abs(vars, body) =>
+        var (_, body') :- InlineInExpr(p, subst, {}, body);
+        Success((subst, e.(body := body')))
+
+      case Apply(aop, args) =>
+        var (subst', args') :- InlineInExprs(p, subst, after, args);
+        Success((subst', e.(args := args')))
+
+      case Block(stmts) =>
+        var (_, stmts') :- InlineInExprs(p, subst, {}, stmts);
+        Success((subst, e.(stmts := stmts')))
+
+      case VarDecl(vdecls, ovals) =>
+        if ovals.Some? then
+          var (subst1, vals') :- InlineInExprs(p, subst, after, ovals.value);
+          // For now, we inline only if there is exactly one variable
+          if |vdecls| == 1 && CanInlineVar(p, after, vdecls[0], vals'[0]) then
+            var subst2 := AddToSubst(subst, vdecls[0], vals'[0]);
+            Success((subst2, EmptyBlock))
+          else Success((subst1, Expr.VarDecl(vdecls, Exprs.Some(vals'))))
+        else Success((subst, e))
+
+      case Update(vars, vals) =>
+        var (subst', vals') :- InlineInExprs(p, subst, after, vals);
+        Success((subst', e.(vals := vals')))
+
+      case Bind(bvars, bvals, bbody) =>
+        var body_vars := VarsOfExpr(bbody);
+        var after1 := after + body_vars;
+        var (subst1, bvals') :- InlineInExprs(p, subst, after1, bvals);
+        // For now, we inline only if there is exactly one variable
+        // Rk.: we return the original subst because there is a scope
+        if |bvars| == 1 && CanInlineVar(p, after1, bvars[0], bvals'[0]) then
+            var subst2 := AddToSubst(subst, bvars[0], bvals'[0]);
+            var (subst3, bbody') :- InlineInExpr(p, subst2, after, bbody);
+            Success((subst, Expr.Block([bbody'])))
+        else
+          var (subst2, bbody') :- InlineInExpr(p, subst1, after, bbody);
+          Success((subst, Expr.Bind(bvars, bvals', bbody')))
+
+      case If(cond, thn, els) =>
+        var thn_vars := VarsOfExpr(thn);
+        var els_vars := VarsOfExpr(els);
+        var (subst1, cond') :- InlineInExpr(p, subst, after + thn_vars + els_vars, cond);
+        var (_, thn') :- InlineInExpr(p, subst1, after, thn);
+        var (_, els') :- InlineInExpr(p, subst1, after, els);
+        // TODO: we must check that no variables leak from the branches
+        Success((subst1, Expr.If(cond', thn', els')))
+    }
+  }
+
+  function method InlineInExprs(p: (Exprs.Var, Expr) -> bool, subst: Subst, after: set<string>, es: seq<Expr>) :
+    (out: Result<(Subst, seq<Expr>), ()>)
+    decreases Expr.Exprs_Size(es), 1
+    ensures
+      match out {
+        case Success((_, es')) => |es'| == |es|
+        case Failure(_) => true
+      }
+  {
+    if es == [] then Success((subst, []))
+    else
+      var after' := after + VarsOfExprs(es[1..]); // This is terribly inefficient...
+      var (subst1, e') :- InlineInExpr(p, subst, after', es[0]);
+      var (subst2, es') :- InlineInExprs(p, subst1, after, es[1..]);
+      Success((subst2, [e'] + es'))
+  }
+}
+
+module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprInduction {
+  // TODO: remove //
+  import opened AST.Syntax
+  import opened Utils.Lib
+  import opened AST.Predicates
+  import opened Semantics.Interp
+  import opened Semantics.Values
+  import opened Semantics.Equiv
+  import opened Utils.Lib.Datatypes
+  type Expr = Interp.Expr
+  // END of TODO: remove //
+
+/*  import opened AST.Syntax
+  import opened Utils.Lib
+  import opened AST.Predicates
+  import Semantics.Interp
+  import opened Semantics.Equiv
+  import opened Generic
+  import Shallow*/
+  import opened Base
+
   type Value = Interp.Value
   type Context = Interp.Context
+  const VarsToNames := Interp.VarsToNames
 
-  const EmptyCtx: Context := map[]
+//  const EmptyCtx: Context := map[]
 
-  datatype MState = MState(env: Environment, outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
+  // - `ctx`: the environment to execute the original expression
+  // - `ctx'`: the environment to execute the expression on which we performed inlinings
+  // - `after`: the set of variables in the expressions to evaluate after the current one
+  datatype MState = MState(env: Environment, subst: Subst, after: set<string>, ctx: State, ctx': State)
   datatype MValue = MValue(v: Value, v': Value)
   datatype MSeqValue = MSeqValue(vs: seq<Value>, vs': seq<Value>)
 
-  predicate EqOuterRollback(outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
+/*  predicate EqOuterRollback(outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
   {
     EqCtx(ctx.rollback + outer_rollback, ctx'.rollback + outer_rollback')
-  }
+  }*/
 
+/*
   // TODO(SMH): move?
   predicate {:opaque} EqSubCtx(keys: set<string>, ctx: Context, ctx': Context)
   {
@@ -79,9 +212,43 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
   predicate EqRolled(keys: set<string>, ctx: State, ctx': State)
   {
     EqSubCtx(keys, ctx.locals + ctx.rollback, ctx'.locals + ctx'.rollback)
+  }*/
+
+  predicate {:opaque} EqStateOnSubst(env: Environment, subst: Subst, ctx: State, ctx': State)
+    requires subst.Keys <= ctx.locals.Keys
+  {
+    forall x | x in subst.Keys ::
+      var res := InterpExpr(subst[x], env, ctx');
+      match res {
+        case Success(Return(v, ctx'')) =>
+          && ctx'' == ctx'
+          && v == ctx.locals[x]
+        case Failure(_) => false
+      }
   }
 
-  predicate EqResult<V>(eq_value: (V,V) -> bool, outer_rollback: Context, res: InterpResult<V>, outer_rollback': Context, res': InterpResult<V>)
+  predicate EqStateWithSubst(env: Environment, subst: Subst, ctx: State, ctx': State)
+  {
+    && EqCtx(ctx.rollback, ctx'.rollback)
+    && ctx'.locals.Keys !! subst.Keys
+    && ctx'.locals.Keys + subst.Keys == ctx.locals.Keys
+    && EqCtx(map x | x in ctx'.locals.Keys :: ctx.locals[x], ctx'.locals)
+    && EqStateOnSubst(env, subst, ctx, ctx')
+  }
+
+  predicate Inv(st: MState)
+  {
+    EqStateWithSubst(st.env, st.subst, st.ctx, st.ctx')
+  }
+
+  predicate {:opaque} StateRel(st: MState, st': MState)
+  {
+    && st.subst.Keys <= st'.subst.Keys
+    && forall x | x in st.subst.Keys :: st'.subst[x] == st.subst[x]
+  }
+
+/*
+  predicate EqResult<V>(eq_value: (V,V) -> bool, subst: Subst, res: InterpResult<V>, res': InterpResult<V>)
   {
     match (res, res')
       case (Success(Return(v, ctx)), Success(Return(v', ctx'))) =>
@@ -129,18 +296,21 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
   {
     && EqCtx(st.ctx.locals, st.ctx'.locals)
     && EqOuterRollback(st.outer_rollback, st.ctx, st.outer_rollback', st.ctx')
-  }
+  }*/
 
   type S(!new) = MState
   type V(!new) = MValue
   type VS(!new) = vs:MSeqValue | |vs.vs| == |vs.vs'| witness MSeqValue([], [])
 
-  predicate P(st: S, e: Expr)
+/*  predicate P(st: S, e: Expr)
   {
     var res := InterpExpr(e, st.env, st.ctx);
     var res' := InterpExpr(e, st.env, st.ctx');
-    Inv(st) ==>
-    EqResultValue(st.outer_rollback, res, st.outer_rollback', res')
+    && Inv(st) ==>
+//    match (res, res') {
+//      Success(Return(v, ctx1), ctx1'
+//    }
+//    EqResultValue(st.outer_rollback, res, st.outer_rollback', res')
   }
   
   predicate P_Succ(st: S, e: Expr, st': S, v: V)
@@ -179,8 +349,9 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
   predicate Pes_Fail(st: S, es: seq<Expr>)
   {
     Inv(st) ==> InterpExprs(es, st.env, st.ctx).Failure?
-  }
+  }*/
 
+  /*
   function AppendValue ...
   {
     MSeqValue([v.v] + vs.vs, [v.v'] + vs.vs')
@@ -451,177 +622,5 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
     
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx);
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx');
-  }
-
-} // end of module Bootstrap.Semantics.EqInterpScopes.Base
-
-
-module Bootstrap.Semantics.EqInterpScopes {
-  // This module derives lemmas from ``Bootstrap.Semantics.EqInterpScopes.Base``.
-  
-  import opened AST.Syntax
-  import opened Utils.Lib
-  import opened AST.Predicates
-  import opened Interp
-  import opened Values
-  import opened Equiv
-  import opened Utils.Lib.Datatypes
-  import opened Base
-  import opened InterpStateIneq
-
-  type Expr = Interp.Expr
-  type Context = Interp.Context
-
-  ghost const EqOuterRollback := Base.EqOuterRollback
-  ghost const EqResultSeqValue := Base.EqResultSeqValue
-  ghost const EqResultValue := Base.EqResultValue
-  ghost const EqResultRolledSeqValue := Base.EqResultRolledSeqValue
-  ghost const EqResultRolledValue := Base.EqResultRolledValue
-
-  predicate EqStateOuterRollback(outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
-  {
-    && EqCtx(ctx.locals, ctx'.locals)
-    && EqOuterRollback(outer_rollback, ctx, outer_rollback', ctx')
-  }
-
-  predicate EqStateRolled(keys: set<string>, ctx: State, ctx': State)
-  {
-    && EqRolled(keys, ctx, ctx')
-  }
-
-  lemma InterpExpr_Eq(e: Expr, env: Environment, outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
-    requires EqStateOuterRollback(outer_rollback, ctx, outer_rollback', ctx')
-    ensures EqResultValue(outer_rollback, InterpExpr(e, env, ctx), outer_rollback', InterpExpr(e, env, ctx'))
-  {
-    Base.P_Satisfied(MState(env, outer_rollback, ctx, outer_rollback', ctx'), e);
-  }
-
-  lemma InterpExprs_Eq(es: seq<Expr>, env: Environment, outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
-    requires EqStateOuterRollback(outer_rollback, ctx, outer_rollback', ctx')
-    ensures EqResultSeqValue(outer_rollback, InterpExprs(es, env, ctx), outer_rollback', InterpExprs(es, env, ctx'))
-  {
-    Base.Pes_Satisfied(MState(env, outer_rollback, ctx, outer_rollback', ctx'), es);
-  }
-
-  lemma InterpBlock_Exprs_Eq(es: seq<Expr>, env: Environment, outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
-    requires EqStateOuterRollback(outer_rollback, ctx, outer_rollback', ctx')
-    ensures EqResultValue(outer_rollback, InterpBlock_Exprs(es, env, ctx), outer_rollback', InterpBlock_Exprs(es, env, ctx'))
-  {
-    InterpExprs_Block_Equiv_Strong(es, env, ctx);
-    InterpExprs_Block_Equiv_Strong(es, env, ctx');
-    Base.Pes_Satisfied(MState(env, outer_rollback, ctx, outer_rollback', ctx'), es);
-
-    reveal InterpExprs_Block();
-  }
-
-  predicate EqInterpBlockExprs_Single(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, keys: set<string>, ctx:State, ctx':State)
-    requires Seq_All(SupportsInterp, es)
-    requires Seq_All(SupportsInterp, es')
-    requires EqState(ctx, ctx')
-    // Rk.: we need this predicate, otherwise we don't manage to guide the instantiation in ``EqInterpBlockExprs_Inst``
-  {
-    EqResultRolledValue(keys, InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es', env, ctx'))
-  }
-
-  predicate StateHasKeys(ctx: State, keys: set<string>)
-  {
-    keys <= ctx.locals.Keys + ctx.rollback.Keys
-  }
-
-  predicate {:opaque} EqInterpBlockExprs(es: seq<Exprs.T>, es': seq<Exprs.T>, keys: set<string>)
-  {
-    Seq_All(SupportsInterp, es) ==>
-    (&& Seq_All(SupportsInterp, es')
-     && (forall env, ctx:State, ctx':State | EqState(ctx, ctx') && StateHasKeys(ctx, keys) && StateHasKeys(ctx', keys) ::
-        EqInterpBlockExprs_Single(es, es', env, keys, ctx, ctx')))
-  }
-
-  lemma EqInterpBlockExprs_Inst(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, keys: set<string>, ctx: State, ctx': State)
-    requires EqInterpBlockExprs(es, es', keys)
-    requires Seq_All(SupportsInterp, es)
-    requires EqState(ctx, ctx')
-    requires StateHasKeys(ctx, keys)
-    requires StateHasKeys(ctx', keys)
-    ensures Seq_All(SupportsInterp, es')
-    ensures EqResultRolledValue(keys, InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es', env, ctx'))
-  {
-    reveal EqInterpBlockExprs();
-    assert EqInterpBlockExprs_Single(es, es', env, keys, ctx, ctx');
-  }
-
-  lemma InterpBlock_Exprs_Eq_Append(
-    e: Expr, tl: seq<Expr>, tl': seq<Expr>, env: Environment, keys: set<string>, ctx: State, ctx': State)
-    requires SupportsInterp(e)
-    requires forall e | e in tl :: SupportsInterp(e)
-    requires forall e | e in tl' :: SupportsInterp(e)
-    requires EqState(ctx, ctx')
-    requires StateHasKeys(ctx, keys)
-    requires StateHasKeys(ctx', keys)
-    requires EqInterpBlockExprs(tl, tl', keys)
-    requires |tl| > 0
-    ensures EqResultRolledValue(keys, InterpBlock_Exprs([e] + tl, env, ctx), InterpBlock_Exprs([e] + tl', env, ctx'))
-    // Auxiliary lemma for the proofs about transformations operating on blocks. This is especially
-    // useful when those transformations might update the length of the sequence of expressions
-    // in the blocks. The proof is a bit tricky, because the case where the sequence has length 1
-    // is a special case in the definition of ``EqInterpBlock_Exprs``.
-  {
-    var es := [e] + tl;
-    assert e == es[0];
-
-    reveal InterpBlock_Exprs();
-
-    // Evaluate the first expression
-    var res0 := InterpExprWithType(e, Types.Unit, env, ctx);
-    var res0' := InterpExprWithType(e, Types.Unit, env, ctx');
-    assert EqStateOuterRollback(map [], ctx, map [], ctx') by { reveal GEqCtx(); }
-    InterpExpr_Eq(e, env, map [], ctx, map [], ctx');
-    InterpExpr_StateSmaller(e, env, ctx);
-    InterpExpr_StateSmaller(e, env, ctx');
-
-    // We need to make a case disjunction on whether the length of the concatenated sequences is
-    // > 1 or not
-    if |tl'| >= 1 {
-      // The "regular" case
-
-      // Evaluate the remaining expressions
-      if res0.Success? && res0.value.ret == Interp.V.Unit {
-        var Return(_, ctx0) := res0.value;
-        var Return(_, ctx0') := res0'.value;
-
-        var res1 := InterpBlock_Exprs(tl, env, ctx0);
-        var res1' := InterpBlock_Exprs(tl', env, ctx0');
-
-        assert EqState(ctx0, ctx0') by { reveal GEqCtx(); }
-        EqInterpBlockExprs_Inst(tl, tl', env, keys, ctx0, ctx0');
-      }
-      else {
-        // Trivial
-      }
-    }
-    else {
-      // Degenerate case
-      assert |tl'| == 0;
-
-      if res0.Success? {
-        var Return(v, ctx0) := res0.value;
-        var Return(v', ctx0') := res0'.value;
-
-        if v == Interp.V.Unit {
-          assert v' == Interp.V.Unit;
-          assert EqState(ctx0, ctx0') by { reveal GEqCtx(); }
-          EqInterpBlockExprs_Inst(tl, tl', env, keys, ctx0, ctx0');
-        }
-        else {
-          // Trivial case:
-          assert v' != Interp.V.Unit;
-          var res := InterpBlock_Exprs([e] + tl, env, ctx);
-          assert res.Failure?;
-        }
-      }
-      else {
-        // Trivial
-      }
-    }
-  }
-
-} // end of module Bootstrap.Semantics.EqInterpScopes
+  }*/
+}
