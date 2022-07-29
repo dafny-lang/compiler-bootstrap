@@ -182,6 +182,12 @@ module Bootstrap.AST.Translator {
     (map k | k in LazyBinopMap  :: DE.Lazy(LazyBinopMap[k])) +
     (map k | k in EagerBinopMap :: DE.Eager(DE.BinaryOp(EagerBinopMap[k])))
 
+  // Wo we desugar binds to variable declarations?
+  const bindToVarDecl: bool := false
+
+  // Wo we wrap the content of `if then else` branches in blocks?
+  const wrapBranchesInBlocks: bool := true
+
   function method TranslateIdentifierExpr(ie: C.IdentifierExpr)
     : (e: TranslationResult<Expr>)
     reads *
@@ -511,7 +517,7 @@ module Bootstrap.AST.Translator {
     else if c is C.LambdaExpr then
       TranslateLambdaExpr(c as C.LambdaExpr)
     else if c is C.LetExpr then
-      TranslateLetExpr(true, c as C.LetExpr)
+      TranslateLetExpr(bindToVarDecl, c as C.LetExpr)
     else if c is C.ITEExpr then
       TranslateITEExpr(c as C.ITEExpr)
     else if c is C.ConcreteSyntaxExpression then
@@ -539,7 +545,7 @@ module Bootstrap.AST.Translator {
     Success(DE.Block(stmts'))
   }
 
-  function method TranslateIfStmt(i: C.IfStmt)
+  function method TranslateIfStmt(wrapInBlocks: bool, i: C.IfStmt)
     : (e: TranslationResult<Expr>)
     reads *
     decreases ASTHeight(i), 0
@@ -553,8 +559,8 @@ module Bootstrap.AST.Translator {
     var els :- TranslateStatement(i.Els);
     // We need to wrap the branches into blocks, so as to limit the scope of the variables
     // declared inside those branches.
-    var thn := Expr.Block([thn]);
-    var els := Expr.Block([els]);
+    var thn := if wrapInBlocks then Expr.Block([thn]) else thn;
+    var els := if wrapInBlocks then Expr.Block([els]) else els;
     // Doesn't work without those assertions
     assert P.All_Expr(thn, DE.WellFormed);
     assert P.All_Expr(els, DE.WellFormed);
@@ -571,7 +577,7 @@ module Bootstrap.AST.Translator {
     else if s is C.BlockStmt then
       TranslateBlockStmt(s as C.BlockStmt)
     else if s is C.IfStmt then
-      TranslateIfStmt(s as C.IfStmt)
+      TranslateIfStmt(wrapBranchesInBlocks, s as C.IfStmt)
     else Failure(UnsupportedStmt(s))
   }
 
