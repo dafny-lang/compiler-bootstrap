@@ -229,7 +229,8 @@ module Bootstrap.Semantics.Interp {
     InterpExpr(e, env, ctx)
   }
 
-  function method VarsToNames(vars: seq<Exprs.Var>): seq<string> {
+  function method VarsToNames(vars: seq<Exprs.Var>): seq<string>
+  {
     Seq.Map((v: Exprs.Var) => v.name, vars)
   }
 
@@ -966,6 +967,7 @@ module Bootstrap.Semantics.Interp {
     base + MapOfPairs(Seq.Zip(vars, vals))
   }
 
+  // TODO: remove the opaque keyword? In this situation it is more annoying than anything
   function method {:opaque} BuildCallState(base: Context, vars: seq<string>, vals: seq<Value>)
     : State
     requires |vars| == |vals|

@@ -7,6 +7,7 @@ include "../Utils/StrTree.dfy"
 include "../Semantics/Interp.dfy"
 include "../Semantics/Equiv.dfy"
 include "../Semantics/ExprInduction.dfy"
+include "../Semantics/Pure.dfy"
 //include "InterpStateIneq.dfy"
 
 module Bootstrap.Transforms.InlineVar.Base {
@@ -16,16 +17,21 @@ module Bootstrap.Transforms.InlineVar.Base {
   import opened AST.Predicates
   import Semantics.Interp
   import opened Semantics.Equiv
+  import opened Semantics.Pure
   import opened Generic
   import Shallow
 
-  type Environment = Interp.Environment
-  type State = Interp.State
-  type Expr = Interp.Expr
-  const VarsToNames := Interp.VarsToNames
+  type {:verify false} Environment = Interp.Environment
+  type {:verify false} State = Interp.State
+  type {:verify false} Expr = Interp.Expr
+
+  function method VarsToNameSet(vars: seq<Exprs.Var>): set<string>
+  {
+    set x | x in vars :: x.name
+  }
 
   // TODO(SMH): move?
-  function method VarsOfExpr(e: Expr): set<string>
+  function method {:verify false} VarsOfExpr(e: Expr): set<string>
     decreases e.Size(), 0
     // Return the set of all variables used in an expression (accessed, updated or even declared)
   {
@@ -41,41 +47,62 @@ module Bootstrap.Transforms.InlineVar.Base {
         VarsOfExprs(exprs)
       case VarDecl(vdecls, ovals) =>
         var s := if ovals.Some? then VarsOfExprs(ovals.value) else {};
-        s + set x | x in VarsToNames(vdecls)
+        s + VarsToNameSet(vdecls)
       case Update(vars, vals) =>
         (set x | x in vars) + VarsOfExprs(vals)
       case Bind(vars, vals, body) =>
-        (set x | x in VarsToNames(vars)) + VarsOfExprs(vals) + VarsOfExpr(body)
+        VarsToNameSet(vars) + VarsOfExprs(vals) + VarsOfExpr(body)
       case If(cond, thn, els) =>
         VarsOfExpr(cond) + VarsOfExpr(thn) + VarsOfExpr(els)
     }
   }
 
-  function method VarsOfExprs(es: seq<Expr>): set<string>
+  function method {:verify false} VarsOfExprs(es: seq<Expr>): set<string>
     decreases Expr.Exprs_Size(es), 1
   {
     if es == [] then {}
     else VarsOfExpr(es[0]) + VarsOfExprs(es[1..])
   }
 
-  type Subst = map<string, Expr>
-  const EmptyBlock: Interp.Expr := reveal Interp.SupportsInterp(); Expr.Block([])
-
-  predicate method CanInlineVar(p: (Exprs.Var, Expr) -> bool, after: set<string>, v: Exprs.Var, rhs: Expr)
+  datatype {:verify false} Acc = Acc(subst: map<string, Expr>, frozen: set<string>)
+  const {:verify false} EmptyBlock: Interp.Expr := reveal Interp.SupportsInterp(); Expr.Block([])
+    
+  predicate method {:verify false} CanUpdateVars(vars: set<string>, frozen: set<string>)
+  {
+//    var vars := set x | x in vars;
+    vars !! frozen
+  }
+    
+  predicate method {:verify false} CanInlineVar(p: (Exprs.Var, Expr) -> bool, v: Exprs.Var, rhs: Expr)
   {
     && p(v, rhs) // The filtering predicate allows to inline this variable
-    && v.name !in after // The variable is not shadowed later
-    && (VarsOfExpr(rhs) * after) == {} // The variables used in the rhs are not shadowed later
+    && IsPure(rhs) // The rhs is pure - TODO: write a more general, less constraining purity check
   }
 
-  function method AddToSubst(subst: Subst, v: Exprs.Var, rhs: Expr): Subst
+  function method {:verify false} AddToAcc(acc: Acc, v: Exprs.Var, rhs: Expr): Acc
+    // Register a substitution: variable -> rhs.
+    //
+    // We freeze the variable itself, and all the variables appearing in the rhs.
   {
-    subst[v.name := rhs]
+    var subst := acc.subst[v.name := rhs];
+    var frozen := acc.frozen + {v.name} + VarsOfExpr(rhs); // We don't necessarily need to freeze `v.name`
+    Acc(subst, frozen)
   }
   
-  function method InlineInExpr(p: (Exprs.Var, Expr) -> bool, subst: Subst, after: set<string>, e: Expr):
-    Result<(Subst, Expr), ()>
+  function method {:verify false} InlineInExpr(p: (Exprs.Var, Expr) -> bool, acc: Acc, e: Expr):
+    Result<(Acc, Expr), ()>
     decreases e.Size(), 0
+    // An older version of ``InlineExpr`` took as input the set of variables updated by the
+    // expressions to be evaluated *after* the current one: this allowed to preemptively check
+    // if it was legal to inline a variable. However, we couldn't prove that this version is
+    // correct by using the induction principle, because there was no way to properly use it
+    // to thread the `after` parameter which was computed in a backwards manner (note that
+    // it would have been possible by leveraging universal quantifiers, but this ususally leads
+    // to prove explosion and unstability).
+    // It would be good to be able to prove this version correct, because it allows to check if
+    // it is valid to inline a variable (and doesn't inline it if it is not), while the current
+    // version preemptively inlines then fails if it was actually not valid to do so.
+    //
     // Inline the variables on which `p` evaluates to `true`, if possible.
     //
     // For now we do something quite simple.
@@ -85,65 +112,68 @@ module Bootstrap.Transforms.InlineVar.Base {
   {
     reveal Interp.SupportsInterp();
     Expr.Size_Decreases(e); // For termination
+
     match e {
       case Var(v) =>
-        if v in subst.Keys then Success((subst, subst[v])) else Success((subst, e))
+        if v in acc.subst.Keys then Success((acc, acc.subst[v])) else Success((acc, e))
 
-      case Literal(_) => Success((subst, e))
+      case Literal(_) => Success((acc, e))
 
       case Abs(vars, body) =>
-        var (_, body') :- InlineInExpr(p, subst, {}, body);
-        Success((subst, e.(body := body')))
+        :- Need(CanUpdateVars(set x | x in vars, acc.frozen), ());
+        var (_, body') :- InlineInExpr(p, acc, body);
+        Success((acc, e.(body := body')))
 
       case Apply(aop, args) =>
-        var (subst', args') :- InlineInExprs(p, subst, after, args);
-        Success((subst', e.(args := args')))
+        var (acc', args') :- InlineInExprs(p, acc, args);
+        Success((acc', e.(args := args')))
 
       case Block(stmts) =>
-        var (_, stmts') :- InlineInExprs(p, subst, {}, stmts);
-        Success((subst, e.(stmts := stmts')))
+        var (_, stmts') :- InlineInExprs(p, acc, stmts);
+        // We use the original acc because there is a scope
+        Success((acc, e.(stmts := stmts')))
 
       case VarDecl(vdecls, ovals) =>
+        :- Need(CanUpdateVars(VarsToNameSet(vdecls), acc.frozen), ());
         if ovals.Some? then
-          var (subst1, vals') :- InlineInExprs(p, subst, after, ovals.value);
-          // For now, we inline only if there is exactly one variable
-          if |vdecls| == 1 && CanInlineVar(p, after, vdecls[0], vals'[0]) then
-            var subst2 := AddToSubst(subst, vdecls[0], vals'[0]);
-            Success((subst2, EmptyBlock))
-          else Success((subst1, Expr.VarDecl(vdecls, Exprs.Some(vals'))))
-        else Success((subst, e))
+          var (acc1, vals') :- InlineInExprs(p, acc, ovals.value);
+          // For now, we try to inline only if there is exactly one variable
+          if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals'[0]) then
+            var acc2 := AddToAcc(acc, vdecls[0], vals'[0]);
+            Success((acc2, EmptyBlock))
+          else Success((acc1, Expr.VarDecl(vdecls, Exprs.Some(vals'))))
+        else Success((acc, e))
 
       case Update(vars, vals) =>
-        var (subst', vals') :- InlineInExprs(p, subst, after, vals);
-        Success((subst', e.(vals := vals')))
+        :- Need(CanUpdateVars(set x | x in vars, acc.frozen), ());
+        var (acc', vals') :- InlineInExprs(p, acc, vals);
+        Success((acc', e.(vals := vals')))
 
       case Bind(bvars, bvals, bbody) =>
-        var body_vars := VarsOfExpr(bbody);
-        var after1 := after + body_vars;
-        var (subst1, bvals') :- InlineInExprs(p, subst, after1, bvals);
-        // For now, we inline only if there is exactly one variable
-        // Rk.: we return the original subst because there is a scope
-        if |bvars| == 1 && CanInlineVar(p, after1, bvars[0], bvals'[0]) then
-            var subst2 := AddToSubst(subst, bvars[0], bvals'[0]);
-            var (subst3, bbody') :- InlineInExpr(p, subst2, after, bbody);
-            Success((subst, Expr.Block([bbody'])))
+        :- Need(CanUpdateVars(VarsToNameSet(bvars), acc.frozen), ()); // Not necessary, but let's make thinkgs simple for now
+        var (acc1, bvals') :- InlineInExprs(p, acc, bvals);
+        // For now, we try to inline only if there is exactly one variable
+        // Rk.: we return the original acc because there is a scope
+        if |bvars| == 1 && CanInlineVar(p, bvars[0], bvals'[0]) then
+            var acc2 := AddToAcc(acc, bvars[0], bvals'[0]);
+            var (_, bbody') :- InlineInExpr(p, acc2, bbody);
+            Success((acc, Expr.Block([bbody'])))
         else
-          var (subst2, bbody') :- InlineInExpr(p, subst1, after, bbody);
-          Success((subst, Expr.Bind(bvars, bvals', bbody')))
+          var (acc2, bbody') :- InlineInExpr(p, acc1, bbody);
+          Success((acc, Expr.Bind(bvars, bvals', bbody')))
 
       case If(cond, thn, els) =>
-        var thn_vars := VarsOfExpr(thn);
-        var els_vars := VarsOfExpr(els);
-        var (subst1, cond') :- InlineInExpr(p, subst, after + thn_vars + els_vars, cond);
-        var (_, thn') :- InlineInExpr(p, subst1, after, thn);
-        var (_, els') :- InlineInExpr(p, subst1, after, els);
-        // TODO: we must check that no variables leak from the branches
-        Success((subst1, Expr.If(cond', thn', els')))
+        var (acc1, cond') :- InlineInExpr(p, acc, cond);
+        var (acc2, thn') :- InlineInExpr(p, acc1, thn);
+        var (acc2', els') :- InlineInExpr(p, acc1, els);
+        // The branches must agree - actually they should contain blocks, so they shouldn't leak any variables
+        :- Need(acc2 == acc2', ());
+        Success((acc2, Expr.If(cond', thn', els')))
     }
   }
 
-  function method InlineInExprs(p: (Exprs.Var, Expr) -> bool, subst: Subst, after: set<string>, es: seq<Expr>) :
-    (out: Result<(Subst, seq<Expr>), ()>)
+  function method {:verify false} InlineInExprs(p: (Exprs.Var, Expr) -> bool, acc: Acc, es: seq<Expr>) :
+    (out: Result<(Acc, seq<Expr>), ()>)
     decreases Expr.Exprs_Size(es), 1
     ensures
       match out {
@@ -151,25 +181,24 @@ module Bootstrap.Transforms.InlineVar.Base {
         case Failure(_) => true
       }
   {
-    if es == [] then Success((subst, []))
+    if es == [] then Success((acc, []))
     else
-      var after' := after + VarsOfExprs(es[1..]); // This is terribly inefficient...
-      var (subst1, e') :- InlineInExpr(p, subst, after', es[0]);
-      var (subst2, es') :- InlineInExprs(p, subst1, after, es[1..]);
-      Success((subst2, [e'] + es'))
+      var (acc1, e') :- InlineInExpr(p, acc, es[0]);
+      var (acc2, es') :- InlineInExprs(p, acc1, es[1..]);
+      Success((acc2, [e'] + es'))
   }
 }
 
-module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprInduction {
+module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction {
   // TODO: remove //
-  import opened AST.Syntax
+/*  import opened AST.Syntax
   import opened Utils.Lib
   import opened AST.Predicates
   import opened Semantics.Interp
   import opened Semantics.Values
   import opened Semantics.Equiv
   import opened Utils.Lib.Datatypes
-  type Expr = Interp.Expr
+  type {:verify false} Expr = Interp.Expr*/
   // END of TODO: remove //
 
 /*  import opened AST.Syntax
@@ -181,18 +210,19 @@ module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprIndu
   import Shallow*/
   import opened Base
 
-  type Value = Interp.Value
-  type Context = Interp.Context
-  const VarsToNames := Interp.VarsToNames
+  type {:verify false} Value = Interp.Value
+  type {:verify false} Context = Interp.Context
+//  const {:verify false} VarsToNames := Interp.VarsToNames
+
+  const {:verify false} p: (Exprs.Var, Expr) -> bool
 
 //  const EmptyCtx: Context := map[]
 
   // - `ctx`: the environment to execute the original expression
   // - `ctx'`: the environment to execute the expression on which we performed inlinings
-  // - `after`: the set of variables in the expressions to evaluate after the current one
-  datatype MState = MState(env: Environment, subst: Subst, after: set<string>, ctx: State, ctx': State)
-  datatype MValue = MValue(v: Value, v': Value)
-  datatype MSeqValue = MSeqValue(vs: seq<Value>, vs': seq<Value>)
+  datatype {:verify false} MState = MState(env: Environment, acc: Acc, ctx: State, ctx': State)
+  datatype {:verify false} MValue = MValue(v: Value, v': Value)
+  datatype {:verify false} MSeqValue = MSeqValue(vs: seq<Value>, vs': seq<Value>)
 
 /*  predicate EqOuterRollback(outer_rollback: Context, ctx: State, outer_rollback': Context, ctx': State)
   {
@@ -201,7 +231,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprIndu
 
 /*
   // TODO(SMH): move?
-  predicate {:opaque} EqSubCtx(keys: set<string>, ctx: Context, ctx': Context)
+  predicate {:verify false} {:opaque} EqSubCtx(keys: set<string>, ctx: Context, ctx': Context)
   {
     && keys <= ctx.Keys
     && keys <= ctx'.Keys
@@ -209,46 +239,50 @@ module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprIndu
   }
 
   // TODO(SMH): move? This is not used in this module. But this should be kept with ``EqOuterRollback``
-  predicate EqRolled(keys: set<string>, ctx: State, ctx': State)
+  predicate {:verify false} EqRolled(keys: set<string>, ctx: State, ctx': State)
   {
     EqSubCtx(keys, ctx.locals + ctx.rollback, ctx'.locals + ctx'.rollback)
   }*/
 
-  predicate {:opaque} EqStateOnSubst(env: Environment, subst: Subst, ctx: State, ctx': State)
-    requires subst.Keys <= ctx.locals.Keys
+  predicate {:verify false} {:opaque} EqStateOnAcc(env: Environment, acc: Acc, ctx: State, ctx': State)
+    requires acc.subst.Keys <= ctx.locals.Keys
   {
-    forall x | x in subst.Keys ::
-      var res := InterpExpr(subst[x], env, ctx');
-      match res {
-        case Success(Return(v, ctx'')) =>
-          && ctx'' == ctx'
-          && v == ctx.locals[x]
-        case Failure(_) => false
-      }
+    && acc.subst.Keys <= acc.frozen
+    && (forall x | x in acc.subst.Keys :: VarsOfExpr(acc.subst[x]) <= acc.frozen)
+    && (forall x | x in acc.subst.Keys ::
+       var res := InterpExpr(acc.subst[x], env, ctx');
+       match res {
+         case Success(Return(v, ctx'')) =>
+           && ctx'' == ctx'
+           && v == ctx.locals[x]
+         case Failure(_) => false
+       })
   }
 
-  predicate EqStateWithSubst(env: Environment, subst: Subst, ctx: State, ctx': State)
+  predicate {:verify false} {:opaque} EqStateWithAcc(env: Environment, acc: Acc, ctx: State, ctx': State)
   {
-    && EqCtx(ctx.rollback, ctx'.rollback)
-    && ctx'.locals.Keys !! subst.Keys
-    && ctx'.locals.Keys + subst.Keys == ctx.locals.Keys
+    && ctx'.locals.Keys !! acc.subst.Keys
+    && ctx'.locals.Keys + acc.subst.Keys == ctx.locals.Keys
+    && ctx'.rollback.Keys <= ctx.rollback.Keys
+    && ctx.rollback.Keys <= ctx'.rollback.Keys + acc.subst.Keys    
     && EqCtx(map x | x in ctx'.locals.Keys :: ctx.locals[x], ctx'.locals)
-    && EqStateOnSubst(env, subst, ctx, ctx')
+    && EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback)
+    && EqStateOnAcc(env, acc, ctx, ctx')
   }
 
-  predicate Inv(st: MState)
+  predicate {:verify false} Inv(st: MState)
   {
-    EqStateWithSubst(st.env, st.subst, st.ctx, st.ctx')
+    EqStateWithAcc(st.env, st.acc, st.ctx, st.ctx')
   }
 
-  predicate {:opaque} StateRel(st: MState, st': MState)
+  predicate {:verify false} {:opaque} StateRel(st: MState, st': MState)
   {
-    && st.subst.Keys <= st'.subst.Keys
-    && forall x | x in st.subst.Keys :: st'.subst[x] == st.subst[x]
+    && st.acc.subst.Keys <= st'.acc.subst.Keys
+    && forall x | x in st.acc.subst.Keys :: st'.acc.subst[x] == st.acc.subst[x]
   }
 
 /*
-  predicate EqResult<V>(eq_value: (V,V) -> bool, subst: Subst, res: InterpResult<V>, res': InterpResult<V>)
+  predicate {:verify false} EqResult<V>(eq_value: (V,V) -> bool, subst: Subst, res: InterpResult<V>, res': InterpResult<V>)
   {
     match (res, res')
       case (Success(Return(v, ctx)), Success(Return(v', ctx'))) =>
@@ -259,19 +293,19 @@ module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprIndu
       case _ => false
   }
 
-  predicate EqResultValue(outer_rollback: Context, res: InterpResult<Value>, outer_rollback': Context, res': InterpResult<Value>)
+  predicate {:verify false} EqResultValue(outer_rollback: Context, res: InterpResult<Value>, outer_rollback': Context, res': InterpResult<Value>)
   {
     EqResult(EqValue, outer_rollback, res, outer_rollback', res')
   }
 
-  predicate EqResultSeqValue(outer_rollback: Context, res: InterpResult<seq<Value>>, outer_rollback': Context, res': InterpResult<seq<Value>>)
+  predicate {:verify false} EqResultSeqValue(outer_rollback: Context, res: InterpResult<seq<Value>>, outer_rollback': Context, res': InterpResult<seq<Value>>)
   {
     EqResult(EqSeqValue, outer_rollback, res, outer_rollback', res')
   }
 
   // TODO(SMH): factorize with EqResult and move. The annoying thing is that functions are not curried, so it makes
   // facorization a bit hard...
-  predicate EqResultRolled<V>(eq_value: (V,V) -> bool, keys: set<string>, res: InterpResult<V>, res': InterpResult<V>)
+  predicate {:verify false} EqResultRolled<V>(eq_value: (V,V) -> bool, keys: set<string>, res: InterpResult<V>, res': InterpResult<V>)
   {
     match (res, res')
       case (Success(Return(v, ctx)), Success(Return(v', ctx'))) =>
@@ -281,136 +315,233 @@ module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprIndu
       case _ => false
   }
 
-  predicate EqResultRolledValue(keys: set<string>, res: InterpResult<Value>, res': InterpResult<Value>)
+  predicate {:verify false} EqResultRolledValue(keys: set<string>, res: InterpResult<Value>, res': InterpResult<Value>)
   {
     EqResultRolled(EqValue, keys, res, res')
   }
 
-  predicate EqResultRolledSeqValue(keys: set<string>, res: InterpResult<seq<Value>>, res': InterpResult<seq<Value>>)
+  predicate {:verify false} EqResultRolledSeqValue(keys: set<string>, res: InterpResult<seq<Value>>, res': InterpResult<seq<Value>>)
   {
     EqResultRolled(EqSeqValue, keys, res, res')
   }
 
 
-  predicate Inv(st: MState)
+  predicate {:verify false} Inv(st: MState)
   {
     && EqCtx(st.ctx.locals, st.ctx'.locals)
     && EqOuterRollback(st.outer_rollback, st.ctx, st.outer_rollback', st.ctx')
   }*/
 
-  type S(!new) = MState
-  type V(!new) = MValue
-  type VS(!new) = vs:MSeqValue | |vs.vs| == |vs.vs'| witness MSeqValue([], [])
+  type {:verify false} S(!new) = MState
+  type {:verify false} V(!new) = MValue
+  type {:verify false} VS(!new) = vs:MSeqValue | |vs.vs| == |vs.vs'| witness MSeqValue([], [])
 
-/*  predicate P(st: S, e: Expr)
+  predicate {:verify false} P(st: S, e: Expr)
   {
     var res := InterpExpr(e, st.env, st.ctx);
     var res' := InterpExpr(e, st.env, st.ctx');
-    && Inv(st) ==>
-//    match (res, res') {
-//      Success(Return(v, ctx1), ctx1'
-//    }
-//    EqResultValue(st.outer_rollback, res, st.outer_rollback', res')
+    Inv(st) ==>
+    InlineInExpr(p, st.acc, e).Success? ==>
+    match (res, res') {
+      case (Success(Return(v1, ctx1)), Success(Return(v1', ctx1'))) =>
+        var (acc1, _) := InlineInExpr(p, st.acc, e).value;
+        var st1 := MState(st.env, acc1, ctx1, ctx1');
+        && EqValue(v1, v1')
+        && Inv(st1)
+        && StateRel(st, st1)
+      case (Failure(_), _) => true
+      case _ => false
+    }
   }
   
-  predicate P_Succ(st: S, e: Expr, st': S, v: V)
+  predicate {:verify false} P_Succ(st: S, e: Expr, st': S, v: V)
   {
+    var res := InterpExpr(e, st.env, st.ctx);
+    var res' := InterpExpr(e, st.env, st.ctx');
     && Inv(st)
-    && EqResultValue(st.outer_rollback, InterpExpr(e, st.env, st.ctx), st.outer_rollback', InterpExpr(e, st.env, st.ctx'))
-    && InterpExpr(e, st.env, st.ctx) == Success(Return(v.v, st'.ctx))
-    && InterpExpr(e, st.env, st.ctx') == Success(Return(v.v', st'.ctx'))
-    && st.env == st'.env
-    && st.outer_rollback == st'.outer_rollback
-    && st.outer_rollback' == st'.outer_rollback'
+    && InlineInExpr(p, st.acc, e).Success?
+    && match (res, res') {
+      case (Success(Return(v1, ctx1)), Success(Return(v1', ctx1'))) =>
+        var (acc1, _) := InlineInExpr(p, st.acc, e).value;
+        var st1 := MState(st.env, acc1, ctx1, ctx1');
+        && EqValue(v1, v1')
+        && Inv(st1)
+        && StateRel(st, st1)
+        // Additional
+        && st1 == st'
+        && v == MValue(v1, v1')
+      case _ => false
+    }
   }
 
-  predicate P_Fail(st: S, e: Expr)
+  predicate {:verify false} P_Fail(st: S, e: Expr)
   {
-    Inv(st) ==> InterpExpr(e, st.env, st.ctx).Failure?
+    Inv(st) ==> InlineInExpr(p, st.acc, e).Success? ==> InterpExpr(e, st.env, st.ctx).Failure?
   }
 
-  predicate Pes(st: S, es: seq<Expr>)
+  predicate {:verify false} Pes(st: S, es: seq<Expr>)
   {
+    var res := InterpExprs(es, st.env, st.ctx);
+    var res' := InterpExprs(es, st.env, st.ctx');
     Inv(st) ==>
-    EqResultSeqValue(st.outer_rollback, InterpExprs(es, st.env, st.ctx), st.outer_rollback', InterpExprs(es, st.env, st.ctx'))
+    InlineInExprs(p, st.acc, es).Success? ==>
+    match (res, res') {
+      case (Success(Return(vs1, ctx1)), Success(Return(vs1', ctx1'))) =>
+        var (acc1, _) := InlineInExprs(p, st.acc, es).value;
+        var st1 := MState(st.env, acc1, ctx1, ctx1');
+        && EqSeqValue(vs1, vs1')
+        && Inv(st1)
+        && StateRel(st, st1)
+      case (Failure(_), _) => true
+      case _ => false
+    }
   }
 
-  predicate Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS)
+  predicate {:verify false} Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS)
   {
+    var res := InterpExprs(es, st.env, st.ctx);
+    var res' := InterpExprs(es, st.env, st.ctx');
     && Inv(st)
-    && EqResultSeqValue(st.outer_rollback, InterpExprs(es, st.env, st.ctx), st.outer_rollback', InterpExprs(es, st.env, st.ctx'))
-    && InterpExprs(es, st.env, st.ctx) == Success(Return(vs.vs, st'.ctx))
-    && InterpExprs(es, st.env, st.ctx') == Success(Return(vs.vs', st'.ctx'))
-    && st.outer_rollback == st'.outer_rollback
-    && st.outer_rollback' == st'.outer_rollback'
-    && st.env == st'.env
+    && InlineInExprs(p, st.acc, es).Success?
+    && match (res, res') {
+      case (Success(Return(vs1, ctx1)), Success(Return(vs1', ctx1'))) =>
+        var (acc1, _) := InlineInExprs(p, st.acc, es).value;
+        var st1 := MState(st.env, acc1, ctx1, ctx1');
+        && EqSeqValue(vs1, vs1')
+        && Inv(st1)
+        && StateRel(st, st1)
+        // Additional
+        && st1 == st'
+        && vs == MSeqValue(vs1, vs1')
+      case _ => false
+    }
   }
 
-  predicate Pes_Fail(st: S, es: seq<Expr>)
+  predicate {:verify false} Pes_Fail(st: S, es: seq<Expr>)
   {
-    Inv(st) ==> InterpExprs(es, st.env, st.ctx).Failure?
-  }*/
+    Inv(st) ==> InlineInExprs(p, st.acc, es).Success? ==> InterpExprs(es, st.env, st.ctx).Failure?
+  }
 
-  /*
-  function AppendValue ...
+  function {:verify false} AppendValue ...
   {
     MSeqValue([v.v] + vs.vs, [v.v'] + vs.vs')
   }
 
-  function SeqVToVS ...
+  function {:verify false} SeqVToVS ...
   {
     if vs == [] then MSeqValue([], [])
     else
       AppendValue(MValue(vs[0].v, vs[0].v'), SeqVToVS(vs[1..]))
   }
   
-  function GetNilVS ...
+  function {:verify false} GetNilVS ...
   {
     MSeqValue([], [])
   }
 
-  ghost const UnitV := MValue(Values.Unit, Values.Unit)
+  ghost const {:verify false} UnitV := MValue(Values.Unit, Values.Unit)
 
-  function VS_Last ...
+  function {:verify false} VS_Last ...
   {
     var v := vs.vs[|vs.vs| - 1];
     var v' := vs.vs'[|vs.vs| - 1];
     MValue(v, v')
   }
 
-  predicate VS_UpdateStatePre ...
+  predicate {:verify false} VS_UpdateStatePre ...
   {
     && |argvs.vs| == |argvs.vs'| == |vars|
     && forall i | 0 <= i < |argvs.vs| :: EqValue(argvs.vs[i], argvs.vs'[i])
   }
 
-  function BuildClosureCallState ...
+  function {:verify true} BuildClosureCallState ...
     // Adding this precondition makes the InductAbs proofs easier
-    ensures Inv(st) ==> Inv(st')
+//    ensures Inv(st) && CanUpdateVars(set x | x in vars, st.acc.frozen) ==> Inv(st') // && RelState(st, st') // TODO
+    ensures Inv(st) ==> Inv(st') // && RelState(st, st') // TODO
   {
+    var acc := st.acc;
+    var ctx := st.ctx;
+    var ctx' := st.ctx';
     var ctx1 := BuildCallState(st.ctx.locals, vars, argvs.vs);
     var ctx1' := BuildCallState(st.ctx'.locals, vars, argvs.vs');
-    var st' := MState(env, EmptyCtx, ctx1, EmptyCtx, ctx1');
-    assert Inv(st) ==> Inv(st') by {
-      if Inv(st) {
-        reveal GEqCtx();
-        BuildCallState_EqState(st.ctx.locals, st.ctx'.locals, vars, argvs.vs, argvs.vs');
-        assert EqCtx(ctx1.locals, ctx1'.locals);
-        assert ctx1.rollback == ctx1'.rollback == map [] by {
-          reveal BuildCallState();
+    var st' := MState(env, acc, ctx1, ctx1');
+
+    var b := Inv(st); // && CanUpdateVars(set x | x in vars, st.acc.frozen);    
+    assert b ==> Inv(st') by {
+      if b {
+        MapOfPairs_SeqZip_EqCtx(vars, argvs.vs, argvs.vs');
+        var nbinds := MapOfPairs(Seq.Zip(vars, argvs.vs));
+        var nbinds' := MapOfPairs(Seq.Zip(vars, argvs.vs'));
+
+        reveal BuildCallState();
+        assert ctx1 == State(locals := ctx.locals + nbinds);
+        assert ctx1' == State(locals := ctx'.locals + nbinds');
+        assert nbinds.Keys == nbinds'.Keys by { reveal GEqCtx(); }
+//        reveal EqStateWithAcc();
+//        reveal EqStateOnAcc();
+//        reveal StateRel();
+//        reveal GEqCtx();
+
+        // This is true because the new bindings are disjoint from acc.subst 
+        assert ctx1'.locals.Keys !! acc.subst.Keys by {
+          assert ctx'.locals.Keys !! acc.subst.Keys by { reveal EqStateWithAcc(); }
+          assert nbinds.Keys !! acc.subst.Keys by {
+            MapOfPairs_SeqZip_Keys(vars, argvs.vs);
+  //          MapOfPairs_SeqZip_Keys(vars, argvs.vs');
+            assert nbinds.Keys == set x | x in vars;
+            assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
+            assume (set x | x in vars) !! st.acc.frozen; // Given by ``CanUpdateVars``
+          }
         }
+        // This is true because the new bindings are the same on the two sides:
+        assert ctx1'.locals.Keys + acc.subst.Keys == ctx1.locals.Keys by { reveal EqStateWithAcc(); }
+
+        assert ctx1'.rollback.Keys <= ctx1.rollback.Keys; // Ok
+        assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys; // Ok
+
+        assert EqCtx(map x | x in ctx1'.locals.Keys :: ctx1.locals[x], ctx1'.locals) by {
+          // TODO: lemma:
+          // - if binding not updated, then ok
+          // - if binding updated: ok
+          var locals1 := map x | x in ctx1'.locals.Keys :: ctx1.locals[x];
+          var locals1' := ctx1'.locals;
+          assert locals1.Keys == locals1'.Keys;
+          forall x | x in locals1'.Keys ensures EqValue(locals1[x], locals1'[x]) {
+            assume false;
+          }
+//          reveal EqStateWithAcc();
+          reveal GEqCtx();
+        }
+        assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); } // Ok
+
+        assert EqStateOnAcc(env, acc, ctx1, ctx1') by {
+          assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); } // Ok
+          assert (forall x | x in acc.subst.Keys :: VarsOfExpr(acc.subst[x]) <= acc.frozen) by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
+          assume ( // TODO: general lemma: adding bindings which are not used leads to same interp
+            forall x | x in acc.subst.Keys ::
+            var res := InterpExpr(acc.subst[x], env, ctx1');
+            match res {
+              case Success(Return(v, ctx1'')) =>
+                && ctx1'' == ctx1'
+                && v == ctx1.locals[x]
+              case Failure(_) => false
+            });
+          reveal EqStateOnAcc();
+        }
+        assert Inv(st') by { reveal EqStateWithAcc(); }
       }
     }
     st'
   }
 
-  function UpdateState ...
+  function {:verify false} UpdateState ...
     // Adding this precondition makes the InductUpdate proofs easier
-    ensures Inv(st) ==> Inv(st')
+    ensures Inv(st) ==> Inv(st') // && RelState(st, st') // TODO
   {
+    assume false; // TODO
     var ctx1 := st.ctx.(locals := AugmentContext(st.ctx.locals, vars, vals.vs));
     var ctx1' := st.ctx'.(locals := AugmentContext(st.ctx'.locals, vars, vals.vs'));
-    var st' := MState(st.env, st.outer_rollback, ctx1, st.outer_rollback', ctx1');
+    var st' := MState(st.env, st.acc, ctx1, ctx1'); // TODO: st.acc
 
     assert Inv(st) ==> Inv(st') by {
       if Inv(st) {
@@ -423,15 +554,17 @@ module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprIndu
     st'
   }
 
-  function StateSaveToRollback ...
+  function {:verify false} StateSaveToRollback ...
     ensures Inv(st) ==> Inv(st')
   {
-    var MState(env, or, ctx, or', ctx') := st;
+    assume false; // TODO
+    var MState(env, acc, ctx, ctx') := st;
     var ctx1 := SaveToRollback(st.ctx, vars);
     var ctx1' := SaveToRollback(st.ctx', vars);
-    var st' := MState(st.env, st.outer_rollback, ctx1, st.outer_rollback', ctx1');
+    var st' := MState(st.env, acc, ctx1, ctx1'); // TODO: acc
 
     assert Inv(st) ==> Inv(st') by {
+      /*
       if Inv(st) {
         var varseq := vars;
         var varset := set x | x in varseq;
@@ -449,55 +582,60 @@ module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprIndu
         var rolled' := ctx1'.rollback + or';
         assert rolled.Keys == rolled'.Keys by { reveal GEqCtx(); } // Having this drastically reduces the proof time
         assert EqCtx(rolled, rolled') by { reveal GEqCtx(); } // Wow, this actually works
-      }
+      }*/
     }
 
     st'
   }
 
-  function StateStartScope ...
+  function {:verify false} StateStartScope ...
     ensures Inv(st) ==> Inv(st')
   {
     var ctx := StartScope(st.ctx);
     var ctx' := StartScope(st.ctx');
     reveal GEqCtx();
-    MState(st.env, EmptyCtx, ctx, EmptyCtx, ctx')
+    MState(st.env, st.acc, ctx, ctx')
   }
 
-  function StateEndScope ...
-    ensures Inv(st0) && Inv(st) && st.outer_rollback == st.outer_rollback' == EmptyCtx ==> Inv(st')
+  function {:verify false} StateEndScope ...
+    ensures Inv(st0) && Inv(st) ==> Inv(st')
   {
     var ctx := EndScope(st0.ctx, st.ctx);
     var ctx' := EndScope(st0.ctx', st.ctx');
     reveal GEqCtx();
-    MState(st.env, st0.outer_rollback, ctx, st0.outer_rollback', ctx')
+    MState(st.env, st.acc, ctx, ctx') // TODO: acc
   }
 
-  function P_Step ... {
-    var Return(v, ctx1) := InterpExpr(e, st.env, st.ctx).value;
-    var Return(v', ctx1') := InterpExpr(e, st.env, st.ctx').value;
-    (MState(st.env, st.outer_rollback, ctx1, st.outer_rollback', ctx1'), MValue(v, v'))
+  function {:verify false} P_Step ...
+  {
+    var Return(v1, ctx1) := InterpExpr(e, st.env, st.ctx).value;
+    var Return(v1', ctx1') := InterpExpr(e, st.env, st.ctx').value;
+    var (acc1, _) := InlineInExpr(p, st.acc, e).value;
+    (MState(st.env, acc1, ctx1, ctx1'), MValue(v1, v1'))
   }
 
-  function Pes_Step ... {
-    var Return(vs, ctx1) := InterpExprs(es, st.env, st.ctx).value;
-    var Return(vs', ctx1') := InterpExprs(es, st.env, st.ctx').value;
-    (MState(st.env, st.outer_rollback, ctx1, st.outer_rollback', ctx1'), MSeqValue(vs, vs'))
+  function {:verify false} Pes_Step ...
+  {
+    var Return(vs1, ctx1) := InterpExprs(es, st.env, st.ctx).value;
+    var Return(vs1', ctx1') := InterpExprs(es, st.env, st.ctx').value;
+    var (acc1, _) := InlineInExprs(p, st.acc, es).value;
+    (MState(st.env, acc1, ctx1, ctx1'), MSeqValue(vs1, vs1'))
   }
 
   //
   // Lemmas
   //
 
-  lemma P_Fail_Sound ... {}
-  lemma P_Succ_Sound ... {}
-  lemma Pes_Fail_Sound ... {}
-  lemma Pes_Succ_Sound ... {}
+  lemma {:verify false} P_Fail_Sound ... {}
+  lemma {:verify false} P_Succ_Sound ... {}
+  lemma {:verify false} Pes_Fail_Sound ... {}
+  lemma {:verify false} Pes_Succ_Sound ... {}
 
-  lemma Pes_Succ_Inj ... {}
-  lemma SeqVToVS_Append ... {}
+  lemma {:verify false} Pes_Succ_Inj ... {} // TODO
+  lemma {:verify false} SeqVToVS_Append ... {}
 
-  lemma InductVar ... {
+  lemma {:verify false} InductVar ... {
+    assume false; // TODO
     reveal InterpExpr();
     reveal GEqCtx();
 
@@ -518,13 +656,14 @@ module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprIndu
     }
   }
 
-  lemma InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); }
+  lemma {:verify false} InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); }
 
-  lemma InductAbs ... {
+  lemma {:verify false} InductAbs ... {
     reveal InterpExpr();
     reveal EqValue_Closure();
 
-    var MState(env, outer_rollback, ctx, outer_rollback', ctx') := st;
+/*
+    var MState(env, acc, ctx, ctx') := st;
     var cv := Values.Closure(ctx.locals, vars, body);
     var cv' := Values.Closure(ctx'.locals, vars, body);
 
@@ -543,64 +682,61 @@ module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprIndu
       reveal InterpCallFunctionBody();
     }
 
-    assert EqValue_Closure(cv, cv');
+    assert EqValue_Closure(cv, cv');*/
   }
 
-  lemma InductAbs_CallState ... {
+  lemma {:verify false} InductAbs_CallState ... {
     reveal InterpExpr();
     reveal InterpCallFunctionBody();
     reveal BuildCallState();
   }
 
-  lemma InductExprs_Nil ... { reveal InterpExprs(); }
-  lemma InductExprs_Cons ... { reveal InterpExprs(); }
+  lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); }
+  lemma {:verify false} InductExprs_Cons ... { reveal InterpExprs(); }
 
-  lemma InductApplyLazy_Fail ... { reveal InterpExpr(); }
-  lemma InductApplyLazy_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyLazy_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyLazy_Succ ... { reveal InterpExpr(); }
 
-  lemma InductApplyEager_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyEager_Fail ... { reveal InterpExpr(); }
 
-  lemma InductApplyEagerUnaryOp_Succ ... { reveal InterpExpr(); reveal InterpUnaryOp(); }
+  lemma {:verify false} InductApplyEagerUnaryOp_Succ ... { reveal InterpExpr(); reveal InterpUnaryOp(); }
 
-  lemma InductApplyEagerBinaryOp_Succ ... {
+  lemma {:verify false} InductApplyEagerBinaryOp_Succ ... {
     reveal InterpExpr();
     InterpBinaryOp_Eq(e, e, op, v0.v, v1.v, v0.v', v1.v');
   }
 
-  lemma {:fuel SeqVToVS, 2} InductApplyEagerTernaryOp_Succ ... {
+  lemma {:verify false} {:fuel SeqVToVS, 2} InductApplyEagerTernaryOp_Succ ... {
     reveal InterpExpr();
     // TODO(SMH): ``SeqVToVS`` is called on literals: we shouldn't need fuel 2
     assert SeqVToVS([v0, v1, v2]) == MSeqValue([v0.v, v1.v, v2.v], [v0.v', v1.v', v2.v']);
     InterpTernaryOp_Eq(e, e, op, v0.v, v1.v, v2.v, v0.v', v1.v', v2.v');
   }
 
-  lemma InductApplyEagerBuiltinDisplay ... {
+  lemma {:verify false} InductApplyEagerBuiltinDisplay ... {
     reveal InterpExpr();
     Interp_Apply_Display_EqValue(e, e, ty.kind, argvs.vs, argvs.vs');
   }
 
-  lemma InductApplyEagerFunctionCall ... {
+  lemma {:verify false} InductApplyEagerFunctionCall ... {
     reveal InterpExpr();
     InterpFunctionCall_EqState(e, e, st.env, fv.v, fv.v', argvs.vs, argvs.vs');
   }
 
-  lemma InductIf_Fail ... { reveal InterpExpr(); }
-  lemma InductIf_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductIf_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductIf_Succ ... { reveal InterpExpr(); }
 
-  lemma InductUpdate_Fail ... { reveal InterpExpr(); }
-  lemma InductUpdate_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductUpdate_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductUpdate_Succ ... { reveal InterpExpr(); }
 
-  lemma InductVarDecl_None_Succ ... { reveal InterpExpr(); }
-  lemma InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
-  lemma InductVarDecl_Some_Succ  ... { reveal InterpExpr(); }
+  lemma {:verify false} InductVarDecl_None_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductVarDecl_Some_Succ  ... { reveal InterpExpr(); }
 
-  lemma InductBind_Fail ... { reveal InterpExpr(); }
-  lemma InductBind_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductBind_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductBind_Succ ... { reveal InterpExpr(); }
 
-  // TODO(SMH): I tried simplifying the proofs below by adding a `requires` in ``InductBlock_Fail``
-  // and ``InductBlock_Succ`` to provide the result of calling ``InterpExprs_Block_Equiv_Strong``,
-  // but it didn't work due to SMT solvers' misteries.
-  lemma InductBlock_Fail ...
+  lemma {:verify false} InductBlock_Fail ...
   {
     reveal InterpExpr();
     reveal InterpBlock();
@@ -612,7 +748,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprIndu
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx');
   }
 
-  lemma InductBlock_Succ ...
+  lemma {:verify false} InductBlock_Succ ...
   {
     reveal InterpExpr();
     reveal InterpBlock();
@@ -622,5 +758,5 @@ module Bootstrap.Transforms.InlineVar.BaseProofs { // refines Semantics.ExprIndu
     
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx);
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx');
-  }*/
+  }
 }
