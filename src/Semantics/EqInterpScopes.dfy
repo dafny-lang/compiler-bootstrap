@@ -214,7 +214,7 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
   }
 
   function BuildClosureCallState ...
-    // Adding this precondition makes the InductAbs proofs easier
+    // Adding this postcondition makes the InductAbs proofs easier
     ensures Inv(st) ==> Inv(st')
   {
     var ctx1 := BuildCallState(st.ctx.locals, vars, argvs.vs);
@@ -234,7 +234,7 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
   }
 
   function UpdateState ...
-    // Adding this precondition makes the InductUpdate proofs easier
+    // Adding this postcondition makes the InductUpdate proofs easier
     ensures Inv(st) ==> Inv(st')
   {
     var ctx1 := st.ctx.(locals := AugmentContext(st.ctx.locals, vars, vals.vs));

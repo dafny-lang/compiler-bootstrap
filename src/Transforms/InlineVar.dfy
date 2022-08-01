@@ -25,7 +25,15 @@ module Bootstrap.Transforms.InlineVar.Base {
   type {:verify false} State = Interp.State
   type {:verify false} Expr = Interp.Expr
 
-  function method VarsToNameSet(vars: seq<Exprs.Var>): set<string>
+  function method {:opaque} SeqToSet<T>(s: seq<T>): set<T>
+    // Unfortunately, we need this small opaque helper to prevent with proof explosions.
+  {
+    set x | x in s
+  }
+
+  function method {:opaque} VarsToNameSet(vars: seq<Exprs.Var>): set<string>
+    // Same as for ``SeqToSet``: making this definition opaque is annoying, but we need it to
+    // prevent proof explosions.
   {
     set x | x in vars :: x.name
   }
@@ -66,13 +74,12 @@ module Bootstrap.Transforms.InlineVar.Base {
 
   datatype {:verify false} Acc = Acc(subst: map<string, Expr>, frozen: set<string>)
   const {:verify false} EmptyBlock: Interp.Expr := reveal Interp.SupportsInterp(); Expr.Block([])
-    
+
   predicate method {:verify false} CanUpdateVars(vars: set<string>, frozen: set<string>)
   {
-//    var vars := set x | x in vars;
     vars !! frozen
   }
-    
+
   predicate method {:verify false} CanInlineVar(p: (Exprs.Var, Expr) -> bool, v: Exprs.Var, rhs: Expr)
   {
     && p(v, rhs) // The filtering predicate allows to inline this variable
@@ -120,7 +127,7 @@ module Bootstrap.Transforms.InlineVar.Base {
       case Literal(_) => Success((acc, e))
 
       case Abs(vars, body) =>
-        :- Need(CanUpdateVars(set x | x in vars, acc.frozen), ());
+        :- Need(CanUpdateVars(SeqToSet(vars), acc.frozen), ());
         var (_, body') :- InlineInExpr(p, acc, body);
         Success((acc, e.(body := body')))
 
@@ -259,15 +266,27 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
        })
   }
 
-  predicate {:verify false} {:opaque} EqStateWithAcc(env: Environment, acc: Acc, ctx: State, ctx': State)
+  predicate {:verify false} EqStateWithAcc_Locals(env: Environment, acc: Acc, ctx: State, ctx': State)
+    // Auxiliary definition we use for ``EqStateWithAcc``.
+    //
+    // This definition contains all the conditions pertaining to the `locals` contexts (i.e., without
+    // the `rollback`).
   {
     && ctx'.locals.Keys !! acc.subst.Keys
     && ctx'.locals.Keys + acc.subst.Keys == ctx.locals.Keys
-    && ctx'.rollback.Keys <= ctx.rollback.Keys
-    && ctx.rollback.Keys <= ctx'.rollback.Keys + acc.subst.Keys    
     && EqCtx(map x | x in ctx'.locals.Keys :: ctx.locals[x], ctx'.locals)
-    && EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback)
     && EqStateOnAcc(env, acc, ctx, ctx')
+  }
+
+
+  predicate {:verify false} {:opaque} EqStateWithAcc(env: Environment, acc: Acc, ctx: State, ctx': State)
+    // Predicate stating the conditions under which two states are equivalent under the presence of
+    // an inlining accumulator.
+  {
+    && EqStateWithAcc_Locals(env, acc, ctx, ctx')
+    && ctx'.rollback.Keys <= ctx.rollback.Keys
+    && ctx.rollback.Keys <= ctx'.rollback.Keys + acc.subst.Keys
+    && EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback)
   }
 
   predicate {:verify false} Inv(st: MState)
@@ -279,6 +298,16 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   {
     && st.acc.subst.Keys <= st'.acc.subst.Keys
     && forall x | x in st.acc.subst.Keys :: st'.acc.subst[x] == st.acc.subst[x]
+//    && st.env == st'.env
+  }
+
+  lemma {:verify false} StateRel_Trans(st0: MState, st1: MState, st2: MState)
+    requires StateRel(st0, st1)
+    requires StateRel(st1, st2)
+    ensures StateRel(st0, st2)
+  {
+    reveal StateRel();
+    reveal StateRel();
   }
 
 /*
@@ -454,10 +483,75 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     && forall i | 0 <= i < |argvs.vs| :: EqValue(argvs.vs[i], argvs.vs'[i])
   }
 
-  function {:verify true} BuildClosureCallState ...
-    // Adding this precondition makes the InductAbs proofs easier
-//    ensures Inv(st) && CanUpdateVars(set x | x in vars, st.acc.frozen) ==> Inv(st') // && RelState(st, st') // TODO
-    ensures Inv(st) ==> Inv(st') // && RelState(st, st') // TODO
+  lemma {:verify false} BuildClosure_UpdateState_Inv(
+    acc: Acc, env: Environment, ctx: State, ctx': State, env': Environment, ctx1: State, ctx1': State,
+    vars: seq<string>, vals: VS)
+    requires Inv(MState(env, acc, ctx, ctx'))
+    requires CanUpdateVars(SeqToSet(vars), acc.frozen)
+    requires VS_UpdateStatePre(MState(env, acc, ctx, ctx'), vars, vals)
+    requires ctx1.locals == AugmentContext(ctx.locals, vars, vals.vs);
+    requires ctx1'.locals == AugmentContext(ctx'.locals, vars, vals.vs');
+    ensures EqStateWithAcc_Locals(env', acc, ctx1, ctx1')
+  {
+    MapOfPairs_SeqZip_EqCtx(vars, vals.vs, vals.vs');
+    var nbinds := MapOfPairs(Seq.Zip(vars, vals.vs));
+    var nbinds' := MapOfPairs(Seq.Zip(vars, vals.vs'));
+
+    reveal BuildCallState();
+    assert ctx1.locals == ctx.locals + nbinds;
+    assert ctx1'.locals == ctx'.locals + nbinds';
+    assert nbinds.Keys == nbinds'.Keys by { reveal GEqCtx(); }
+
+    // This is true because the new bindings are disjoint from acc.subst
+    assert ctx1'.locals.Keys !! acc.subst.Keys by {
+      assert ctx'.locals.Keys !! acc.subst.Keys by { reveal EqStateWithAcc(); }
+      assert nbinds.Keys !! acc.subst.Keys by {
+        MapOfPairs_SeqZip_Keys(vars, vals.vs);
+        assert nbinds.Keys == set x | x in vars;
+        assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
+        // The following assert is given by ``CanUpdateVars``
+        assert (set x | x in vars) !! acc.frozen by { reveal SeqToSet(); }
+      }
+    }
+
+    // This is true because the new bindings are the same on the two sides:
+    assert ctx1'.locals.Keys + acc.subst.Keys == ctx1.locals.Keys by { reveal EqStateWithAcc(); }
+
+    assert EqCtx(map x | x in ctx1'.locals.Keys :: ctx1.locals[x], ctx1'.locals) by {
+      // TODO: lemma:
+      // - if binding not updated, then ok
+      // - if binding updated: ok
+      var locals1 := map x | x in ctx1'.locals.Keys :: ctx1.locals[x];
+      var locals1' := ctx1'.locals;
+      assert locals1.Keys == locals1'.Keys;
+      forall x | x in locals1'.Keys ensures EqValue(locals1[x], locals1'[x]) {
+        assume false;
+      }
+      reveal GEqCtx();
+    }
+
+    assert EqStateOnAcc(env', acc, ctx1, ctx1') by {
+      assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); } // Ok
+      assert (forall x | x in acc.subst.Keys :: VarsOfExpr(acc.subst[x]) <= acc.frozen) by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
+      assume ( // TODO: general lemma: adding bindings which are not used leads to same interp
+        // TODO: we may have a problem with the environment
+        forall x | x in acc.subst.Keys ::
+        var res := InterpExpr(acc.subst[x], env', ctx1');
+        match res {
+          case Success(Return(v, ctx1'')) =>
+            && ctx1'' == ctx1'
+            && v == ctx1.locals[x]
+          case Failure(_) => false
+        });
+        reveal EqStateOnAcc();
+    }
+
+    assert EqStateWithAcc_Locals(env', acc, ctx1, ctx1');
+  }
+
+  function {:verify false} BuildClosureCallState ...
+    // Adding this postcondition makes the InductAbs proofs easier
+    ensures Inv(st) && CanUpdateVars(SeqToSet(vars), st.acc.frozen) ==> Inv(st') && StateRel(st, st')
   {
     var acc := st.acc;
     var ctx := st.ctx;
@@ -466,8 +560,8 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     var ctx1' := BuildCallState(st.ctx'.locals, vars, argvs.vs');
     var st' := MState(env, acc, ctx1, ctx1');
 
-    var b := Inv(st); // && CanUpdateVars(set x | x in vars, st.acc.frozen);    
-    assert b ==> Inv(st') by {
+    var b := Inv(st) && CanUpdateVars(SeqToSet(vars), st.acc.frozen);
+    assert b ==> Inv(st') && StateRel(st, st') by {
       if b {
         MapOfPairs_SeqZip_EqCtx(vars, argvs.vs, argvs.vs');
         var nbinds := MapOfPairs(Seq.Zip(vars, argvs.vs));
@@ -477,83 +571,95 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
         assert ctx1 == State(locals := ctx.locals + nbinds);
         assert ctx1' == State(locals := ctx'.locals + nbinds');
         assert nbinds.Keys == nbinds'.Keys by { reveal GEqCtx(); }
-//        reveal EqStateWithAcc();
-//        reveal EqStateOnAcc();
-//        reveal StateRel();
-//        reveal GEqCtx();
 
-        // This is true because the new bindings are disjoint from acc.subst 
-        assert ctx1'.locals.Keys !! acc.subst.Keys by {
-          assert ctx'.locals.Keys !! acc.subst.Keys by { reveal EqStateWithAcc(); }
-          assert nbinds.Keys !! acc.subst.Keys by {
-            MapOfPairs_SeqZip_Keys(vars, argvs.vs);
-  //          MapOfPairs_SeqZip_Keys(vars, argvs.vs');
-            assert nbinds.Keys == set x | x in vars;
-            assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
-            assume (set x | x in vars) !! st.acc.frozen; // Given by ``CanUpdateVars``
-          }
+        assert Inv(st') by {
+          // The rollback invariants are trivial because the rollbacks are empty on both sides
+          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys; // Ok
+          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys; // Ok
+          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); } // Ok
+
+          // Prove the remaining conditions of the invariant
+          BuildClosure_UpdateState_Inv(acc, st.env, ctx, ctx', env, ctx1, ctx1', vars, argvs);
+          reveal EqStateWithAcc();
         }
-        // This is true because the new bindings are the same on the two sides:
-        assert ctx1'.locals.Keys + acc.subst.Keys == ctx1.locals.Keys by { reveal EqStateWithAcc(); }
 
-        assert ctx1'.rollback.Keys <= ctx1.rollback.Keys; // Ok
-        assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys; // Ok
-
-        assert EqCtx(map x | x in ctx1'.locals.Keys :: ctx1.locals[x], ctx1'.locals) by {
-          // TODO: lemma:
-          // - if binding not updated, then ok
-          // - if binding updated: ok
-          var locals1 := map x | x in ctx1'.locals.Keys :: ctx1.locals[x];
-          var locals1' := ctx1'.locals;
-          assert locals1.Keys == locals1'.Keys;
-          forall x | x in locals1'.Keys ensures EqValue(locals1[x], locals1'[x]) {
-            assume false;
-          }
-//          reveal EqStateWithAcc();
-          reveal GEqCtx();
-        }
-        assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); } // Ok
-
-        assert EqStateOnAcc(env, acc, ctx1, ctx1') by {
-          assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); } // Ok
-          assert (forall x | x in acc.subst.Keys :: VarsOfExpr(acc.subst[x]) <= acc.frozen) by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
-          assume ( // TODO: general lemma: adding bindings which are not used leads to same interp
-            forall x | x in acc.subst.Keys ::
-            var res := InterpExpr(acc.subst[x], env, ctx1');
-            match res {
-              case Success(Return(v, ctx1'')) =>
-                && ctx1'' == ctx1'
-                && v == ctx1.locals[x]
-              case Failure(_) => false
-            });
-          reveal EqStateOnAcc();
-        }
-        assert Inv(st') by { reveal EqStateWithAcc(); }
+        // The two states are trivially related because the accumulator is unchanged
+        assert StateRel(st, st') by { reveal StateRel(); }
       }
     }
     st'
   }
 
   function {:verify false} UpdateState ...
-    // Adding this precondition makes the InductUpdate proofs easier
-    ensures Inv(st) ==> Inv(st') // && RelState(st, st') // TODO
+    // Adding this postcondition makes the InductUpdate proofs easier
+    ensures Inv(st) && CanUpdateVars(SeqToSet(vars), st.acc.frozen) ==> Inv(st') && StateRel(st, st')
   {
-    assume false; // TODO
+    var acc := st.acc;
+    var ctx := st.ctx;
+    var ctx' := st.ctx';
     var ctx1 := st.ctx.(locals := AugmentContext(st.ctx.locals, vars, vals.vs));
     var ctx1' := st.ctx'.(locals := AugmentContext(st.ctx'.locals, vars, vals.vs'));
     var st' := MState(st.env, st.acc, ctx1, ctx1'); // TODO: st.acc
 
-    assert Inv(st) ==> Inv(st') by {
-      if Inv(st) {
+    var b := Inv(st) && CanUpdateVars(SeqToSet(vars), st.acc.frozen);
+    assert b ==> Inv(st') && StateRel(st, st') by {
+      if b {
+        MapOfPairs_SeqZip_EqCtx(vars, vals.vs, vals.vs');
+        var nbinds := MapOfPairs(Seq.Zip(vars, vals.vs));
+        var nbinds' := MapOfPairs(Seq.Zip(vars, vals.vs'));
+
         reveal BuildCallState();
-        reveal GEqCtx();
-        BuildCallState_EqState(st.ctx.locals, st.ctx'.locals, vars, vals.vs, vals.vs');
+        assert ctx1.locals == ctx.locals + nbinds;
+        assert ctx1'.locals == ctx'.locals + nbinds';
+        assert nbinds.Keys == nbinds'.Keys by { reveal GEqCtx(); }
+
+        assert Inv(st') by {
+          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); } // Ok
+          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); } // Ok
+          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal EqStateWithAcc(); } // Ok
+
+          // Prove the remaining conditions of the invariant
+          BuildClosure_UpdateState_Inv(acc, st.env, ctx, ctx', st.env, ctx1, ctx1', vars, vals);
+          reveal EqStateWithAcc();
+        }
+
+        // The two states are trivially related because the accumulator is unchanged
+        assert StateRel(st, st') by { reveal StateRel(); }
+      }
+    }
+    st'
+  }
+
+  function {:verify false} StateSaveToRollback_Inline(st: S, vars: seq<string>): (st':S)
+  {
+    // TODO
+    st
+  }
+
+  function {:verify false} StateSaveToRollback_NoInline(st: S, vdecls: seq<Exprs.Var>, rhs': seq<Expr>): (st':S)
+    requires |rhs'| == |vdecls|
+    requires !(|vdecls| == 1 && CanInlineVar(p, vdecls[0], rhs'[0]))
+    ensures Inv(st) && CanUpdateVars(SeqToSet(VarsToNames(vdecls)), st.acc.frozen) ==> Inv(st') && StateRel(st, st')
+  {
+    var MState(env, acc, ctx, ctx') := st;
+    var vars := VarsToNames(vdecls);
+    var ctx1 := SaveToRollback(st.ctx, vars);
+    var ctx1' := SaveToRollback(st.ctx', vars);
+    var st' := MState(st.env, acc, ctx1, ctx1');
+
+    var b := Inv(st) && CanUpdateVars(SeqToSet(vars), st.acc.frozen);
+    assert b ==> Inv(st') && StateRel(st, st') by {
+      if b {
+        assume false;
       }
     }
 
     st'
   }
 
+  // TODO(SMH): we need the rhs (not only the variables) as input parameters + some length conditions.
+  // Actually it doesn't work: we need to prevent the UpdateState which happens afterward in the case
+  // where we inline the rhs.
   function {:verify false} StateSaveToRollback ...
     ensures Inv(st) ==> Inv(st')
   {
@@ -589,21 +695,107 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   }
 
   function {:verify false} StateStartScope ...
-    ensures Inv(st) ==> Inv(st')
+    ensures Inv(st) ==> Inv(st') && StateRel(st, st')
   {
-    var ctx := StartScope(st.ctx);
-    var ctx' := StartScope(st.ctx');
-    reveal GEqCtx();
-    MState(st.env, st.acc, ctx, ctx')
+    var MState(env, acc, ctx, ctx') := st;
+    var ctx1 := StartScope(ctx);
+    var ctx1' := StartScope(ctx');
+    var st' := MState(env, acc, ctx1, ctx1');
+    var b := Inv(st);
+    assert b ==> Inv(st') && StateRel(st, st') by {
+      if b {
+        assert EqStateWithAcc(env, acc, ctx1, ctx1') by {
+          assert EqStateWithAcc_Locals(env, acc, ctx1, ctx1') by {
+            assert ctx1'.locals.Keys !! acc.subst.Keys by { reveal EqStateWithAcc(); }
+            assert ctx1'.locals.Keys + acc.subst.Keys == ctx1.locals.Keys by { reveal EqStateWithAcc(); }
+            assert EqCtx(map x | x in ctx1'.locals.Keys :: ctx1.locals[x], ctx1'.locals) by { reveal EqStateWithAcc(); }
+            assert EqStateOnAcc(env, acc, ctx1, ctx1') by {
+              assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
+              assert forall x | x in acc.subst.Keys :: VarsOfExpr(acc.subst[x]) <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
+
+              // TODO: we need this to hold whatever the *rollback* (which we just initialized to empty).
+              // It should be ok because we should not need to use it: we can't close a scope without
+              // opening one before.
+              // TODO: should be a different lemma than the one for BuildClosureCallState (it shouldn't
+              // need to be recursive actually: for the recursive cases like Block, we just need the
+              // reflexivity of EqInterp).
+              assume forall x | x in acc.subst.Keys ::
+                 var res := InterpExpr(acc.subst[x], env, ctx1');
+                 match res {
+                   case Success(Return(v, ctx1'')) =>
+                     && ctx1'' == ctx1'
+                     && v == ctx1.locals[x]
+                   case Failure(_) => false
+                 };
+              reveal EqStateOnAcc();
+            }
+          }
+          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys;
+          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys;
+          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); }
+          reveal EqStateWithAcc();
+        }
+        assert StateRel(st, st') by { reveal StateRel(); }
+      }
+    }
+//    reveal GEqCtx();
+    st'
   }
 
   function {:verify false} StateEndScope ...
-    ensures Inv(st0) && Inv(st) ==> Inv(st')
+    ensures Inv(st0) && Inv(st) ==> Inv(st') && StateRel(st0, st')
   {
-    var ctx := EndScope(st0.ctx, st.ctx);
-    var ctx' := EndScope(st0.ctx', st.ctx');
-    reveal GEqCtx();
-    MState(st.env, st.acc, ctx, ctx') // TODO: acc
+    var MState(env, acc, ctx0, ctx0') := st0;
+    var ctx1 := EndScope(st0.ctx, st.ctx);
+    var ctx1' := EndScope(st0.ctx', st.ctx');
+    var st' := MState(env, acc, ctx1, ctx1');
+    var b := Inv(st0) && Inv(st);
+    assert b ==> Inv(st') && StateRel(st0, st') by {
+      if b {
+        assert EqStateWithAcc(env, acc, ctx1, ctx1') by {
+          assert EqStateWithAcc_Locals(env, acc, ctx1, ctx1') by {
+            assert ctx1'.locals.Keys !! acc.subst.Keys by { reveal EqStateWithAcc(); }
+            assert ctx1'.locals.Keys + acc.subst.Keys == ctx1.locals.Keys by {
+              // TODO: we need more contextual information to prove those two assumptions (we can't
+              // call InterpStateIneq in the current state). Move those as assumptions, and call
+              // InterpEqStateIneq wherever needed in the other lemmas?
+              assume ctx0.locals.Keys <= st.ctx.locals.Keys + st.ctx.rollback.Keys; // TODO
+              assume ctx0'.locals.Keys <= st.ctx'.locals.Keys + st.ctx'.rollback.Keys; // TODO
+              reveal EqStateWithAcc();
+            }
+            assert EqCtx(map x | x in ctx1'.locals.Keys :: ctx1.locals[x], ctx1'.locals) by {
+              reveal EqStateWithAcc();
+              reveal GEqCtx();
+            }
+            assert EqStateOnAcc(env, acc, ctx1, ctx1') by {
+              assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
+              assert forall x | x in acc.subst.Keys :: VarsOfExpr(acc.subst[x]) <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
+
+              // TODO: lemma:
+              // - prove that the locals used in the substs are left unchanged (left unchanged
+              //   in locals, don't appear in rollback)
+              // - under those assumptions, prove that evaluating the expressions is the same
+              //   (same lemma as for ``BuildClosure_UpdateState_Inv``)
+              assume forall x | x in acc.subst.Keys ::
+                 var res := InterpExpr(acc.subst[x], env, ctx1');
+                 match res {
+                   case Success(Return(v, ctx1'')) =>
+                     && ctx1'' == ctx1'
+                     && v == ctx1.locals[x]
+                   case Failure(_) => false
+                 };
+              reveal EqStateOnAcc();
+            }
+          }
+          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); }
+          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); }
+          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal EqStateWithAcc(); }
+          reveal EqStateWithAcc();
+        }
+        assert StateRel(st0, st') by { reveal StateRel(); }
+      }
+    }
+    st'
   }
 
   function {:verify false} P_Step ...
