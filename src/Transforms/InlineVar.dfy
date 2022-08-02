@@ -7,6 +7,7 @@ include "../Utils/StrTree.dfy"
 include "../Semantics/Interp.dfy"
 include "../Semantics/Equiv.dfy"
 include "../Semantics/ExprInduction.dfy"
+include "../Semantics/InterpStateIneq.dfy"
 include "../Semantics/Pure.dfy"
 //include "InterpStateIneq.dfy"
 
@@ -227,6 +228,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   import opened Generic
   import Shallow*/
   import opened Base
+  import Semantics.InterpStateIneq
 
   type {:verify false} Value = Interp.Value
   type {:verify false} Context = Interp.Context
@@ -777,25 +779,36 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     st'
   }
 
+  predicate EndScope_StateSmaller(ctx: State, ctx': State)
+    // Auxiliary predicate
+  {
+    ctx.locals.Keys <= ctx'.locals.Keys + ctx'.rollback.Keys
+  }
+
+  predicate StateEndScope_Pre(st0: S, st: S)
+  {
+    && Inv(st0)
+    && Inv(st)
+    && EndScope_StateSmaller(st0.ctx, st.ctx)
+    && EndScope_StateSmaller(st0.ctx', st.ctx')
+  }
+
   function {:verify false} StateEndScope ...
-    ensures Inv(st0) && Inv(st) ==> Inv(st') && StateRel(st0, st')
+    ensures StateEndScope_Pre(st0, st)  ==> Inv(st') && StateRel(st0, st')
   {
     var MState(env, acc, ctx0, ctx0') := st0;
     var ctx1 := EndScope(st0.ctx, st.ctx);
     var ctx1' := EndScope(st0.ctx', st.ctx');
     var st' := MState(env, acc, ctx1, ctx1');
-    var b := Inv(st0) && Inv(st);
+    var b := Inv(st0) && Inv(st) && EndScope_StateSmaller(st0.ctx, st.ctx) && EndScope_StateSmaller(st0.ctx', st.ctx');
     assert b ==> Inv(st') && StateRel(st0, st') by {
       if b {
         assert EqStateWithAcc(env, acc, ctx1, ctx1') by {
           assert EqStateWithAcc_Locals(env, acc, ctx1, ctx1') by {
             assert ctx1'.locals.Keys !! acc.subst.Keys by { reveal EqStateWithAcc(); }
             assert ctx1'.locals.Keys + acc.subst.Keys == ctx1.locals.Keys by {
-              // TODO: we need more contextual information to prove those two assumptions (we can't
-              // call InterpStateIneq in the current state). Move those as assumptions, and call
-              // InterpEqStateIneq wherever needed in the other lemmas?
-              assume ctx0.locals.Keys <= st.ctx.locals.Keys + st.ctx.rollback.Keys; // TODO
-              assume ctx0'.locals.Keys <= st.ctx'.locals.Keys + st.ctx'.rollback.Keys; // TODO
+              assert ctx0.locals.Keys <= st.ctx.locals.Keys + st.ctx.rollback.Keys;
+              assert ctx0'.locals.Keys <= st.ctx'.locals.Keys + st.ctx'.rollback.Keys;
               reveal EqStateWithAcc();
             }
             assert EqCtx(map x | x in ctx1'.locals.Keys :: ctx1.locals[x], ctx1'.locals) by {
@@ -1030,20 +1043,32 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     reveal InterpExprs_Block();
     
     var (_, e') := InlineInExpr(p, st.acc, e).value;
+    var stmts' := e'.stmts;
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx);
-    InterpExprs_Block_Equiv_Strong(e'.stmts, st.env, st_start.ctx');
+    InterpExprs_Block_Equiv_Strong(stmts', st.env, st_start.ctx');
   }
 
   lemma {:verify false} InductBlock_Succ ...
   {
-    assume false; // TODO
     reveal InterpExpr();
     reveal InterpBlock();
     reveal InterpExprs();
     reveal InterpBlock_Exprs();
     reveal InterpExprs_Block();
     
+    var (_, e') := InlineInExpr(p, st.acc, e).value;
+    var stmts' := e'.stmts;
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx);
-    InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx');
+    InterpExprs_Block_Equiv_Strong(stmts', st.env, st_start.ctx');
+
+    assert Inv(st);
+    assert Inv(st_stmts);
+    assert EndScope_StateSmaller(st.ctx, st_stmts.ctx) by {
+      InterpStateIneq.InterpBlock_Exprs_StateSmaller(stmts, st.env, st_start.ctx);
+    }
+    assert EndScope_StateSmaller(st.ctx', st_stmts.ctx') by {
+      InterpStateIneq.InterpBlock_Exprs_StateSmaller(stmts', st.env, st_start.ctx');
+    }
+    assert StateEndScope_Pre(st, st_stmts);
   }
 }
