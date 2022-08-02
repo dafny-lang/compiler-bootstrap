@@ -376,6 +376,19 @@ module Exprs {
       }
     }
 
+    static lemma Exprs_Size_Mem(es: seq<Expr>, e: Expr)
+      requires e in es
+      ensures e.Size() <= Exprs_Size(es)
+    {
+      if es == [] {}
+      else {
+        if e == es[0] {}
+        else {
+          Exprs_Size_Mem(es[1..], e);
+        }
+      }
+    }
+
     static lemma Size_Decreases(e: Expr)
       ensures e.Abs? ==> e.body.Size() < e.Size()
       ensures e.If? ==> e.cond.Size() < e.Size() && e.thn.Size() < e.Size() && e.els.Size() < e.Size()

@@ -252,6 +252,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductApplyLazy_Fail(st: S, e: Expr, arg0: Expr, arg1: Expr)
     requires e.Apply? && e.aop.Lazy? && e.args == [arg0, arg1]
     requires !P_Fail(st, e)
+    // TODO: requires P(st, arg0)
     ensures !P_Fail(st, arg0)
 
   lemma InductApplyLazy_Succ(st: S, e: Expr, arg0: Expr, arg1: Expr, st1: S, v0: V)
@@ -264,6 +265,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductApplyEager_Fail(st: S, e: Expr, args: seq<Expr>)
     requires e.Apply? && e.aop.Eager? && e.args == args
     requires !P_Fail(st, e)
+    // TODO: requires Pes(st, args)
     ensures !Pes_Fail(st, args)
 
   lemma InductApplyEagerUnaryOp_Succ(st: S, e: Expr, op: UnaryOps.T, arg0: Expr, st1: S, v0: V)
@@ -316,6 +318,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductIf_Fail(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr)
     requires e.If? && e.cond == cond && e.thn == thn && e.els == els
     requires !P_Fail(st, e)
+    // TODO: requires Pes(st, cond)
     ensures !P_Fail(st, cond)
 
   lemma InductIf_Succ(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr, st_cond: S, condv: V)
@@ -346,6 +349,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductVarDecl_Some_Fail(st: S, e: Expr, vdecls: seq<Exprs.Var>, vals: seq<Expr>)
     requires e.VarDecl? && e.vdecls == vdecls && e.ovals.Some? && e.ovals.value == vals
     requires !P_Fail(st, e)
+    // TODO: requires Pes(st, vals)
     ensures !Pes_Fail(st, vals)
 
   // DISCUSS: we want to consistently adopt the style we described for ``InductVarDecl_None_Succ``,
@@ -369,6 +373,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductUpdate_Fail(st: S, e: Expr, vars: seq<string>, vals: seq<Expr>)
     requires e.Update? && e.vars == vars && e.vals == vals
     requires !P_Fail(st, e)
+    // TODO: requires Pes(st, vals)
     ensures !Pes_Fail(st, vals)
 
   lemma InductUpdate_Succ(
@@ -387,6 +392,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires !P_Fail(st, e)
     requires vars == VarsToNames(bvars)
     requires st1 == StateStartScope(st)
+    // TODO: requires Pes(st1, bvals)
     ensures !Pes_Fail(st1, bvals)
     ensures
       forall st2, vals :: Pes_Succ(st1, bvals, st2, vals) ==>
@@ -413,6 +419,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires e.Block? && e.stmts == stmts
     requires !P_Fail(st, e)
     requires st_start == StateStartScope(st)
+    // TODO: requires Pes(st_start, stmts)
     ensures !Pes_Fail(st_start, stmts)
 
   // DISCUSS: we can't have this automatic proofs for this lemma, because we implicitly rely on the

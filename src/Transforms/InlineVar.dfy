@@ -131,7 +131,18 @@ module Bootstrap.Transforms.InlineVar.Base {
         var (_, body') :- InlineInExpr(p, acc, body);
         Success((acc, e.(body := body')))
 
-      case Apply(aop, args) =>
+      case Apply(Lazy(op), args) =>
+        var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
+        Expr.Exprs_Size_Mem(e.args, e0); // For termination
+        Expr.Exprs_Size_Mem(e.args, e1); // For termination
+        var (acc1, e0') :- InlineInExpr(p, acc, e0);
+        var (acc2, e1') :- InlineInExpr(p, acc1, e1);
+        // The second expression is not necessarily evaluated, so we need to make sure the
+        // accumulators agree.
+        :- Need(acc2 == acc1, ());
+        Success((acc1, e.(args := [e0', e1'])))
+
+      case Apply(Eager(op), args) =>
         var (acc', args') :- InlineInExprs(p, acc, args);
         Success((acc', e.(args := args')))
 
@@ -307,6 +318,20 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     ensures StateRel(st0, st2)
   {
     reveal StateRel();
+  }
+
+  lemma {:verify false} StateRel_Trans_Forall()
+    ensures forall st0, st1, st2 | StateRel(st0, st1) && StateRel(st1, st2) :: StateRel(st0, st2)
+  {
+    reveal StateRel(); // BUG(https://github.com/dafny-lang/dafny/issues/2260)
+    forall st0, st1, st2 | StateRel(st0, st1) && StateRel(st1, st2) ensures StateRel(st0, st2) {
+      StateRel_Trans(st0, st1, st2);
+    }
+  }
+
+  lemma {:verify false} StateRel_Refl(st: MState)
+    ensures StateRel(st, st)
+  {
     reveal StateRel();
   }
 
@@ -368,9 +393,11 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   predicate {:verify false} P(st: S, e: Expr)
   {
     var res := InterpExpr(e, st.env, st.ctx);
-    var res' := InterpExpr(e, st.env, st.ctx');
+    var ires := InlineInExpr(p, st.acc, e);
     Inv(st) ==>
-    InlineInExpr(p, st.acc, e).Success? ==>
+    ires.Success? ==>
+    var (_, e') := ires.value;
+    var res' := InterpExpr(e', st.env, st.ctx');
     match (res, res') {
       case (Success(Return(v1, ctx1)), Success(Return(v1', ctx1'))) =>
         var (acc1, _) := InlineInExpr(p, st.acc, e).value;
@@ -386,21 +413,24 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   predicate {:verify false} P_Succ(st: S, e: Expr, st': S, v: V)
   {
     var res := InterpExpr(e, st.env, st.ctx);
-    var res' := InterpExpr(e, st.env, st.ctx');
+    var ires := InlineInExpr(p, st.acc, e);
     && Inv(st)
-    && InlineInExpr(p, st.acc, e).Success?
-    && match (res, res') {
-      case (Success(Return(v1, ctx1)), Success(Return(v1', ctx1'))) =>
-        var (acc1, _) := InlineInExpr(p, st.acc, e).value;
-        var st1 := MState(st.env, acc1, ctx1, ctx1');
-        && EqValue(v1, v1')
-        && Inv(st1)
-        && StateRel(st, st1)
-        // Additional
-        && st1 == st'
-        && v == MValue(v1, v1')
-      case _ => false
-    }
+    && ires.Success?
+    && (
+      var (_, e') := ires.value;
+      var res' := InterpExpr(e', st.env, st.ctx');
+      match (res, res') {
+        case (Success(Return(v1, ctx1)), Success(Return(v1', ctx1'))) =>
+          var (acc1, _) := InlineInExpr(p, st.acc, e).value;
+          var st1 := MState(st.env, acc1, ctx1, ctx1');
+          && EqValue(v1, v1')
+          && Inv(st1)
+          && StateRel(st, st1)
+          // Additional
+          && st1 == st'
+          && v == MValue(v1, v1')
+        case _ => false
+      })
   }
 
   predicate {:verify false} P_Fail(st: S, e: Expr)
@@ -411,9 +441,11 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   predicate {:verify false} Pes(st: S, es: seq<Expr>)
   {
     var res := InterpExprs(es, st.env, st.ctx);
-    var res' := InterpExprs(es, st.env, st.ctx');
+    var ires := InlineInExprs(p, st.acc, es);
     Inv(st) ==>
-    InlineInExprs(p, st.acc, es).Success? ==>
+    ires.Success? ==>
+    var (_, es') := ires.value;
+    var res' := InterpExprs(es', st.env, st.ctx');
     match (res, res') {
       case (Success(Return(vs1, ctx1)), Success(Return(vs1', ctx1'))) =>
         var (acc1, _) := InlineInExprs(p, st.acc, es).value;
@@ -429,21 +461,24 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   predicate {:verify false} Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS)
   {
     var res := InterpExprs(es, st.env, st.ctx);
-    var res' := InterpExprs(es, st.env, st.ctx');
+    var ires := InlineInExprs(p, st.acc, es);
     && Inv(st)
-    && InlineInExprs(p, st.acc, es).Success?
-    && match (res, res') {
-      case (Success(Return(vs1, ctx1)), Success(Return(vs1', ctx1'))) =>
-        var (acc1, _) := InlineInExprs(p, st.acc, es).value;
-        var st1 := MState(st.env, acc1, ctx1, ctx1');
-        && EqSeqValue(vs1, vs1')
-        && Inv(st1)
-        && StateRel(st, st1)
-        // Additional
-        && st1 == st'
-        && vs == MSeqValue(vs1, vs1')
-      case _ => false
-    }
+    && ires.Success?
+    && (
+      var (_, es') := ires.value;
+      var res' := InterpExprs(es', st.env, st.ctx');
+      match (res, res') {
+        case (Success(Return(vs1, ctx1)), Success(Return(vs1', ctx1'))) =>
+          var (acc1, _) := InlineInExprs(p, st.acc, es).value;
+          var st1 := MState(st.env, acc1, ctx1, ctx1');
+          && EqSeqValue(vs1, vs1')
+          && Inv(st1)
+          && StateRel(st, st1)
+          // Additional
+          && st1 == st'
+          && vs == MSeqValue(vs1, vs1')
+        case _ => false
+      })
   }
 
   predicate {:verify false} Pes_Fail(st: S, es: seq<Expr>)
@@ -801,7 +836,8 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   function {:verify false} P_Step ...
   {
     var Return(v1, ctx1) := InterpExpr(e, st.env, st.ctx).value;
-    var Return(v1', ctx1') := InterpExpr(e, st.env, st.ctx').value;
+    var (_, e') := InlineInExpr(p, st.acc, e).value;
+    var Return(v1', ctx1') := InterpExpr(e', st.env, st.ctx').value;
     var (acc1, _) := InlineInExpr(p, st.acc, e).value;
     (MState(st.env, acc1, ctx1, ctx1'), MValue(v1, v1'))
   }
@@ -809,7 +845,8 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   function {:verify false} Pes_Step ...
   {
     var Return(vs1, ctx1) := InterpExprs(es, st.env, st.ctx).value;
-    var Return(vs1', ctx1') := InterpExprs(es, st.env, st.ctx').value;
+    var (_, es') := InlineInExprs(p, st.acc, es).value;
+    var Return(vs1', ctx1') := InterpExprs(es', st.env, st.ctx').value;
     var (acc1, _) := InlineInExprs(p, st.acc, es).value;
     (MState(st.env, acc1, ctx1, ctx1'), MSeqValue(vs1, vs1'))
   }
@@ -823,38 +860,75 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   lemma {:verify false} Pes_Fail_Sound ... {}
   lemma {:verify false} Pes_Succ_Sound ... {}
 
-  lemma {:verify false} Pes_Succ_Inj ... {} // TODO
+  lemma {:verify false} Pes_Succ_Inj ... {}
   lemma {:verify false} SeqVToVS_Append ... {}
 
   lemma {:verify false} InductVar ... {
-    assume false; // TODO
     reveal InterpExpr();
     reveal GEqCtx();
 
     var env := st.env;
-    var v := e.name;
-    
-    // Start by looking in the local context
-    var res0 := TryGetVariable(st.ctx.locals, v, UnboundVariable(v));
-    var res0' := TryGetVariable(st.ctx'.locals, v, UnboundVariable(v));
+    var acc := st.acc;
+    var x := e.name;
 
-    if res0.Success? {
-      assert res0.Success?;
+    StateRel_Refl(st);
+
+    if x in acc.subst.Keys {
+      // We inlined the variable
+      var (acc', e') := InlineInExpr(p, acc, e).value;
+      assert acc' == acc;
+      assert e' == acc.subst[x];
+
+      var res := InterpExpr(e, st.env, st.ctx);
+      var res' := InterpExpr(e', st.env, st.ctx');
+
+      var ctx := st.ctx;
+      var ctx' := st.ctx';
+      assert res' == InterpExpr(acc.subst[x], env, ctx');
+      assert
+        match res' {
+          case Success(Return(v, ctx'')) =>
+            && x in ctx.locals.Keys
+            && ctx'' == ctx'
+            && v == ctx.locals[x]
+          case Failure(_) => false
+        }
+      by {
+        reveal EqStateWithAcc();
+        reveal EqStateOnAcc();
+      }
+
+      var Return(v, _) := res.value;
+      EqValue_Refl(v);
     }
     else {
-      // Not in the local context: look in the global context
-      assert v in env.globals;
-      EqValue_Refl(env.globals[v]);
+      // We didn't inline the variable
+      // Start by looking in the local context
+      var res0 := TryGetVariable(st.ctx.locals, x, UnboundVariable(x));
+      if res0.Success? {
+        assert x in st.ctx.locals && x in st.ctx'.locals && EqValue(st.ctx.locals[x], st.ctx'.locals[x]) by {
+          reveal EqStateWithAcc();
+          reveal GEqCtx();
+        }
+      }
+      else {
+        assert x !in st.ctx.locals && x !in st.ctx'.locals by {
+          reveal EqStateWithAcc();
+        }
+
+        // Not in the local context: look in the global context
+        assert x in env.globals;
+        EqValue_Refl(env.globals[x]);
+      }
     }
   }
 
-  lemma {:verify false} InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); }
+  lemma {:verify false} InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); StateRel_Refl(st); }
 
   lemma {:verify false} InductAbs ... {
+    assume false; // TODO
     reveal InterpExpr();
     reveal EqValue_Closure();
-
-/*
     var MState(env, acc, ctx, ctx') := st;
     var cv := Values.Closure(ctx.locals, vars, body);
     var cv' := Values.Closure(ctx'.locals, vars, body);
@@ -874,7 +948,8 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
       reveal InterpCallFunctionBody();
     }
 
-    assert EqValue_Closure(cv, cv');*/
+    assert EqValue_Closure(cv, cv');
+    StateRel_Refl(st);
   }
 
   lemma {:verify false} InductAbs_CallState ... {
@@ -883,50 +958,68 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     reveal BuildCallState();
   }
 
-  lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); }
-  lemma {:verify false} InductExprs_Cons ... { reveal InterpExprs(); }
+  lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); StateRel_Refl(st); }
+  lemma {:verify false} InductExprs_Cons ... {
+    reveal InterpExprs();
+    StateRel_Trans_Forall();
+  }
 
   lemma {:verify false} InductApplyLazy_Fail ... { reveal InterpExpr(); }
-  lemma {:verify false} InductApplyLazy_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyLazy_Succ ... {
+    reveal InterpExpr();
+    StateRel_Trans_Forall();
+  }
 
   lemma {:verify false} InductApplyEager_Fail ... { reveal InterpExpr(); }
 
-  lemma {:verify false} InductApplyEagerUnaryOp_Succ ... { reveal InterpExpr(); reveal InterpUnaryOp(); }
+  lemma {:verify false} InductApplyEagerUnaryOp_Succ ... {
+    reveal InterpExpr();
+    reveal InterpUnaryOp();
+    StateRel_Trans_Forall();
+  }
 
   lemma {:verify false} InductApplyEagerBinaryOp_Succ ... {
     reveal InterpExpr();
-    InterpBinaryOp_Eq(e, e, op, v0.v, v1.v, v0.v', v1.v');
+    var (_, e') := InlineInExpr(p, st.acc, e).value;
+    InterpBinaryOp_Eq(e, e', op, v0.v, v1.v, v0.v', v1.v');
+    StateRel_Trans_Forall();
   }
 
   lemma {:verify false} {:fuel SeqVToVS, 2} InductApplyEagerTernaryOp_Succ ... {
     reveal InterpExpr();
+    var (_, e') := InlineInExpr(p, st.acc, e).value;
     // TODO(SMH): ``SeqVToVS`` is called on literals: we shouldn't need fuel 2
     assert SeqVToVS([v0, v1, v2]) == MSeqValue([v0.v, v1.v, v2.v], [v0.v', v1.v', v2.v']);
-    InterpTernaryOp_Eq(e, e, op, v0.v, v1.v, v2.v, v0.v', v1.v', v2.v');
+    InterpTernaryOp_Eq(e, e', op, v0.v, v1.v, v2.v, v0.v', v1.v', v2.v');
+    StateRel_Trans_Forall();
   }
 
   lemma {:verify false} InductApplyEagerBuiltinDisplay ... {
     reveal InterpExpr();
-    Interp_Apply_Display_EqValue(e, e, ty.kind, argvs.vs, argvs.vs');
+    var (_, e') := InlineInExpr(p, st.acc, e).value;
+    Interp_Apply_Display_EqValue(e, e', ty.kind, argvs.vs, argvs.vs');
+    StateRel_Trans_Forall();
   }
 
   lemma {:verify false} InductApplyEagerFunctionCall ... {
     reveal InterpExpr();
-    InterpFunctionCall_EqState(e, e, st.env, fv.v, fv.v', argvs.vs, argvs.vs');
+    var (_, e') := InlineInExpr(p, st.acc, e).value;
+    InterpFunctionCall_EqState(e, e', st.env, fv.v, fv.v', argvs.vs, argvs.vs');
+    StateRel_Trans_Forall();
   }
 
   lemma {:verify false} InductIf_Fail ... { reveal InterpExpr(); }
-  lemma {:verify false} InductIf_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductIf_Succ ... { reveal InterpExpr(); StateRel_Trans_Forall(); }
 
   lemma {:verify false} InductUpdate_Fail ... { reveal InterpExpr(); }
-  lemma {:verify false} InductUpdate_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductUpdate_Succ ... { assume false; reveal InterpExpr(); StateRel_Trans_Forall(); } // TODO
 
-  lemma {:verify false} InductVarDecl_None_Succ ... { reveal InterpExpr(); }
-  lemma {:verify false} InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
-  lemma {:verify false} InductVarDecl_Some_Succ  ... { reveal InterpExpr(); }
+  lemma {:verify false} InductVarDecl_None_Succ ... { assume false; reveal InterpExpr(); } // TODO
+  lemma {:verify false} InductVarDecl_Some_Fail ... { assume false; reveal InterpExpr(); } // TODO
+  lemma {:verify false} InductVarDecl_Some_Succ  ... { assume false; reveal InterpExpr(); } // TODO
 
-  lemma {:verify false} InductBind_Fail ... { reveal InterpExpr(); }
-  lemma {:verify false} InductBind_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductBind_Fail ... { assume false; reveal InterpExpr(); } // TODO
+  lemma {:verify false} InductBind_Succ ... { assume false; reveal InterpExpr(); } // TODO
 
   lemma {:verify false} InductBlock_Fail ...
   {
@@ -936,12 +1029,14 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     reveal InterpBlock_Exprs();
     reveal InterpExprs_Block();
     
+    var (_, e') := InlineInExpr(p, st.acc, e).value;
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx);
-    InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx');
+    InterpExprs_Block_Equiv_Strong(e'.stmts, st.env, st_start.ctx');
   }
 
   lemma {:verify false} InductBlock_Succ ...
   {
+    assume false; // TODO
     reveal InterpExpr();
     reveal InterpBlock();
     reveal InterpExprs();
