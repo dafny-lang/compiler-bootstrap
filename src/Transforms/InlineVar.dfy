@@ -153,24 +153,26 @@ module Bootstrap.Transforms.InlineVar.Base {
         Success((acc, e.(stmts := stmts')))
 
       case VarDecl(vdecls, ovals) =>
-        :- Need(CanUpdateVars(VarsToNameSet(vdecls), acc.frozen), ());
         if ovals.Some? then
           var (acc1, vals') :- InlineInExprs(p, acc, ovals.value);
+          :- Need(CanUpdateVars(VarsToNameSet(vdecls), acc1.frozen), ());
           // For now, we try to inline only if there is exactly one variable
           if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals'[0]) then
             var acc2 := AddToAcc(acc, vdecls[0], vals'[0]);
             Success((acc2, EmptyBlock))
           else Success((acc1, Expr.VarDecl(vdecls, Exprs.Some(vals'))))
-        else Success((acc, e))
+        else
+          :- Need(CanUpdateVars(VarsToNameSet(vdecls), acc.frozen), ());
+          Success((acc, e))
 
       case Update(vars, vals) =>
-        :- Need(CanUpdateVars(set x | x in vars, acc.frozen), ());
         var (acc', vals') :- InlineInExprs(p, acc, vals);
+        :- Need(CanUpdateVars(SeqToSet(vars), acc'.frozen), ());
         Success((acc', e.(vals := vals')))
 
       case Bind(bvars, bvals, bbody) =>
-        :- Need(CanUpdateVars(VarsToNameSet(bvars), acc.frozen), ()); // Not necessary, but let's make thinkgs simple for now
         var (acc1, bvals') :- InlineInExprs(p, acc, bvals);
+        :- Need(CanUpdateVars(VarsToNameSet(bvars), acc1.frozen), ()); // Not necessary, but let's make thinkgs simple for now
         // For now, we try to inline only if there is exactly one variable
         // Rk.: we return the original acc because there is a scope
         if |bvars| == 1 && CanInlineVar(p, bvars[0], bvals'[0]) then
@@ -627,9 +629,15 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     st'
   }
 
+  predicate UpdateState_Pre(st: S, vars: seq<string>)
+  {
+    && Inv(st)
+    && CanUpdateVars(SeqToSet(vars), st.acc.frozen)
+  }
+  
   function {:verify false} UpdateState ...
     // Adding this postcondition makes the InductUpdate proofs easier
-    ensures Inv(st) && CanUpdateVars(SeqToSet(vars), st.acc.frozen) ==> Inv(st') && StateRel(st, st')
+    ensures UpdateState_Pre(st, vars) ==> Inv(st') && StateRel(st, st')
   {
     var acc := st.acc;
     var ctx := st.ctx;
@@ -638,7 +646,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     var ctx1' := st.ctx'.(locals := AugmentContext(st.ctx'.locals, vars, vals.vs'));
     var st' := MState(st.env, st.acc, ctx1, ctx1'); // TODO: st.acc
 
-    var b := Inv(st) && CanUpdateVars(SeqToSet(vars), st.acc.frozen);
+    var b := UpdateState_Pre(st, vars);
     assert b ==> Inv(st') && StateRel(st, st') by {
       if b {
         MapOfPairs_SeqZip_EqCtx(vars, vals.vs, vals.vs');
@@ -794,13 +802,13 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   }
 
   function {:verify false} StateEndScope ...
-    ensures StateEndScope_Pre(st0, st)  ==> Inv(st') && StateRel(st0, st')
+    ensures StateEndScope_Pre(st0, st) ==> Inv(st') && StateRel(st0, st')
   {
     var MState(env, acc, ctx0, ctx0') := st0;
     var ctx1 := EndScope(st0.ctx, st.ctx);
     var ctx1' := EndScope(st0.ctx', st.ctx');
     var st' := MState(env, acc, ctx1, ctx1');
-    var b := Inv(st0) && Inv(st) && EndScope_StateSmaller(st0.ctx, st.ctx) && EndScope_StateSmaller(st0.ctx', st.ctx');
+    var b := StateEndScope_Pre(st0, st);
     assert b ==> Inv(st') && StateRel(st0, st') by {
       if b {
         assert EqStateWithAcc(env, acc, ctx1, ctx1') by {
@@ -1025,7 +1033,17 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   lemma {:verify false} InductIf_Succ ... { reveal InterpExpr(); StateRel_Trans_Forall(); }
 
   lemma {:verify false} InductUpdate_Fail ... { reveal InterpExpr(); }
-  lemma {:verify false} InductUpdate_Succ ... { assume false; reveal InterpExpr(); StateRel_Trans_Forall(); } // TODO
+  lemma {:verify false} InductUpdate_Succ ... {
+    reveal InterpExpr();
+    assert UpdateState_Pre(st1, vars) by {
+      assert Inv(st1);
+      assert CanUpdateVars(SeqToSet(vars), st1.acc.frozen) by {
+        reveal SeqToSet();
+        reveal VarsToNameSet();
+      }
+    }
+    StateRel_Trans_Forall();
+  }
 
   lemma {:verify false} InductVarDecl_None_Succ ... { assume false; reveal InterpExpr(); } // TODO
   lemma {:verify false} InductVarDecl_Some_Fail ... { assume false; reveal InterpExpr(); } // TODO
