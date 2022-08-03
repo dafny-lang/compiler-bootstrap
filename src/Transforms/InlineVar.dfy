@@ -299,9 +299,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     // an inlining accumulator.
   {
     && EqStateWithAcc_Locals(env, acc, ctx, ctx')
-    && ctx'.rollback.Keys <= ctx.rollback.Keys
-    && ctx.rollback.Keys <= ctx'.rollback.Keys + acc.subst.Keys
-    && EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback)
+//    && ctx'.rollback.Keys <= ctx.rollback.Keys
+//    && ctx.rollback.Keys <= ctx'.rollback.Keys + acc.subst.Keys
+//    && EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback)
+    && EqCtx(ctx.rollback, ctx'.rollback)
   }
 
   predicate {:verify false} Inv(st: MState)
@@ -613,9 +614,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
 
         assert Inv(st') by {
           // The rollback invariants are trivial because the rollbacks are empty on both sides
-          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys; // Ok
-          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys; // Ok
-          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); } // Ok
+//          assert ctx1'.rollback.Keys == ctx1.rollback.Keys; // Ok
+//          assert ctx1.rollback.Keys == ctx1'.rollback.Keys + acc.subst.Keys; // Ok
+  //        assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); } // Ok
+          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal GEqCtx(); } // Ok
 
           // Prove the remaining conditions of the invariant
           BuildClosure_UpdateState_Inv(acc, st.env, ctx, ctx', env, ctx1, ctx1', vars, argvs);
@@ -659,9 +661,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
         assert nbinds.Keys == nbinds'.Keys by { reveal GEqCtx(); }
 
         assert Inv(st') by {
-          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); } // Ok
-          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); } // Ok
-          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal EqStateWithAcc(); } // Ok
+//          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); } // Ok
+//          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); } // Ok
+//          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal EqStateWithAcc(); } // Ok
+          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal EqStateWithAcc(); } // Ok
 
           // Prove the remaining conditions of the invariant
           BuildClosure_UpdateState_Inv(acc, st.env, ctx, ctx', st.env, ctx1, ctx1', vars, vals);
@@ -704,114 +707,97 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     st'
    }*/
 
-  predicate {:verify true} StateSaveToRollback_Pre(st: S, vars: seq<string>)
+  predicate {:verify false} StateSaveToRollback_Pre(st: S, vars: seq<string>)
   {
-    Inv(st)
+    && Inv(st)
+    && CanUpdateVars(SeqToSet(vars), st.acc.frozen)
   }
 
-  lemma {:verify false} SaveToRollback_Equiv_Simpl(ctx: State, ctx': State, varseq: seq<string>)
-//    requires ctx'.locals.Keys + acc.subst.Keys == ctx.locals.Keys
-    requires ctx'.locals.Keys <= ctx.locals.Keys
-    requires EqCtx(map x | x in ctx'.locals.Keys :: ctx.locals[x], ctx'.locals)
-    requires ctx'.rollback.Keys <= ctx.rollback.Keys
-    requires EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback)
-    ensures
-      var ctx1 := SaveToRollback(ctx, varseq);
-      var ctx1' := SaveToRollback(ctx', varseq);
-      && ctx1'.rollback.Keys <= ctx1.rollback.Keys
-      && EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback)
-      // EqState(SaveToRollback(ctx, varseq), SaveToRollback(ctx', varseq))
+  // TODO: remove this auxiliary definition
+  function StateSaveToRollback_Aux(st: S, vars: seq<string>): (st':S)
+    // ``StateSaveToRollback``, without pre and postconditions
   {
+    var MState(env, acc, ctx, ctx') := st;
+    var ctx1 := SaveToRollback(st.ctx, vars);
+    var ctx1' := SaveToRollback(st.ctx', vars);
+    var st' := MState(st.env, acc, ctx1, ctx1');
+    st'
+  }
+
+  lemma {:verify false} StateSaveToRollback_Equiv(st: S, varseq: seq<string>)
+//    requires Inv(st)
+//    requires CanUpdateVars(SeqToSet(varseq), st.acc.frozen)
+    requires StateSaveToRollback_Pre(st, varseq)
+    ensures
+      var st' := StateSaveToRollback_Aux(st, varseq);
+      && Inv(st')
+      && StateRel(st, st')
+  {
+    var st' := StateSaveToRollback_Aux(st, varseq);
+    var MState(env, acc, ctx, ctx') := st;
+
     var vars := set x | x in varseq;
+    assert vars == SeqToSet(varseq) by { reveal SeqToSet(); }
     var save := map x | x in (vars * ctx.locals.Keys) - ctx.rollback.Keys :: ctx.locals[x];
     var save' := map x | x in (vars * ctx'.locals.Keys) - ctx'.rollback.Keys :: ctx'.locals[x];
 
     var ctx1 := ctx.(locals := ctx.locals - vars, rollback := ctx.rollback + save);
     var ctx1' := ctx'.(locals := ctx'.locals - vars, rollback := ctx'.rollback + save');
 
-    assert ctx1 == SaveToRollback(ctx, varseq) by { reveal SaveToRollback(); }
-    assert ctx1' == SaveToRollback(ctx', varseq) by { reveal SaveToRollback(); }
-    
-//    assert save'.Keys <= save.Keys;
-//    assert save.Keys <= save'.Keys;
-//    assert EqCtx(ctx.rollback, ctx'.rollback);
+    assert ctx1 == st'.ctx by { reveal SaveToRollback(); }
+    assert ctx1' == st'.ctx' by { reveal SaveToRollback(); }
 
-    assert forall x | x in save.Keys * save'.Keys :: EqValue(save[x], save'[x]) by {
-      reveal GEqCtx();
-    }
-
-//    assert EqCtx(save, save') by { reveal GEqCtx(); }
-//    assert EqCtx(map x | x in save, save') by { reveal GEqCtx(); }
-//    assume false;
-
-//    assert EqCtx(ctx1.locals, ctx1'.locals) by { reveal GEqCtx(); }
-  //  assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal GEqCtx(); }
-
-    //reveal SaveToRollback();
-    assert ctx1'.rollback.Keys <= ctx1.rollback.Keys;
-
-    reveal GEqCtx();
-    assume EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback);
-  }
-
-
-  // TODO(SMH): we need the rhs (not only the variables) as input parameters + some length conditions.
-  // Actually it doesn't work: we need to prevent the UpdateState which happens afterward in the case
-  // where we inline the rhs.
-  function {:verify false} StateSaveToRollback ...
-    ensures StateSaveToRollback_Pre(st, vars) ==> Inv(st') && StateRel(st, st')
-  {
-    var MState(env, acc, ctx, ctx') := st;
-    var ctx1 := SaveToRollback(st.ctx, vars);
-    var ctx1' := SaveToRollback(st.ctx', vars);
-    var st' := MState(st.env, acc, ctx1, ctx1');
-
-    var b := StateSaveToRollback_Pre(st, vars);
-    assert b ==> Inv(st') && StateRel(st, st') by {
-      if b {
-        assert EqStateWithAcc(env, acc, ctx1, ctx1') by {
-          assume false;
-          /*          assert EqStateWithAcc_Locals(env, acc, ctx1, ctx1') by {
-             assert ctx1'.locals.Keys !! acc.subst.Keys by { reveal EqStateWithAcc(); }
-             assert ctx1'.locals.Keys + acc.subst.Keys == ctx1.locals.Keys by { reveal EqStateWithAcc(); }
-             assert EqCtx(map x | x in ctx1'.locals.Keys :: ctx1.locals[x], ctx1'.locals) by { reveal EqStateWithAcc(); }
-             assert EqStateOnAcc(env, acc, ctx1, ctx1') by {
-             assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
-             assert forall x | x in acc.subst.Keys :: VarsOfExpr(acc.subst[x]) <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
-
-             // TODO: we need this to hold whatever the *rollback* (which we just initialized to empty).
-             // It should be ok because we should not need to use it: we can't close a scope without
-             // opening one before.
-             // TODO: should be a different lemma than the one for BuildClosureCallState (it shouldn't
-             // need to be recursive actually: for the recursive cases like Block, we just need the
-             // reflexivity of EqInterp).
-             assume forall x | x in acc.subst.Keys ::
-             var res := InterpExpr(acc.subst[x], env, ctx1');
-             match res {
-             case Success(Return(v, ctx1'')) =>
-             && ctx1'' == ctx1'
-             && v == ctx1.locals[x]
-             case Failure(_) => false
-             };
-             reveal EqStateOnAcc();
-        }*/
+    assert EqStateWithAcc(env, acc, ctx1, ctx1') by {
+      assert EqStateWithAcc_Locals(env, acc, ctx1, ctx1') by {
+        assert ctx1'.locals.Keys !! acc.subst.Keys by { reveal EqStateWithAcc(); }
+        assert ctx1'.locals.Keys + acc.subst.Keys == ctx1.locals.Keys by {
+          assert acc.subst.Keys !! vars by {
+            assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
+            reveal SeqToSet();
+          }
+          reveal EqStateWithAcc();
         }
-        assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); } // Works without `reveal SaveToRollback()` ??
-        assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); } // Works without `reveal SaveToRollback()` ??
-        assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by {
+        assert EqCtx(map x | x in ctx1'.locals.Keys :: ctx1.locals[x], ctx1'.locals) by { reveal EqStateWithAcc(); reveal GEqCtx(); }
+        assert EqStateOnAcc(env, acc, ctx1, ctx1') by {
+          // TODO: Same theorem as for StateStartScope
+          assume false;
+        }
+        reveal EqStateOnAcc();
+      }
+      assert EqCtx(ctx1.rollback, ctx1'.rollback) by {
+        assert save.Keys == save'.Keys by {
+          assert ctx'.locals.Keys + acc.subst.Keys == ctx.locals.Keys by { reveal EqStateWithAcc(); }
+          assert acc.subst.Keys !! SeqToSet(varseq) by { reveal SeqToSet(); } // TODO(SMH): this proof shouldn't succeed?? (should need `reveal EqStateOnAcc`)
+          assert ctx.rollback.Keys == ctx'.rollback.Keys by { reveal EqStateWithAcc(); reveal GEqCtx(); }
+          reveal SeqToSet();
+        }
+        assert forall x | x in save.Keys * save'.Keys :: EqValue(save[x], save'[x]) by {
           assert ctx'.locals.Keys + acc.subst.Keys == ctx.locals.Keys by { reveal EqStateWithAcc(); }
           assert EqCtx(map x | x in ctx'.locals.Keys :: ctx.locals[x], ctx'.locals) by { reveal EqStateWithAcc(); }
-          assert ctx'.rollback.Keys <= ctx.rollback.Keys  by { reveal EqStateWithAcc(); }
-          assert EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback) by { reveal EqStateWithAcc(); }
-//          assume false;
-          reveal SaveToRollback();
           reveal GEqCtx();
-          assume false;
         }
-        reveal EqStateWithAcc();
+        assert EqCtx(ctx.rollback, ctx'.rollback) by { reveal EqStateWithAcc(); }
+        reveal GEqCtx();
       }
-      assume StateRel(st, st');// by { reveal StateRel(); }
+      reveal EqStateWithAcc();
     }
+    assert StateRel(st, st') by {
+      reveal StateRel();
+    }
+  }
+
+  function {:verify false} StateSaveToRollback ...
+    // TODO: remove
+//    ensures StateSaveToRollback_Pre(st, vars) ==> Inv(st') && StateRel(st, st')
+  {
+    var st' := StateSaveToRollback_Aux(st, vars);
+
+/*    var b := StateSaveToRollback_Pre(st, vars);
+    assert b ==> Inv(st') && StateRel(st, st') by {
+      if b {
+        StateSaveToRollback_Equiv(st, vars);
+      }
+    }*/
 
     st'
   }
@@ -852,9 +838,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
               reveal EqStateOnAcc();
             }
           }
-          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys;
-          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys;
-          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); }
+//          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys;
+//          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys;
+//          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); }
+          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal GEqCtx(); }
           reveal EqStateWithAcc();
         }
         assert StateRel(st, st') by { reveal StateRel(); }
@@ -920,9 +907,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
               reveal EqStateOnAcc();
             }
           }
-          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); }
-          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); }
-          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal EqStateWithAcc(); }
+//          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); }
+//          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); }
+//          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal EqStateWithAcc(); }
+          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal EqStateWithAcc(); }
           reveal EqStateWithAcc();
         }
         assert StateRel(st0, st') by { reveal StateRel(); }
@@ -1122,11 +1110,60 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     StateRel_Trans_Forall();
   }
 
-  lemma {:verify false} InductVarDecl_None_Succ ... { assume false; reveal InterpExpr(); } // TODO
-  lemma {:verify false} InductVarDecl_Some_Fail ... { assume false; reveal InterpExpr(); } // TODO
-  lemma {:verify false} InductVarDecl_Some_Succ  ... { assume false; reveal InterpExpr(); } // TODO
+  lemma {:verify false} InductVarDecl_None_Succ ... {
+    reveal InterpExpr();
+
+    assert CanUpdateVars(SeqToSet(vars), st.acc.frozen) by { reveal SeqToSet(); reveal VarsToNameSet(); }
+    StateSaveToRollback_Equiv(st, vars);
+    assert P_Succ(st, e, st1, UnitV);
+  }
+
+  lemma {:verify false} InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
+
+  lemma {:verify true} InductVarDecl_Some_Succ  ... {
+    reveal InterpExpr();
+    var (acc1, vals') := InlineInExprs(p, st.acc, vals).value;
+    if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals'[0]) {
+      // Case where we add variables to inline to the accumulator
+      var acc2 := AddToAcc(st.acc, vdecls[0], vals'[0]);
+
+      assert VS_UpdateStatePre(st2, vars, values);
+
+//      assume P_Succ(st, e, st3, UnitV); // TODO: actually, we can't prove that
+      assume false; // TODO
+    }
+    else {
+      // Case where the accumulator is unchanged
+      assert CanUpdateVars(SeqToSet(vars), st1.acc.frozen) by { reveal SeqToSet(); reveal VarsToNameSet(); }
+      StateSaveToRollback_Equiv(st1, vars);
+      assert P_Succ(st, e, st3, UnitV) by {
+        var res := InterpExpr(e, st.env, st.ctx);
+        var ires := InlineInExpr(p, st.acc, e);
+        assert Inv(st);
+        assert ires.Success?;
+        var (_, e') := ires.value;
+        var res' := InterpExpr(e', st.env, st.ctx');
+
+        var Return(v1, ctx1) := res.value;
+        var Return(v1', ctx1') := res'.value;
+        var (acc1, _) := InlineInExpr(p, st.acc, e).value;
+        var st3' := MState(st.env, acc1, ctx1, ctx1');
+
+        assert EqValue(v1, v1');
+        assert Inv(st3');
+        assert StateRel(st, st3') by {
+          StateRel_Trans(st, st1, st2);
+          assert StateRel(st2, st3);
+          StateRel_Trans(st, st2, st3);
+        }
+        assert st3' == st3;
+        assert UnitV == MValue(v1, v1');
+      }
+    }
+  }
 
   lemma {:verify false} InductBind_Fail ... { assume false; reveal InterpExpr(); } // TODO
+
   lemma {:verify false} InductBind_Succ ... { assume false; reveal InterpExpr(); } // TODO
 
   lemma {:verify false} InductBlock_Fail ...

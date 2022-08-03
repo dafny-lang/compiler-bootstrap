@@ -367,7 +367,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     ensures VS_UpdateStatePre(st2, vars, values)
     // This is not necessary but can help the proofs - what really matters is that ``StateSaveToRollback``
     // and ``UpdateState`` appear somewhere
-    ensures P_Succ(st, e, st3, UnitV)
+    ensures P_Succ(st, e, st3, UnitV) // TODO: remove: it is not true in the case of variables inlining. Maybe: P_Succ(...) ==> P(...) (trivially true, but can help Z3)?
     ensures P(st, e)
 
   lemma InductUpdate_Fail(st: S, e: Expr, vars: seq<string>, vals: seq<Expr>)
@@ -413,7 +413,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires P_Succ(st4, bbody, st5, v)
     requires st6 == StateEndScope(st, st5)
     ensures VS_UpdateStatePre(st3, vars, vals)
-    ensures P_Succ(st, e, st6, v)
+    ensures P_Succ(st, e, st6, v) // TOOD: replace with P(st, e) (see remark for VarDecl)
 
   lemma InductBlock_Fail(st: S, e: Expr, stmts: seq<Expr>, st_start: S)
     requires e.Block? && e.stmts == stmts
