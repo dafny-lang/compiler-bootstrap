@@ -401,11 +401,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     var ires := InlineInExpr(p, st.acc, e);
     Inv(st) ==>
     ires.Success? ==>
-    var (_, e') := ires.value;
+    var (acc1, e') := ires.value;
     var res' := InterpExpr(e', st.env, st.ctx');
     match (res, res') {
       case (Success(Return(v1, ctx1)), Success(Return(v1', ctx1'))) =>
-        var (acc1, _) := InlineInExpr(p, st.acc, e).value;
         var st1 := MState(st.env, acc1, ctx1, ctx1');
         && EqValue(v1, v1')
         && Inv(st1)
@@ -422,11 +421,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     && Inv(st)
     && ires.Success?
     && (
-      var (_, e') := ires.value;
+      var (acc1, e') := ires.value;
       var res' := InterpExpr(e', st.env, st.ctx');
       match (res, res') {
         case (Success(Return(v1, ctx1)), Success(Return(v1', ctx1'))) =>
-          var (acc1, _) := InlineInExpr(p, st.acc, e).value;
           var st1 := MState(st.env, acc1, ctx1, ctx1');
           && EqValue(v1, v1')
           && Inv(st1)
@@ -449,11 +447,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     var ires := InlineInExprs(p, st.acc, es);
     Inv(st) ==>
     ires.Success? ==>
-    var (_, es') := ires.value;
+    var (acc1, es') := ires.value;
     var res' := InterpExprs(es', st.env, st.ctx');
     match (res, res') {
       case (Success(Return(vs1, ctx1)), Success(Return(vs1', ctx1'))) =>
-        var (acc1, _) := InlineInExprs(p, st.acc, es).value;
         var st1 := MState(st.env, acc1, ctx1, ctx1');
         && EqSeqValue(vs1, vs1')
         && Inv(st1)
@@ -470,11 +467,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     && Inv(st)
     && ires.Success?
     && (
-      var (_, es') := ires.value;
+      var (acc1, es') := ires.value;
       var res' := InterpExprs(es', st.env, st.ctx');
       match (res, res') {
         case (Success(Return(vs1, ctx1)), Success(Return(vs1', ctx1'))) =>
-          var (acc1, _) := InlineInExprs(p, st.acc, es).value;
           var st1 := MState(st.env, acc1, ctx1, ctx1');
           && EqSeqValue(vs1, vs1')
           && Inv(st1)
@@ -1120,7 +1116,69 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
 
   lemma {:verify false} InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
 
-  lemma {:verify true} InductVarDecl_Some_Succ  ... {
+/*
+  // Custom lemma we add for the VarDecl case where we inline variables
+  lemma {:verify false} InductVarDecl_Some_Succ_Inline(
+      st: S, e: Expr, vdecls: seq<Exprs.Var>, vars: seq<string>, vals: seq<Expr>, st1: S, values: VS,
+      acc1: Acc, vals': seq<Expr>, acc2: Acc,
+      st2: S, st3: S
+      )
+    requires e.VarDecl? && e.vdecls == vdecls && e.ovals.Some? && e.ovals.value == vals
+    requires !P_Fail(st, e)
+    requires Pes_Succ(st, vals, st1, values)
+    requires vars == VarsToNames(vdecls)
+    requires Success((acc1, vals')) == InlineInExprs(p, st.acc, vals)
+    requires |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals'[0])
+    requires acc2 == AddToAcc(st.acc, vdecls[0], vals'[0])
+    ensures 
+    
+/*    requires st2 == StateSaveToRollback(st1, vars)
+    requires VS_UpdateStatePre(st2, vars, values) ==> st3 == UpdateState(st2, vars, values) // Slightly convoluted, but ``UpdateState`` has a pre
+    ensures VS_UpdateStatePre(st2, vars, values)
+    // This is not necessary but can help the proofs - what really matters is that ``StateSaveToRollback``
+    // and ``UpdateState`` appear somewhere
+    ensures P_Succ(st, e, st3, UnitV) // TODO: remove: it is not true in the case of variables inlining. Maybe: P_Succ(...) ==> P(...) (trivially true, but can help Z3)?
+    ensures P(st, e)*/
+
+  {
+    assume false; // TODO
+  }*/
+
+  lemma {:verify false} InductVarDecl_Some_Succ_Inline(
+      st: S, e: Expr, vdecls: seq<Exprs.Var>, vars: seq<string>, vals: seq<Expr>)
+    requires e.VarDecl? && e.vdecls == vdecls && e.ovals.Some? && e.ovals.value == vals
+    requires !P_Fail(st, e)
+    ensures P(st, e)
+  {
+    var ires := InlineInExpr(p, st.acc, e);
+    assert Inv(st);
+    assert ires.Success?;
+    var (_, e') := ires.value;
+
+    var res := InterpExpr(e, st.env, st.ctx);
+    var res' := InterpExpr(e', st.env, st.ctx');
+
+    assert res.Success?;
+    var Return(vf, ctxf) := res.value;
+    
+    
+    assume false;
+/*    
+    match (res, res') {
+      case (Success(Return(vf, ctxf)), Success(Return(vf', ctxf'))) =>
+        var (accf, _) := InlineInExpr(p, st.acc, e).value;
+        var stf := MState(st.env, accf, ctxf, ctxf');
+        && EqValue(vf, vf')
+        && Inv(stf)
+        && StateRel(st, stf)
+      case (Failure(_), _) => true
+      case _ => false
+    }*/
+
+    assume false; // TODO
+  }
+
+  lemma {:verify false} InductVarDecl_Some_Succ  ... {
     reveal InterpExpr();
     var (acc1, vals') := InlineInExprs(p, st.acc, vals).value;
     if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals'[0]) {
