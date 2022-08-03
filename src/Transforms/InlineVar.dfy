@@ -1246,9 +1246,9 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     assert Inv(stf) by {
       assert EqStateWithAcc(stf.env, stf.acc, stf.ctx, stf.ctx') by {
         assert EqStateWithAcc_Locals(stf.env, stf.acc, stf.ctx, stf.ctx') by {
-          assume stf.ctx'.locals.Keys !! stf.acc.subst.Keys;// by { reveal EqStateWithAcc(); }
+          assume stf.ctx'.locals.Keys !! stf.acc.subst.Keys; // TODO: THIS IS NOT TRUE
           assert stf.ctx'.locals.Keys + stf.acc.subst.Keys == stf.ctx.locals.Keys by { reveal EqStateWithAcc(); }
-          assume EqCtx(map x | x in stf.ctx'.locals.Keys :: stf.ctx.locals[x], stf.ctx'.locals);
+          assert EqCtx(map x | x in stf.ctx'.locals.Keys :: stf.ctx.locals[x], stf.ctx'.locals) by { reveal EqStateWithAcc(); reveal GEqCtx(); }
           assume EqStateOnAcc(stf.env, stf.acc, stf.ctx, stf.ctx');
         }
         assert stf.ctx.rollback == ctx2.rollback;
