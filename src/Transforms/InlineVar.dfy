@@ -172,7 +172,7 @@ module Bootstrap.Transforms.InlineVar.Base {
 
       case Bind(bvars, bvals, bbody) =>
         var (acc1, bvals') :- InlineInExprs(p, acc, bvals);
-        :- Need(CanUpdateVars(VarsToNameSet(bvars), acc1.frozen), ()); // Not necessary, but let's make thinkgs simple for now
+        :- Need(CanUpdateVars(VarsToNameSet(bvars), acc1.frozen), ()); // Not necessary, but let's make things simple for now
         // For now, we try to inline only if there is exactly one variable
         // Rk.: we return the original acc because there is a scope
         if |bvars| == 1 && CanInlineVar(p, bvars[0], bvals'[0]) then
@@ -196,7 +196,7 @@ module Bootstrap.Transforms.InlineVar.Base {
   function method {:verify false} InlineInExprs(p: (Exprs.Var, Expr) -> bool, acc: Acc, es: seq<Expr>) :
     (out: Result<(Acc, seq<Expr>), ()>)
     decreases Expr.Exprs_Size(es), 1
-    ensures
+    ensures // TODO: rewrite with implication
       match out {
         case Success((_, es')) => |es'| == |es|
         case Failure(_) => true
@@ -675,7 +675,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     st'
   }
 
-  function {:verify false} StateSaveToRollback_Inline(st: S, vars: seq<string>): (st':S)
+/*  function {:verify false} StateSaveToRollback_Inline(st: S, vars: seq<string>): (st':S)
   {
     // TODO
     st
@@ -684,7 +684,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   function {:verify false} StateSaveToRollback_NoInline(st: S, vdecls: seq<Exprs.Var>, rhs': seq<Expr>): (st':S)
     requires |rhs'| == |vdecls|
     requires !(|vdecls| == 1 && CanInlineVar(p, vdecls[0], rhs'[0]))
-    ensures Inv(st) && CanUpdateVars(SeqToSet(VarsToNames(vdecls)), st.acc.frozen) ==> Inv(st') && StateRel(st, st')
+    requires Inv(st)
+    requires CanUpdateVars(SeqToSet(VarsToNames(vdecls)), st.acc.frozen)
+    ensures Inv(st')
+    ensures StateRel(st, st')
   {
     var MState(env, acc, ctx, ctx') := st;
     var vars := VarsToNames(vdecls);
@@ -692,48 +695,122 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     var ctx1' := SaveToRollback(st.ctx', vars);
     var st' := MState(st.env, acc, ctx1, ctx1');
 
-    var b := Inv(st) && CanUpdateVars(SeqToSet(vars), st.acc.frozen);
-    assert b ==> Inv(st') && StateRel(st, st') by {
-      if b {
-        assume false;
-      }
-    }
+//    assert StateRel(st, st') by {
+//      if b {
+//        assume false;
+//      }
+//    }
 
     st'
+   }*/
+
+  predicate {:verify true} StateSaveToRollback_Pre(st: S, vars: seq<string>)
+  {
+    Inv(st)
   }
+
+  lemma {:verify false} SaveToRollback_Equiv_Simpl(ctx: State, ctx': State, varseq: seq<string>)
+//    requires ctx'.locals.Keys + acc.subst.Keys == ctx.locals.Keys
+    requires ctx'.locals.Keys <= ctx.locals.Keys
+    requires EqCtx(map x | x in ctx'.locals.Keys :: ctx.locals[x], ctx'.locals)
+    requires ctx'.rollback.Keys <= ctx.rollback.Keys
+    requires EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback)
+    ensures
+      var ctx1 := SaveToRollback(ctx, varseq);
+      var ctx1' := SaveToRollback(ctx', varseq);
+      && ctx1'.rollback.Keys <= ctx1.rollback.Keys
+      && EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback)
+      // EqState(SaveToRollback(ctx, varseq), SaveToRollback(ctx', varseq))
+  {
+    var vars := set x | x in varseq;
+    var save := map x | x in (vars * ctx.locals.Keys) - ctx.rollback.Keys :: ctx.locals[x];
+    var save' := map x | x in (vars * ctx'.locals.Keys) - ctx'.rollback.Keys :: ctx'.locals[x];
+
+    var ctx1 := ctx.(locals := ctx.locals - vars, rollback := ctx.rollback + save);
+    var ctx1' := ctx'.(locals := ctx'.locals - vars, rollback := ctx'.rollback + save');
+
+    assert ctx1 == SaveToRollback(ctx, varseq) by { reveal SaveToRollback(); }
+    assert ctx1' == SaveToRollback(ctx', varseq) by { reveal SaveToRollback(); }
+    
+//    assert save'.Keys <= save.Keys;
+//    assert save.Keys <= save'.Keys;
+//    assert EqCtx(ctx.rollback, ctx'.rollback);
+
+    assert forall x | x in save.Keys * save'.Keys :: EqValue(save[x], save'[x]) by {
+      reveal GEqCtx();
+    }
+
+//    assert EqCtx(save, save') by { reveal GEqCtx(); }
+//    assert EqCtx(map x | x in save, save') by { reveal GEqCtx(); }
+//    assume false;
+
+//    assert EqCtx(ctx1.locals, ctx1'.locals) by { reveal GEqCtx(); }
+  //  assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal GEqCtx(); }
+
+    //reveal SaveToRollback();
+    assert ctx1'.rollback.Keys <= ctx1.rollback.Keys;
+
+    reveal GEqCtx();
+    assume EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback);
+  }
+
 
   // TODO(SMH): we need the rhs (not only the variables) as input parameters + some length conditions.
   // Actually it doesn't work: we need to prevent the UpdateState which happens afterward in the case
   // where we inline the rhs.
   function {:verify false} StateSaveToRollback ...
-    ensures Inv(st) ==> Inv(st')
+    ensures StateSaveToRollback_Pre(st, vars) ==> Inv(st') && StateRel(st, st')
   {
-    assume false; // TODO
     var MState(env, acc, ctx, ctx') := st;
     var ctx1 := SaveToRollback(st.ctx, vars);
     var ctx1' := SaveToRollback(st.ctx', vars);
-    var st' := MState(st.env, acc, ctx1, ctx1'); // TODO: acc
+    var st' := MState(st.env, acc, ctx1, ctx1');
 
-    assert Inv(st) ==> Inv(st') by {
-      /*
-      if Inv(st) {
-        var varseq := vars;
-        var varset := set x | x in varseq;
-        var save := map x | x in (varset * ctx.locals.Keys) - ctx.rollback.Keys :: ctx.locals[x];
-        var save' := map x | x in (varset * ctx'.locals.Keys) - ctx'.rollback.Keys :: ctx'.locals[x];
-        
-        var ctx1 := ctx.(locals := ctx.locals - varset, rollback := ctx.rollback + save);
-        var ctx1' := ctx'.(locals := ctx'.locals - varset, rollback := ctx'.rollback + save');
-        
-        assert ctx1 == SaveToRollback(ctx, varseq) by { reveal SaveToRollback(); }
-        assert ctx1' == SaveToRollback(ctx', varseq) by { reveal SaveToRollback(); }
+    var b := StateSaveToRollback_Pre(st, vars);
+    assert b ==> Inv(st') && StateRel(st, st') by {
+      if b {
+        assert EqStateWithAcc(env, acc, ctx1, ctx1') by {
+          assume false;
+          /*          assert EqStateWithAcc_Locals(env, acc, ctx1, ctx1') by {
+             assert ctx1'.locals.Keys !! acc.subst.Keys by { reveal EqStateWithAcc(); }
+             assert ctx1'.locals.Keys + acc.subst.Keys == ctx1.locals.Keys by { reveal EqStateWithAcc(); }
+             assert EqCtx(map x | x in ctx1'.locals.Keys :: ctx1.locals[x], ctx1'.locals) by { reveal EqStateWithAcc(); }
+             assert EqStateOnAcc(env, acc, ctx1, ctx1') by {
+             assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
+             assert forall x | x in acc.subst.Keys :: VarsOfExpr(acc.subst[x]) <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
 
-        assert EqCtx(ctx1.locals, ctx1'.locals) by { reveal GEqCtx(); }
-        var rolled := ctx1.rollback + or;
-        var rolled' := ctx1'.rollback + or';
-        assert rolled.Keys == rolled'.Keys by { reveal GEqCtx(); } // Having this drastically reduces the proof time
-        assert EqCtx(rolled, rolled') by { reveal GEqCtx(); } // Wow, this actually works
-      }*/
+             // TODO: we need this to hold whatever the *rollback* (which we just initialized to empty).
+             // It should be ok because we should not need to use it: we can't close a scope without
+             // opening one before.
+             // TODO: should be a different lemma than the one for BuildClosureCallState (it shouldn't
+             // need to be recursive actually: for the recursive cases like Block, we just need the
+             // reflexivity of EqInterp).
+             assume forall x | x in acc.subst.Keys ::
+             var res := InterpExpr(acc.subst[x], env, ctx1');
+             match res {
+             case Success(Return(v, ctx1'')) =>
+             && ctx1'' == ctx1'
+             && v == ctx1.locals[x]
+             case Failure(_) => false
+             };
+             reveal EqStateOnAcc();
+        }*/
+        }
+        assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); } // Works without `reveal SaveToRollback()` ??
+        assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); } // Works without `reveal SaveToRollback()` ??
+        assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by {
+          assert ctx'.locals.Keys + acc.subst.Keys == ctx.locals.Keys by { reveal EqStateWithAcc(); }
+          assert EqCtx(map x | x in ctx'.locals.Keys :: ctx.locals[x], ctx'.locals) by { reveal EqStateWithAcc(); }
+          assert ctx'.rollback.Keys <= ctx.rollback.Keys  by { reveal EqStateWithAcc(); }
+          assert EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback) by { reveal EqStateWithAcc(); }
+//          assume false;
+          reveal SaveToRollback();
+          reveal GEqCtx();
+          assume false;
+        }
+        reveal EqStateWithAcc();
+      }
+      assume StateRel(st, st');// by { reveal StateRel(); }
     }
 
     st'
