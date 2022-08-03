@@ -81,10 +81,15 @@ module Bootstrap.Transforms.InlineVar.Base {
     vars !! frozen
   }
 
-  predicate method {:verify false} CanInlineVar(p: (Exprs.Var, Expr) -> bool, v: Exprs.Var, rhs: Expr)
+  predicate method {:verify false} CanInlineVar(p: (Exprs.Var, Expr) -> bool, v: Exprs.Var, rhs: Expr, rhs': Expr)
   {
-    && p(v, rhs) // The filtering predicate allows to inline this variable
-    && IsPure(rhs) // The rhs is pure - TODO: write a more general, less constraining purity check
+    && p(v, rhs') // The filtering predicate allows to inline this variable
+    // The rhs is pure
+    // TODO(SMH): write a more general, less constraining purity check
+    // TODO(SMH): we should only need to check the original rhs (rhs' is obtained after substituting
+    // some variables with pure expressions, so it should remain pure).
+    && IsPure(rhs)
+    && IsPure(rhs')
   }
 
   function method {:verify false} AddToAcc(acc: Acc, v: Exprs.Var, rhs: Expr): Acc
@@ -154,10 +159,11 @@ module Bootstrap.Transforms.InlineVar.Base {
 
       case VarDecl(vdecls, ovals) =>
         if ovals.Some? then
-          var (acc1, vals') :- InlineInExprs(p, acc, ovals.value);
+          var vals := ovals.value;
+          var (acc1, vals') :- InlineInExprs(p, acc, vals);
           :- Need(CanUpdateVars(VarsToNameSet(vdecls), acc1.frozen), ());
           // For now, we try to inline only if there is exactly one variable
-          if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals'[0]) then
+          if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals[0], vals'[0]) then
             var acc2 := AddToAcc(acc, vdecls[0], vals'[0]);
             Success((acc2, EmptyBlock))
           else Success((acc1, Expr.VarDecl(vdecls, Exprs.Some(vals'))))
@@ -178,7 +184,7 @@ module Bootstrap.Transforms.InlineVar.Base {
         :- Need(CanUpdateVars(VarsToNameSet(bvars), acc1.frozen), ()); // Not necessary, but let's make things simple for now
         // For now, we try to inline only if there is exactly one variable
         // Rk.: we return the original acc because there is a scope
-        if |bvars| == 1 && CanInlineVar(p, bvars[0], bvals'[0]) then
+        if |bvars| == 1 && CanInlineVar(p, bvars[0], bvals[0], bvals'[0]) then
             var acc2 := AddToAcc(acc, bvars[0], bvals'[0]);
             var (_, bbody') :- InlineInExpr(p, acc2, bbody);
             Success((acc, Expr.Block([bbody'])))
@@ -232,6 +238,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   import opened Semantics.Equiv
   import opened Generic
   import Shallow*/
+  import opened Semantics.Pure
   import opened Base
   import Semantics.InterpStateIneq
 
@@ -302,10 +309,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     // an inlining accumulator.
   {
     && EqStateWithAcc_Locals(env, acc, ctx, ctx')
-//    && ctx'.rollback.Keys <= ctx.rollback.Keys
-//    && ctx.rollback.Keys <= ctx'.rollback.Keys + acc.subst.Keys
-//    && EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback)
-    && EqCtx(ctx.rollback, ctx'.rollback)
+    && ctx'.rollback.Keys <= ctx.rollback.Keys
+    && ctx.rollback.Keys <= ctx'.rollback.Keys + acc.subst.Keys
+    && EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback)
+//    && EqCtx(ctx.rollback, ctx'.rollback)
   }
 
   predicate {:verify false} Inv(st: MState)
@@ -613,10 +620,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
 
         assert Inv(st') by {
           // The rollback invariants are trivial because the rollbacks are empty on both sides
-//          assert ctx1'.rollback.Keys == ctx1.rollback.Keys; // Ok
-//          assert ctx1.rollback.Keys == ctx1'.rollback.Keys + acc.subst.Keys; // Ok
-  //        assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); } // Ok
-          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal GEqCtx(); } // Ok
+          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys; // Ok
+          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys; // Ok
+          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); } // Ok
+//          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal GEqCtx(); } // Ok
 
           // Prove the remaining conditions of the invariant
           BuildClosure_UpdateState_Inv(acc, st.env, ctx, ctx', env, ctx1, ctx1', vars, argvs);
@@ -660,10 +667,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
         assert nbinds.Keys == nbinds'.Keys by { reveal GEqCtx(); }
 
         assert Inv(st') by {
-//          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); } // Ok
-//          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); } // Ok
-//          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal EqStateWithAcc(); } // Ok
-          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal EqStateWithAcc(); } // Ok
+          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); } // Ok
+          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); } // Ok
+          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal EqStateWithAcc(); } // Ok
+//          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal EqStateWithAcc(); } // Ok
 
           // Prove the remaining conditions of the invariant
           BuildClosure_UpdateState_Inv(acc, st.env, ctx, ctx', st.env, ctx1, ctx1', vars, vals);
@@ -763,7 +770,26 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
         }
         reveal EqStateOnAcc();
       }
-      assert EqCtx(ctx1.rollback, ctx1'.rollback) by {
+
+//      assert ctx'.rollback.Keys <= ctx.rollback.Keys by { reveal EqStateWithAcc(); }
+//      assert ctx.rollback.Keys <= ctx'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); }
+//      assert EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback) by { reveal EqStateWithAcc(); }
+
+      assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by {
+        reveal EqStateWithAcc();
+        reveal EqStateOnAcc();
+      }
+      assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by {
+        reveal EqStateWithAcc();
+        reveal EqStateOnAcc();
+      }
+      assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by {
+        reveal EqStateWithAcc();
+        reveal EqStateOnAcc();
+        reveal GEqCtx();
+      }
+
+/*      assert EqCtx(ctx1.rollback, ctx1'.rollback) by {
         assert save.Keys == save'.Keys by {
           assert ctx'.locals.Keys + acc.subst.Keys == ctx.locals.Keys by { reveal EqStateWithAcc(); }
           assert acc.subst.Keys !! SeqToSet(varseq) by { reveal SeqToSet(); } // TODO(SMH): this proof shouldn't succeed?? (should need `reveal EqStateOnAcc`)
@@ -777,9 +803,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
         }
         assert EqCtx(ctx.rollback, ctx'.rollback) by { reveal EqStateWithAcc(); }
         reveal GEqCtx();
-      }
+      }*/
       reveal EqStateWithAcc();
     }
+
     assert StateRel(st, st') by {
       reveal StateRel();
     }
@@ -837,10 +864,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
               reveal EqStateOnAcc();
             }
           }
-//          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys;
-//          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys;
-//          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); }
-          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal GEqCtx(); }
+          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys;
+          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys;
+          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal GEqCtx(); }
+//          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal GEqCtx(); }
           reveal EqStateWithAcc();
         }
         assert StateRel(st, st') by { reveal StateRel(); }
@@ -906,10 +933,10 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
               reveal EqStateOnAcc();
             }
           }
-//          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); }
-//          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); }
-//          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal EqStateWithAcc(); }
-          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal EqStateWithAcc(); }
+          assert ctx1'.rollback.Keys <= ctx1.rollback.Keys by { reveal EqStateWithAcc(); }
+          assert ctx1.rollback.Keys <= ctx1'.rollback.Keys + acc.subst.Keys by { reveal EqStateWithAcc(); }
+          assert EqCtx(map x | x in ctx1'.rollback.Keys :: ctx1.rollback[x], ctx1'.rollback) by { reveal EqStateWithAcc(); }
+//          assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal EqStateWithAcc(); }
           reveal EqStateWithAcc();
         }
         assert StateRel(st0, st') by { reveal StateRel(); }
@@ -1147,7 +1174,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     assume false; // TODO
   }*/
 
-  lemma {:verify false} InductVarDecl_Some_Succ_Inline(
+  lemma {:verify true} InductVarDecl_Some_Succ_Inline(
       st: S, e: Expr, vdecls: seq<Exprs.Var>, vals: seq<Expr>)
     requires e.VarDecl? && e.vdecls == vdecls && e.ovals.Some? && e.ovals.value == vals
     requires !P_Fail(st, e)
@@ -1155,7 +1182,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     requires
       var (acc1, vals') := InlineInExprs(p, st.acc, vals).value;
       && CanUpdateVars(VarsToNameSet(vdecls), acc1.frozen)
-      && CanInlineVar(p, vdecls[0], vals'[0])
+      && CanInlineVar(p, vdecls[0], vals[0], vals'[0])
     ensures P(st, e)
   {
     var ires := InlineInExpr(p, st.acc, e);
@@ -1177,16 +1204,28 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     var vars := VarsToNames(vdecls);
     var res1 := InterpExprs(vals, st.env, st.ctx);
     assert res1.Success? by { reveal InterpExpr(); }
-    var Return(vals, ctx1) := res1.value;
+    var Return(vs, ctx1) := res1.value;
     var ctx2 := SaveToRollback(ctx1, vars);
     assert |vars| == |vals|;
-    var ctx3 := ctx2.(locals := AugmentContext(ctx2.locals, vars, vals));
+    var ctx3 := ctx2.(locals := AugmentContext(ctx2.locals, vars, vs));
     assert ctxf == ctx3 by { reveal InterpExpr(); }
 
+    var name := vdecls[0].name;
     var varset := set x | x in vars;
+    assert varset == { name };
     var save := map x | x in (varset * ctx1.locals.Keys) - ctx1.rollback.Keys :: ctx1.locals[x];
     var ctx2' := ctx1.(locals := ctx1.locals - varset, rollback := ctx1.rollback + save);
     assert ctx2 == ctx2' by { reveal SaveToRollback(); }
+
+    // This boolean tells us if the rollback was updated or not
+    var update_rollback := name in ctx1.locals.Keys && name !in ctx1.rollback.Keys;
+    assert save == if update_rollback then map [ name := ctx1.locals[name] ] else map [];
+
+    assert vals == [vals[0]];
+    assert ctx1 == st.ctx by {
+      assert IsPure(vals[0]);
+      InterpExprs_IsPure_SameState(vals, st.env, st.ctx);
+    }
 
     assert res' == Success(Return(Unit, st.ctx')) by {
       Interp_EmptyBlock(st.env, st.ctx');
@@ -1195,7 +1234,6 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     var stf := MState(st.env, accf, ctxf, st.ctx');
     assert EqValue(vf, Unit);
 
-    var name := vdecls[0].name;
     assert name !in acc1.frozen by { reveal VarsToNameSet(); }
     assert name !in st.acc.subst.Keys by {
       assume st.acc.frozen <= acc1.frozen; // TODO: monotony lemma about InlineInExpr
@@ -1207,8 +1245,18 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     
     assert Inv(stf) by {
       assert EqStateWithAcc(stf.env, stf.acc, stf.ctx, stf.ctx') by {
-        assume EqStateWithAcc_Locals(stf.env, stf.acc, stf.ctx, stf.ctx'); // TODO
-        assume EqCtx(stf.ctx.rollback, stf.ctx'.rollback); // TODO: this is not true: we need to update the invariant
+        assert EqStateWithAcc_Locals(stf.env, stf.acc, stf.ctx, stf.ctx') by {
+          assume stf.ctx'.locals.Keys !! stf.acc.subst.Keys;// by { reveal EqStateWithAcc(); }
+          assert stf.ctx'.locals.Keys + stf.acc.subst.Keys == stf.ctx.locals.Keys by { reveal EqStateWithAcc(); }
+          assume EqCtx(map x | x in stf.ctx'.locals.Keys :: stf.ctx.locals[x], stf.ctx'.locals);
+          assume EqStateOnAcc(stf.env, stf.acc, stf.ctx, stf.ctx');
+        }
+        assert stf.ctx.rollback == ctx2.rollback;
+
+        assert stf.ctx'.rollback.Keys <= stf.ctx.rollback.Keys by { reveal EqStateWithAcc(); } //reveal SaveToRollback(); }
+        assert stf.ctx.rollback.Keys <= stf.ctx'.rollback.Keys + stf.acc.subst.Keys by { reveal EqStateWithAcc(); }
+        assert EqCtx(map x | x in stf.ctx'.rollback.Keys :: stf.ctx.rollback[x], stf.ctx'.rollback) by { reveal EqStateWithAcc(); reveal GEqCtx(); }
+
         reveal EqStateWithAcc();
       }
     }
@@ -1222,7 +1270,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   lemma {:verify false} InductVarDecl_Some_Succ  ... {
     reveal InterpExpr();
     var (acc1, vals') := InlineInExprs(p, st.acc, vals).value;
-    if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals'[0]) {
+    if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals[0], vals'[0]) {
       // Case where we add variables to inline to the accumulator
       var acc2 := AddToAcc(st.acc, vdecls[0], vals'[0]);
 
