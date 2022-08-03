@@ -74,7 +74,7 @@ module Bootstrap.Transforms.InlineVar.Base {
   }
 
   datatype {:verify false} Acc = Acc(subst: map<string, Expr>, frozen: set<string>)
-  const {:verify false} EmptyBlock: Interp.Expr := reveal Interp.SupportsInterp(); Expr.Block([])
+//  const {:verify false} EmptyBlock: Interp.Expr := reveal Interp.SupportsInterp(); Expr.Block([])
 
   predicate method {:verify false} CanUpdateVars(vars: set<string>, frozen: set<string>)
   {
@@ -105,7 +105,7 @@ module Bootstrap.Transforms.InlineVar.Base {
     // if it was legal to inline a variable. However, we couldn't prove that this version is
     // correct by using the induction principle, because there was no way to properly use it
     // to thread the `after` parameter which was computed in a backwards manner (note that
-    // it would have been possible by leveraging universal quantifiers, but this ususally leads
+    // it may have been possible by leveraging universal quantifiers, but this ususally leads
     // to prove explosion and unstability).
     // It would be good to be able to prove this version correct, because it allows to check if
     // it is valid to inline a variable (and doesn't inline it if it is not), while the current
@@ -171,6 +171,9 @@ module Bootstrap.Transforms.InlineVar.Base {
         Success((acc', e.(vals := vals')))
 
       case Bind(bvars, bvals, bbody) =>
+        // Rk.: we actually ignore the `Bind` case in the proofs, and use the fact that we should
+        // have converted let-bindings to scopes with variable declarations before calling this
+        // pass (this makes the proofs a lot easier).
         var (acc1, bvals') :- InlineInExprs(p, acc, bvals);
         :- Need(CanUpdateVars(VarsToNameSet(bvars), acc1.frozen), ()); // Not necessary, but let's make things simple for now
         // For now, we try to inline only if there is exactly one variable
@@ -1145,37 +1148,75 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   }*/
 
   lemma {:verify false} InductVarDecl_Some_Succ_Inline(
-      st: S, e: Expr, vdecls: seq<Exprs.Var>, vars: seq<string>, vals: seq<Expr>)
+      st: S, e: Expr, vdecls: seq<Exprs.Var>, vals: seq<Expr>)
     requires e.VarDecl? && e.vdecls == vdecls && e.ovals.Some? && e.ovals.value == vals
     requires !P_Fail(st, e)
+    requires |vdecls| == 1
+    requires
+      var (acc1, vals') := InlineInExprs(p, st.acc, vals).value;
+      && CanUpdateVars(VarsToNameSet(vdecls), acc1.frozen)
+      && CanInlineVar(p, vdecls[0], vals'[0])
     ensures P(st, e)
   {
     var ires := InlineInExpr(p, st.acc, e);
     assert Inv(st);
     assert ires.Success?;
-    var (_, e') := ires.value;
+    var (accf, e') := ires.value;
+    var (acc1, vals') := InlineInExprs(p, st.acc, vals).value;
 
     var res := InterpExpr(e, st.env, st.ctx);
     var res' := InterpExpr(e', st.env, st.ctx');
 
+    assert e' == EmptyBlock;
+
     assert res.Success?;
     var Return(vf, ctxf) := res.value;
-    
-    
-    assume false;
-/*    
-    match (res, res') {
-      case (Success(Return(vf, ctxf)), Success(Return(vf', ctxf'))) =>
-        var (accf, _) := InlineInExpr(p, st.acc, e).value;
-        var stf := MState(st.env, accf, ctxf, ctxf');
-        && EqValue(vf, vf')
-        && Inv(stf)
-        && StateRel(st, stf)
-      case (Failure(_), _) => true
-      case _ => false
-    }*/
 
-    assume false; // TODO
+    assert vf == Unit by { reveal InterpExpr(); }
+
+    var vars := VarsToNames(vdecls);
+    var res1 := InterpExprs(vals, st.env, st.ctx);
+    assert res1.Success? by { reveal InterpExpr(); }
+    var Return(vals, ctx1) := res1.value;
+    var ctx2 := SaveToRollback(ctx1, vars);
+    assert |vars| == |vals|;
+    var ctx3 := ctx2.(locals := AugmentContext(ctx2.locals, vars, vals));
+    assert ctxf == ctx3 by { reveal InterpExpr(); }
+
+    var varset := set x | x in vars;
+    var save := map x | x in (varset * ctx1.locals.Keys) - ctx1.rollback.Keys :: ctx1.locals[x];
+    var ctx2' := ctx1.(locals := ctx1.locals - varset, rollback := ctx1.rollback + save);
+    assert ctx2 == ctx2' by { reveal SaveToRollback(); }
+
+    assert res' == Success(Return(Unit, st.ctx')) by {
+      Interp_EmptyBlock(st.env, st.ctx');
+    }
+
+    var stf := MState(st.env, accf, ctxf, st.ctx');
+    assert EqValue(vf, Unit);
+
+    var name := vdecls[0].name;
+    assert name !in acc1.frozen by { reveal VarsToNameSet(); }
+    assert name !in st.acc.subst.Keys by {
+      assume st.acc.frozen <= acc1.frozen; // TODO: monotony lemma about InlineInExpr
+      assert st.acc.subst.Keys <= st.acc.frozen by {
+        reveal EqStateWithAcc();
+        reveal EqStateOnAcc();
+      }
+    }
+    
+    assert Inv(stf) by {
+      assert EqStateWithAcc(stf.env, stf.acc, stf.ctx, stf.ctx') by {
+        assume EqStateWithAcc_Locals(stf.env, stf.acc, stf.ctx, stf.ctx'); // TODO
+        assume EqCtx(stf.ctx.rollback, stf.ctx'.rollback); // TODO: this is not true: we need to update the invariant
+        reveal EqStateWithAcc();
+      }
+    }
+    assert StateRel(st, stf) by {
+      assert st.acc.subst.Keys <= stf.acc.subst.Keys;
+      assert forall x | x in st.acc.subst.Keys :: stf.acc.subst[x] == st.acc.subst[x]; // Given by: `name !in st.acc.subst.Keys`
+      reveal StateRel();
+    }
   }
 
   lemma {:verify false} InductVarDecl_Some_Succ  ... {

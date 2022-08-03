@@ -1430,4 +1430,24 @@ module Bootstrap.Semantics.Equiv {
       }
     }
   }
+
+  // TODO(SMH): move (to Interp?)
+  const EmptyBlock: Interp.Expr := reveal SupportsInterp(); Expr.Block([])
+
+  // TODO(SMH): move?
+  lemma Interp_EmptyBlock(env: Environment, ctx: State)
+    ensures InterpExpr(EmptyBlock, env, ctx) == Success(Return(Unit, ctx))
+  {
+    var res := InterpExpr(EmptyBlock, env, ctx);
+    assert res == InterpBlock([], env, ctx) by { reveal InterpExpr(); reveal InterpBlock(); }
+
+    var ctx1 := ctx.(rollback := map []);
+    assert InterpBlock_Exprs([], env, ctx1) == Success(Return(Unit, ctx1)) by { reveal InterpBlock_Exprs(); }
+
+    var ctx2 := ctx1;
+    var ctx3 := EndScope(ctx, ctx2);
+    assert ctx3 == ctx;
+
+    assert res == Success(Return(Unit, ctx3)) by { reveal InterpBlock(); }
+  }
 }
