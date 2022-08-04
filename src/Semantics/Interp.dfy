@@ -1049,7 +1049,7 @@ module Bootstrap.Semantics.Interp {
     : (r: InterpResult<Value>)
     // Alternative definition for ``InterpBlock_Exprs`` based on ``InterpExprs``, and which we use
     // for reasoning purposes. When it fails, it doesn't return the same error as ``InterpBlock_Exprs``,
-    // but this is often not an issue and allows to factorize the proofs.
+    // but this is often not an issue and allows us to factorize the proofs.
   {
     var ctx0 := ctx;
     // Evaluate all the statements
