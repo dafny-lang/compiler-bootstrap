@@ -275,8 +275,8 @@ class REPL {
           } else {
             print "Fuel exhausted, trying again with fuel := ", fuel, "\n";
           }
-        case Failure(err) =>
-          return Failure(err);
+        case Failure(_) =>
+          return Failure(v.error); // Work around a translation bug
     }
   }
 

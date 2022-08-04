@@ -28,10 +28,10 @@ public partial class Utils {
 class DafnyError : Exception {
   internal readonly MessageSource source;
   internal readonly ErrorLevel level;
-  internal readonly Microsoft.Boogie.IToken tok;
+  internal readonly Microsoft.Dafny.IToken tok;
   internal readonly string msg;
 
-  public DafnyError(MessageSource source, ErrorLevel level, Microsoft.Boogie.IToken tok, string msg) {
+  public DafnyError(MessageSource source, ErrorLevel level, Microsoft.Dafny.IToken tok, string msg) {
     this.source = source;
     this.level = level;
     this.tok = tok;
@@ -60,7 +60,7 @@ class REPLErrorReporter : BatchErrorReporter {
       AllMessages[level].Select(msg => ErrorToString(level, msg.token, msg.message)));
   }
 
-  public override bool Message(MessageSource source, ErrorLevel level, Microsoft.Boogie.IToken tok, string msg) {
+  public override bool Message(MessageSource source, ErrorLevel level, Microsoft.Dafny.IToken tok, string msg) {
     var b = base.Message(source, level, tok, msg);
     if (level == ErrorLevel.Error && source == MessageSource.Parser) {
       // Fail fast in the parser to disable error recovery
