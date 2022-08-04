@@ -30,25 +30,4 @@ module {:extern "CSharpDafnyInterop"} Bootstrap.Interop.CSharpDafnyInterop {
 
     static function method {:extern} ObjectToString(o: object) : string
   }
-
-  class SyntaxTreeAdapter {
-    var wr: Microsoft.Dafny.ConcreteSyntaxTree
-
-    constructor(wr: Microsoft.Dafny.ConcreteSyntaxTree) {
-      this.wr := wr;
-    }
-
-    method Write(value: string) {
-      wr.Write(StringUtils.ToCString(value));
-    }
-
-    method WriteLine(value: string) {
-      wr.WriteLine(StringUtils.ToCString(value));
-    }
-
-    method NewBlock(header: string) returns (st': SyntaxTreeAdapter) {
-      var wr' := wr.NewBlock(StringUtils.ToCString(header));
-      st' := new SyntaxTreeAdapter(wr');
-    }
-  }
 }

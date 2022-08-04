@@ -8,23 +8,24 @@ include "../../Utils/Library.dfy"
 include "../../Utils/StrTree.dfy"
 include "../../../../../../BoogieV/lang/BoogieLang.dfy"
 
-module {:extern "Bootstrap.Backends.Boogie.Compiler"} {:options "-functionSyntax:4"}
-  Bootstrap.Backends.Boogie
+module {:options "-functionSyntax:4"}
+  Bootstrap.Backends.Boogie.Compiler
 {
-  import opened Interop.CSharpDafnyInterop
-  import opened AST.Syntax
   import AST.Predicates
+  import BLib = Wrappers
+  import BV = BoogieLang
   import Passes.EliminateNegatedBinops
-  import opened AST.Predicates.Deep
-  import opened Utils.Lib.Datatypes
   import Transforms.BottomUp
   import Transforms.Generic
-  import BV = BoogieLang
-  import BLib = Wrappers
+  import Utils.StrTree
+  import opened AST.Predicates.Deep
+  import opened AST.Syntax
+  import opened Interop.CSharpDafnyInterop
+  import opened Utils.Lib.Datatypes
 
   type WfExpr = e: Exprs.T | Deep.All_Expr(e, Exprs.WellFormed) witness *
 
-  function CompileLiteralExpr(l: Exprs.Literal) : BV.Expr
+  function TranslateLiteralExpr(l: Exprs.Literal) : BV.Expr
     requires l.LitInt? || l.LitBool?
   {
     match l {
@@ -33,7 +34,7 @@ module {:extern "Bootstrap.Backends.Boogie.Compiler"} {:options "-functionSyntax
     }
   }
 
-  function CompileLazyExpr(op: Exprs.LazyOp, e0: BV.Expr, e1: BV.Expr) : BV.Expr {
+  function TranslateLazyExpr(op: Exprs.LazyOp, e0: BV.Expr, e1: BV.Expr) : BV.Expr {
     var bop := match op
       case And => BV.Binop.And
       case Or => BV.Binop.Or
@@ -41,7 +42,7 @@ module {:extern "Bootstrap.Backends.Boogie.Compiler"} {:options "-functionSyntax
     BV.BinOp(e0, bop, e1)
   }
 
-  function CompileUnaryOpExpr(op: UnaryOp, e: BV.Expr) : BV.Expr {
+  function TranslateUnaryOpExpr(op: UnaryOp, e: BV.Expr) : BV.Expr {
     var uop := match op
       case BoolNot() => BV.Not
       case BVNot() => Crash("BVNot")
@@ -53,7 +54,7 @@ module {:extern "Bootstrap.Backends.Boogie.Compiler"} {:options "-functionSyntax
     BV.UnOp(uop, e)
   }
 
-  function CompileBinaryExpr(op: BinaryOp, e0: BV.Expr, e1: BV.Expr) : BV.Expr {
+  function TranslateBinaryExpr(op: BinaryOp, e0: BV.Expr, e1: BV.Expr) : BV.Expr {
     var bop := match op
       case Logical(Iff) => BV.Iff
 
@@ -146,7 +147,7 @@ module {:extern "Bootstrap.Backends.Boogie.Compiler"} {:options "-functionSyntax
 
   // FIXME(CPC): Predicate to characterize supported terms?
 
-  function CompileExpr(e: WfExpr) : BV.Expr
+  function TranslateExpr(e: WfExpr) : BV.Expr
     requires SupportsVerification_Expr(e)
     decreases e, 0
   {
@@ -154,25 +155,25 @@ module {:extern "Bootstrap.Backends.Boogie.Compiler"} {:options "-functionSyntax
       case Var(x) =>
         BV.Var(x)
       case Literal(l) =>
-        CompileLiteralExpr(l)
+        TranslateLiteralExpr(l)
       case Apply(op, es) =>
         match op {
           case Lazy(op) =>
-            var c0, c1 := CompileExpr(es[0]), CompileExpr(es[1]);
-            CompileLazyExpr(op, c0, c1)
+            var c0, c1 := TranslateExpr(es[0]), TranslateExpr(es[1]);
+            TranslateLazyExpr(op, c0, c1)
           case Eager(UnaryOp(op)) =>
-            CompileUnaryOpExpr(op, CompileExpr(es[0]))
+            TranslateUnaryOpExpr(op, TranslateExpr(es[0]))
           case Eager(BinaryOp(op)) =>
-            CompileBinaryExpr(op, CompileExpr(es[0]), CompileExpr(es[1]))
+            TranslateBinaryExpr(op, TranslateExpr(es[0]), TranslateExpr(es[1]))
         }
       case Bind(vars, vals, body) =>
         assert |vars| == |vals| == 1;
         var decls := Seq.Map(x requires x in vars => (x, BV.Ty.TPrim(BV.PrimTy.TInt)), vars);
-        BV.Let(vars[0], CompileExpr(vals[0]), CompileExpr(body))
+        BV.Let(vars[0], TranslateExpr(vals[0]), TranslateExpr(body))
     }
   }
 
-  function CompileStmt(e: WfExpr) : BV.Cmd
+  function TranslateStmt(e: WfExpr) : BV.Cmd
     requires SupportsVerification_Stmt(e)
     decreases e, 0
   {
@@ -180,20 +181,20 @@ module {:extern "Bootstrap.Backends.Boogie.Compiler"} {:options "-functionSyntax
       case Apply(op, args) =>
         match op {
           case Eager(Builtin(Assert)) =>
-            BV.SimpleCmd(BV.Assert(CompileExpr(args[0])))
+            BV.SimpleCmd(BV.Assert(TranslateExpr(args[0])))
           case Eager(Builtin(Progn)) =>
-            var bexprs := Seq.Map(x requires x in args => CompileStmt(x), args);
+            var bexprs := Seq.Map(x requires x in args => TranslateStmt(x), args);
             Seq.FoldR((acc, x) => BV.Seq(x, acc), BV.SimpleCmd(BV.Skip), bexprs)
         }
       case Block(exprs) =>
-        var bexprs := Seq.Map(x requires x in exprs => CompileStmt(x), exprs);
+        var bexprs := Seq.Map(x requires x in exprs => TranslateStmt(x), exprs);
         Seq.FoldR((acc, x) => BV.Seq(x, acc), BV.SimpleCmd(BV.Skip), bexprs)
       case Bind(vars, vals, body) =>
         // TODO: Assumes all variables are int
         var decls := Seq.Map(x requires x in vars => (x, BV.Ty.TPrim(BV.PrimTy.TInt)), vars);
-        BV.Scope(labelName := BLib.None, varDecls := decls, body := CompileStmt(body))
+        BV.Scope(labelName := BLib.None, varDecls := decls, body := TranslateStmt(body))
       case If(cond, thn, els) =>
-        BV.If(BLib.Some(CompileExpr(cond)), CompileStmt(thn), CompileStmt(els))
+        BV.If(BLib.Some(TranslateExpr(cond)), TranslateStmt(thn), TranslateStmt(els))
     }
   }
 
@@ -357,39 +358,45 @@ module {:extern "Bootstrap.Backends.Boogie.Compiler"} {:options "-functionSyntax
   const LiftAssertsTR: BottomUp.BottomUpTransformer :=
     assume false; Generic.TR(LiftAsserts1, _ => true)
 
-  function CompileMethod(m: Method) : BV.Cmd
+  function TranslateMethod(m: Method) : BV.Cmd
     requires Deep.All_Method(m, Exprs.WellFormed)
     requires Shallow.All_Method(m, SupportsVerification_Stmt)
   {
     match m {
-      case Method(nm, methodBody) => CompileStmt(methodBody)
+      case Method(nm, methodBody) => TranslateStmt(methodBody)
     }
   }
 
-  function CompileProgram(p: Program) : BV.Cmd
+  function TranslateProgram(p: Program) : BV.Cmd
     requires Deep.All_Program(p, Exprs.WellFormed)
     requires Shallow.All_Program(p, SupportsVerification_Stmt)
   {
     match p {
-      case Program(mainMethod) => CompileMethod(mainMethod)
+      case Program(mainMethod) => TranslateMethod(mainMethod)
     }
   }
 
-  method VerifyProgram(p: Program) returns (st: BV.Cmd)
+  function CompileProgram(p: Program) : Result<BV.Cmd, string>
   {
-    if Deep.All_Program(p, Exprs.WellFormed) {
-      var p :=
-        assume false;
-        var p := BottomUp.Map_Program(p, AddWellFormednessAssertionsTR);
-        var p := BottomUp.Map_Program(p, LiftAssertsTR);
-        var p := BottomUp.Map_Program(p, RemovePrognTR);
-        p;
+    :- Need(Deep.All_Program(p, Exprs.WellFormed), "Well-formedness check failed.");
 
-      if Shallow.All_Program(p, SupportsVerification_Stmt) {
-        print CompileProgram(p).ToString(indent := 0);
-      }
-    } else {
-      print "Well-formedness check failed.";
-    }
+    var p :=
+      assume false;
+      var p := BottomUp.Map_Program(p, AddWellFormednessAssertionsTR);
+      var p := BottomUp.Map_Program(p, LiftAssertsTR);
+      var p := BottomUp.Map_Program(p, RemovePrognTR);
+      p;
+
+    :- Need(Shallow.All_Program(p, SupportsVerification_Stmt), "Structure check failed");
+
+    Success(TranslateProgram(p))
+  }
+
+  function Compile(p: Program) : StrTree.StrTree {
+    StrTree.Str(
+      match CompileProgram(p)
+        case Success(vc) => vc.ToString(indent := 0)
+        case Failure(msg) => "!! " + msg
+    )
   }
 }
