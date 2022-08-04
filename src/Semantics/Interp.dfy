@@ -307,7 +307,7 @@ module Bootstrap.Semantics.Interp {
 
       case VarDecl(vdecls, ovals) =>
         var vars := VarsToNames(vdecls);
-        // Evaluate the rhs, if there is
+        // Evaluate the rhs, if there is one
         if ovals.Some? then
           var Return(vals, ctx) :- InterpExprs(ovals.value, env, ctx);
           // Save the variables to the rollback context
