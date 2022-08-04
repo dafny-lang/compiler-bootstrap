@@ -53,7 +53,7 @@ module Bootstrap.Semantics.EqInterpRefl {
 
   // DISCUSS: the proof actually indirectly relies on the fact that ``EqValue`` is reflexive.
   // But the proof that ``EqValue`` is reflexive (not done) relies, for the closure case, on the fact
-  // that ``InterpExpr`` is reflexive. The termination argument is not trivial, and we may have to
+  // that ``EqInterp`` is reflexive. The termination argument is not trivial, and we may have to
   // rely on step-indexing.
   //
   // Here is an old comment, which gives some insight about what is going on:

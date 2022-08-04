@@ -78,7 +78,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   // If you want to see a simple instantiation example in which most proofs go through automatically,
   // see `InterpStateIneq`. If you want to see a more complex example, see `EqInterpScopes`.
   //
-  // Rk.: the predicate `P` doesn't have the same signature in the real functor, but the idea is similar.
+  // Rem.: the predicate `P` doesn't have the same signature in the real functor, but the idea is similar.
 
   import opened AST.Syntax
   import opened Utils.Lib
@@ -334,7 +334,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   // This requires slightly more work in the inductive proof of `P_Satisfied`, but is totally
   // bearable. We adopt this style in the other lemma statements.
   // DISCUSS: ok with this style?
-  lemma InductVarDecl_None_Succ(st: S, e: Expr, vdecls: seq<Exprs.Var>, vars: seq<string>, st1: S)
+  lemma InductVarDecl_None_Succ(st: S, e: Expr, vdecls: seq<Exprs.TypedVar>, vars: seq<string>, st1: S)
     requires e.VarDecl? && e.vdecls == vdecls && e.ovals.None?
     requires !P_Fail(st, e)
     requires vars == VarsToNames(vdecls)
@@ -343,7 +343,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     ensures P_Succ(st, e, st1, UnitV)
     ensures P(st, e)
 
-  lemma InductVarDecl_Some_Fail(st: S, e: Expr, vdecls: seq<Exprs.Var>, vals: seq<Expr>)
+  lemma InductVarDecl_Some_Fail(st: S, e: Expr, vdecls: seq<Exprs.TypedVar>, vals: seq<Expr>)
     requires e.VarDecl? && e.vdecls == vdecls && e.ovals.Some? && e.ovals.value == vals
     requires !P_Fail(st, e)
     ensures !Pes_Fail(st, vals)
@@ -353,7 +353,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   // lemma seems too convoluted, we could try to get rid of the precondition for ``UpdateState``
   // (but doesn't seem that easy nor natural to do), or we could not take `st3` as input.
   lemma InductVarDecl_Some_Succ(
-      st: S, e: Expr, vdecls: seq<Exprs.Var>, vars: seq<string>, vals: seq<Expr>, st1: S, values: VS, st2: S, st3: S)
+      st: S, e: Expr, vdecls: seq<Exprs.TypedVar>, vars: seq<string>, vals: seq<Expr>, st1: S, values: VS, st2: S, st3: S)
     requires e.VarDecl? && e.vdecls == vdecls && e.ovals.Some? && e.ovals.value == vals
     requires !P_Fail(st, e)
     requires Pes_Succ(st, vals, st1, values)
@@ -382,7 +382,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     ensures P_Succ(st, e, st2, UnitV)
     ensures P(st, e)
 
-  lemma InductBind_Fail(st: S, e: Expr, bvars: seq<Exprs.Var>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>, st1: S)
+  lemma InductBind_Fail(st: S, e: Expr, bvars: seq<Exprs.TypedVar>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>, st1: S)
     requires e.Bind? && e.bvars == bvars && e.bvals == bvals && e.bbody == bbody
     requires !P_Fail(st, e)
     requires vars == VarsToNames(bvars)
@@ -395,7 +395,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
       && !P_Fail(UpdateState(st3, vars, vals), bbody)
 
   lemma InductBind_Succ(
-    st: S, e: Expr, bvars: seq<Exprs.Var>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>,
+    st: S, e: Expr, bvars: seq<Exprs.TypedVar>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>,
     st1: S, st2: S, vals: VS, st3: S, st4: S, v: V, st5: S, st6: S)
     requires e.Bind? && e.bvars == bvars && e.bvals == bvals && e.bbody == bbody
     requires !P_Fail(st, e)

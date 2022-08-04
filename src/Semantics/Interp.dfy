@@ -44,15 +44,15 @@ module Bootstrap.Semantics.Interp {
     }
   }
 
-  // TODO: I'm not sure it was worth making this opaque.
+  // TODO(SMH): I'm not sure it was worth making this opaque.
   predicate method {:opaque} SupportsInterp(e: Exprs.T) {
     Predicates.Deep.All_Expr(e, SupportsInterp1)
   }
 
-  // TODO: rewrite as a shallow predicate applied through ``v.All``?
+  // TODO(SMH): rewrite as a shallow predicate applied through ``v.All``?
   predicate method WellFormedEqValue(v: V.T)
   // This predicate gives the constrainst we need to be able to *define* our equivalence relation
-  // over values and actually *use* this relati\on to prove equivalence properties between expressions.
+  // over values and actually *use* this relation to prove equivalence properties between expressions.
   //
   // The difficult point is linked to closures: when we apply transformations to the code, we often
   // apply them in a deep manner to the expressions (i.e., to all the subexpressions of an expression).
@@ -84,16 +84,16 @@ module Bootstrap.Semantics.Interp {
         && HasEqValue(v)
         && (forall x | x in st :: WellFormedEqValue(x))
       case Closure(ctx, vars, body) =>
-        // TODO: is that enough?
+        // TODO(SMH): is that enough?
         && (forall x | x in ctx.Values :: WellFormedEqValue(x))
     }
   }
 
-  // TODO: rename to ValueHasEq
+  // TODO(SMH): rename to ValueHasEq
   predicate method HasEqValue(v: V.T)
   // Return true if the value supports a decidale equality.
   //
-  // Note that this is a bit subtle for collections: any empt\y collection supports a decidable
+  // Note that this is a bit subtle for collections: any empty collection supports a decidable
   // equality, but non-empty collections support a decidable equality only if their elements
   // support one.
   {
@@ -125,7 +125,7 @@ module Bootstrap.Semantics.Interp {
   }
 
   predicate method WellFormedValue(v: V.T) {
-    // Rk.: ``Value.All`` goes inside the closure contexts
+    // Rem.: ``Value.All`` goes inside the closure contexts
     && v.All(WellFormedValue1)
     && WellFormedEqValue(v)
   }
@@ -229,8 +229,8 @@ module Bootstrap.Semantics.Interp {
     InterpExpr(e, env, ctx)
   }
 
-  function method VarsToNames(vars: seq<Exprs.Var>): seq<string> {
-    Seq.Map((v: Exprs.Var) => v.name, vars)
+  function method VarsToNames(vars: seq<Exprs.TypedVar>): seq<string> {
+    Seq.Map((v: Exprs.TypedVar) => v.name, vars)
   }
 
   function method {:opaque} InterpExpr(e: Expr, env: Environment, ctx: State)
@@ -245,7 +245,7 @@ module Bootstrap.Semantics.Interp {
 
       case Abs(vars, body) =>
         var cv: V.T := V.Closure(ctx.locals, vars, body);
-        assert WellFormedValue(cv); // TODO: prove
+        assert WellFormedValue(cv);
         Success(Return(cv, ctx))
 
       case Literal(lit) =>
@@ -699,7 +699,7 @@ module Bootstrap.Semantics.Interp {
   function method InterpBinarySets(expr: Expr, op: Exprs.BinaryOps.Sets, v0: Value, v1: Value)
     : PureInterpResult<Value>
   {
-    // Rk.: we enforce through `WellFormedEqValue` that sets contain values with a decidable
+    // Rem.: we enforce through `WellFormedEqValue` that sets contain values with a decidable
     // equality.
     match op
       case SetEq() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
@@ -735,7 +735,7 @@ module Bootstrap.Semantics.Interp {
   function method InterpBinaryMultisets(expr: Expr, op: Exprs.BinaryOps.Multisets, v0: Value, v1: Value)
     : PureInterpResult<Value>
   {
-    // Rk.: we enforce through `WellFormedEqValue` that multisets contain values with a decidable
+    // Rem.: we enforce through `WellFormedEqValue` that multisets contain values with a decidable
     // equality.
     match op // DISCUSS
       case MultisetEq() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
@@ -775,7 +775,7 @@ module Bootstrap.Semantics.Interp {
   function method InterpBinarySequences(expr: Expr, op: Exprs.BinaryOps.Sequences, v0: Value, v1: Value)
     : PureInterpResult<Value>
   {
-    // Rk.: sequences don't necessarily contain values with decidable equality, we
+    // Rem.: sequences don't necessarily contain values with decidable equality, we
     // thus dynamically check that we have what we need depending on the operation
     // we want to perform.
     // TODO: the dynamic checks for decidable equality may make the interpreter quite
@@ -827,7 +827,7 @@ module Bootstrap.Semantics.Interp {
   function method InterpBinaryMaps(expr: Expr, op: Exprs.BinaryOps.Maps, v0: Value, v1: Value)
     : PureInterpResult<Value>
   {
-    // Rk.: values in maps don't necessarily have a decidable equality. We thus perform
+    // Rem.: values in maps don't necessarily have a decidable equality. We thus perform
     // dynamic checks when we need one and fail if it is not the case.
     match op
       case MapEq() =>
@@ -986,7 +986,7 @@ module Bootstrap.Semantics.Interp {
     Success(val)
   }
 
-  // TODO: remove the opaque keyword?
+  // TODO(SMH): remove the opaque keyword?
   function method {:opaque} SaveToRollback(ctx: State, vars: seq<string>)
     : State
     // This function is used when evaluating variable declarations:
@@ -1031,7 +1031,7 @@ module Bootstrap.Semantics.Interp {
       InterpBlock_Exprs(es[1..], env, ctx)
   }
 
-  // TODO: maybe it doesn't make sense anymore for this function to be opaque?
+  // TODO(SMH): maybe it doesn't make sense anymore for this function to be opaque?
   function method {:opaque} InterpBlock(stmts: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
     // This function is a utility function and is not used by the interpreter itself to avoid

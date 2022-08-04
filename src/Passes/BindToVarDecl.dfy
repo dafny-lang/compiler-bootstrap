@@ -67,7 +67,7 @@ module Bootstrap.Passes.BindToVarDecl {
 
   const Tr_Expr : BottomUpTransformer :=
     ( Deep.All_Expr_True_Forall(Tr_Expr_Post);
-      assume IsBottomUpTransformer(Transform_Single, Tr_Expr_Post); // TODO: prove
+      assume IsBottomUpTransformer(Transform_Single, Tr_Expr_Post); // TODO(SMH): prove
       TR(Transform_Single, Tr_Expr_Post))
 
   function method Apply_Method(m: Method) : (m': Method)
