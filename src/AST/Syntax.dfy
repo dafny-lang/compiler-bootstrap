@@ -202,6 +202,8 @@ module Exprs {
 
   datatype BuiltinFunction =
     | Display(ty: Types.Type)
+    | Progn
+    | Assert
     | Print
 
   // DafnyAst.cs handles `f(1)` differently from `(var g := f; g)(1)`, but not us
@@ -288,6 +290,7 @@ module Exprs {
     }
   }
 
+  // FIXME(CPC): Rename to WellFormed1
   function method WellFormed(e: Expr): bool {
     match e {
       case Apply(Lazy(_), es) =>
@@ -302,6 +305,10 @@ module Exprs {
         |es| >= 1 // Needs a function to call
       case Apply(Eager(Builtin(Display(ty))), es) =>
         ty.Collection? && ty.finite
+      case Apply(Eager(Builtin(Progn())), es) =>
+        |es| >= 1
+      case Apply(Eager(Builtin(Assert())), es) =>
+        |es| == 1
       case Bind(vars, vals, _) =>
         |vars| == |vals|
       case _ => true

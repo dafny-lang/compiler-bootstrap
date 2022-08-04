@@ -32,6 +32,15 @@ module Datatypes {
         case Some(v) => Success(v)
         case None() => Failure(f)
     }
+
+    function method Map<T'>(f: T ~> T'): Option<T'>
+      reads if this.Some? then f.reads(this.value) else {}
+      requires this.Some? ==> f.requires(this.value)
+    {
+      match this
+        case Some(v) => Some(f(v))
+        case None() => None
+    }
   }
 
   datatype Result<+T, +R> = | Success(value: T) | Failure(error: R) {

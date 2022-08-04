@@ -21,7 +21,9 @@ module Bootstrap.Semantics.Interp {
       case UnaryOp(uop) => !uop.MemberSelect?
       case BinaryOp(bop) => !bop.BV? && !bop.Datatypes?
       case TernaryOp(top) => true
+      case Builtin(Progn()) => true
       case Builtin(Display(_)) => true
+      case Builtin(Assert()) => true
       case Builtin(Print()) => false
       case FunctionCall() => true
       case DataConstructor(name, typeArgs) => Debug.TODO(false)
@@ -180,6 +182,7 @@ module Bootstrap.Semantics.Interp {
 
   datatype InterpError =
     | OutOfFuel(fn: Value)
+    | AssertionFailure(e: Expr)
     | TypeError(e: Expr, value: Value, expected: Type) // TODO rule out type errors through Wf predicate?
     | Invalid(e: Expr) // TODO rule out in Wf predicate?
     | OutOfIntBounds(x: int, low: Option<int>, high: Option<int>)
@@ -192,6 +195,7 @@ module Bootstrap.Semantics.Interp {
     function method ToString() : string {
       match this // TODO include values in messages
         case OutOfFuel(fn) => "Too many function evaluations"
+        case AssertionFailure(e) => "Assertion failure"
         case TypeError(e, value, expected) => "Type mismatch"
         case Invalid(e) => "Invalid expression"
         case OutOfIntBounds(x, low, high) => "Out-of-bounds value"
@@ -249,8 +253,12 @@ module Bootstrap.Semantics.Interp {
               InterpBinaryOp(e, bop, argvs[0], argvs[1])
             case TernaryOp(top: TernaryOp) =>
               InterpTernaryOp(e, top, argvs[0], argvs[1], argvs[2])
+            case Builtin(Progn()) =>
+              Success(argvs[|argvs| - 1])
             case Builtin(Display(ty)) =>
               InterpDisplay(e, ty.kind, argvs)
+            case Builtin(Assert()) =>
+              InterpAssert(args[0], argvs[0])
             case FunctionCall() =>
               InterpFunctionCall(e, env, argvs[0], argvs[1..])
           })
@@ -816,6 +824,14 @@ module Bootstrap.Semantics.Interp {
       case Set() =>
         :- Need(forall x | x in argvs :: HasEqValue(x), Invalid(e)); // The elements must have a decidable equality
         Success(V.Set(set s | s in argvs))
+  }
+
+  function method {:opaque} InterpAssert(arg: Expr, argv: Value)
+    : PureInterpResult<Value>
+  {
+    :- NeedType(arg, argv, Type.Bool);
+    :- Need(argv.b, AssertionFailure(arg));
+    Success(V.Unit)
   }
 
   function method InterpMapDisplay(e: Expr, argvs: seq<Value>)
