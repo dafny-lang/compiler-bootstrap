@@ -1,17 +1,18 @@
 include "../../Interop/CSharpDafnyASTModel.dfy"
 include "../../Interop/CSharpInterop.dfy"
 include "../../Interop/CSharpDafnyInterop.dfy"
+include "../../Interop/StrTree.dfy"
 include "../../AST/Translator.dfy"
 include "../../Passes/EliminateNegatedBinops.dfy"
 include "../../Transforms/BottomUp.dfy"
 include "../../Utils/Library.dfy"
-include "../../Utils/StrTree.dfy"
 
 module {:extern "Bootstrap.Backends.CSharp"} Bootstrap.Backends.CSharp {
   import Interop.CSharpDafnyASTModel
   import opened Interop.CSharpDafnyInterop
   import opened Microsoft.Dafny
   import Utils.StrTree
+  import StrTreeInterop = Interop.StrTree
   import AST.Predicates
   import AST.Translator
   import Transforms.BottomUp
@@ -269,28 +270,13 @@ module Compiler {
   }
 }
 
-  method WriteAST(wr: CSharpDafnyInterop.SyntaxTreeAdapter, ast: StrTree.StrTree) {
-    match ast {
-      case Str(s) =>
-        wr.Write(s);
-      case SepSeq(sep, asts) =>
-        for i := 0 to |asts| {
-          if i != 0 && sep.Some? {
-            wr.Write(sep.value);
-          }
-          WriteAST(wr, asts[i]);
-        }
-      case Unsupported() =>
-    }
-  }
-
-  class {:extern} DafnyCSharpCompiler {    
+  class {:extern} DafnyCSharpCompiler {
     constructor() {
     }
 
     method Compile(dafnyProgram: CSharpDafnyASTModel.Program,
                    wr: ConcreteSyntaxTree) {
-      var st := new CSharpDafnyInterop.SyntaxTreeAdapter(wr);
+      var st := new StrTreeInterop.SyntaxTreeAdapter(wr);
       match Translator.TranslateProgram(dafnyProgram) {
         case Success(translated) =>
           var lowered := EliminateNegatedBinops.Apply(translated);
@@ -307,7 +293,7 @@ module Compiler {
           assert Deep.All_Program(lowered, EliminateNegatedBinops.NotANegatedBinopExpr);
 
           var compiled := Compiler.AlwaysCompileProgram(lowered);
-          WriteAST(st, compiled);
+          st.WriteTree(compiled);
         case Failure(err) => // FIXME return an error
           st.Write("!! Translation error: " + err.ToString());
       }
@@ -316,7 +302,7 @@ module Compiler {
 
     method EmitCallToMain(mainMethod: CSharpDafnyASTModel.Method,
                           baseName: System.String,
-                          wr: ConcreteSyntaxTree) {
+                          wr: Microsoft.Dafny.ConcreteSyntaxTree) {
       // var st := new SyntaxTreeAdapter(wr);
       // var sClass := st.NewBlock("class __CallToMain");
       // var sBody := sClass.NewBlock("public static void Main(string[] args)");

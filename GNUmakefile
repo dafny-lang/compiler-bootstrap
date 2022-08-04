@@ -56,16 +56,17 @@ dafny_verify := $(dafny) -compile:0  -trace -verifyAllModules -showSnippets:1 -v
 # =============
 
 # Subprojects
-csharp := src/Backends/CSharp
+backends := CSharp Boogie
 repl := src/REPL
 
 # Binaries
-plugin_dll := $(csharp)/bin/Debug/net6.0/CSharpCompiler.dll
+plugin_dll = src/Backends/$(1)/bin/Debug/net6.0/Plugin.dll
+plugin_dlls := $(foreach bk,$(backends),$(call plugin_dll,$(bk)))
 repl_dll := $(repl)/bin/Release/net6.0/REPL.dll
-dlls := $(plugin_dll) $(repl_dll)
+dlls := $(plugin_dlls) $(repl_dll)
 
 # Entry points
-dfy_entry_points := $(repl)/Repl.dfy $(csharp)/Compiler.dfy
+dfy_entry_points := $(repl)/Repl.dfy $(patsubst %,src/Backends/%/Plugin.dfy,$(backends))
 cs_entry_points := $(dfy_entry_points:.dfy=.cs)
 cs_roots := $(dir $(cs_entry_points))
 cs_objs := $(cs_roots:=bin) $(cs_roots:=obj)
@@ -98,18 +99,19 @@ $(csharp_model): $(AutoExtern)/CSharpModel.dfy
 	cp "$<" "$@"
 
 # Translate the compiler from Dafny to C#
-$(csharp)/Compiler.cs: $(csharp)/Compiler.dfy $(dfy_models) $(dfy_interop) $(DafnyRuntime)
+src/Backends/%/Plugin.cs: src/Backends/%/Plugin.dfy $(dfy_models) $(dfy_interop) $(DafnyRuntime)
 	$(dafny_codegen) $<
 	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
 	rm "$@.bak" # https://stackoverflow.com/questions/4247068/
 
 # Compile the resulting C# code
-$(plugin_dll): $(csharp)/Compiler.cs $(cs_interop)
-	dotnet build $(csharp)/CSharpCompiler.csproj
+src/Backends/%/bin/Debug/net6.0/Plugin.dll: src/Backends/%/Plugin.cs $(cs_interop)
+	dotnet build src/Backends/$*/Plugin.csproj
 
 # Run it on tests
-test/%.cs: test/%.dfy $(plugin_dll) $(DafnyRuntime)
-	$(dafny_codegen) -plugin:$(plugin_dll) -compileTarget:cs "$<"
+csharp_dll := $(call plugin_dll,CSharp)
+test/%.cs: test/%.dfy $(csharp_dll) $(DafnyRuntime)
+	$(dafny_codegen) -plugin:$(csharp_dll) -compileTarget:cs "$<"
 
 # Compile the REPL
 # DISCUSS: Dependency tracking in Dafny
