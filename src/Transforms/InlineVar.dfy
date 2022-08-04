@@ -73,7 +73,7 @@ module Bootstrap.Transforms.InlineVar.Base {
     else VarsOfExpr(es[0]) + VarsOfExprs(es[1..])
   }
 
-  datatype {:verify false} Acc = Acc(subst: map<string, Expr>, frozen: set<string>)
+  datatype {:verify false} Acc = Acc(subst: map<string, Expr>, frozen: set<string>, all_locals: set<string>)
 //  const {:verify false} EmptyBlock: Interp.Expr := reveal Interp.SupportsInterp(); Expr.Block([])
 
   predicate method {:verify false} CanUpdateVars(vars: set<string>, frozen: set<string>)
@@ -81,9 +81,12 @@ module Bootstrap.Transforms.InlineVar.Base {
     vars !! frozen
   }
 
-  predicate method {:verify false} CanInlineVar(p: (Exprs.Var, Expr) -> bool, v: Exprs.Var, rhs: Expr, rhs': Expr)
+  predicate method {:verify false} CanInlineVar(p: (Exprs.Var, Expr) -> bool, v: Exprs.Var, rhs: Expr, rhs': Expr, all_locals: set<string>)
   {
     && p(v, rhs') // The filtering predicate allows to inline this variable
+    // Temporary: we can't inline a variable which shadows a variable already in the context (we will
+    // need stronger invariants to handle that)
+    && v.name !in all_locals
     // The rhs is pure
     // TODO(SMH): write a more general, less constraining purity check
     // TODO(SMH): we should only need to check the original rhs (rhs' is obtained after substituting
@@ -99,7 +102,14 @@ module Bootstrap.Transforms.InlineVar.Base {
   {
     var subst := acc.subst[v.name := rhs];
     var frozen := acc.frozen + {v.name} + VarsOfExpr(rhs); // We don't necessarily need to freeze `v.name`
-    Acc(subst, frozen)
+    var all_locals := acc.all_locals;
+    Acc(subst, frozen, all_locals)
+  }
+
+  function method {:verify false} AddToAcc_AllLocals(acc: Acc, vars: seq<string>): Acc
+  {
+    var Acc(subst, frozen, all_locals) := acc;
+    Acc(subst, frozen, all_locals + SeqToSet(vars))
   }
   
   function method {:verify false} InlineInExpr(p: (Exprs.Var, Expr) -> bool, acc: Acc, e: Expr):
@@ -134,7 +144,8 @@ module Bootstrap.Transforms.InlineVar.Base {
 
       case Abs(vars, body) =>
         :- Need(CanUpdateVars(SeqToSet(vars), acc.frozen), ());
-        var (_, body') :- InlineInExpr(p, acc, body);
+        var acc1 := AddToAcc_AllLocals(acc, vars);
+        var (_, body') :- InlineInExpr(p, acc1, body);
         Success((acc, e.(body := body')))
 
       case Apply(Lazy(op), args) =>
@@ -158,29 +169,36 @@ module Bootstrap.Transforms.InlineVar.Base {
         Success((acc, e.(stmts := stmts')))
 
       case VarDecl(vdecls, ovals) =>
+        var vars := Interp.VarsToNames(vdecls);
         if ovals.Some? then
           var vals := ovals.value;
           var (acc1, vals') :- InlineInExprs(p, acc, vals);
           :- Need(CanUpdateVars(VarsToNameSet(vdecls), acc1.frozen), ());
           // For now, we try to inline only if there is exactly one variable
-          if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals[0], vals'[0]) then
+          if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals[0], vals'[0], acc1.all_locals) then
             var acc2 := AddToAcc(acc, vdecls[0], vals'[0]);
-            Success((acc2, EmptyBlock))
-          else Success((acc1, Expr.VarDecl(vdecls, Exprs.Some(vals'))))
+            var acc3 := AddToAcc_AllLocals(acc2, vars);
+            Success((acc3, EmptyBlock))
+          else
+            var acc2 := AddToAcc_AllLocals(acc, vars);
+            Success((acc2, Expr.VarDecl(vdecls, Exprs.Some(vals'))))
         else
           :- Need(CanUpdateVars(VarsToNameSet(vdecls), acc.frozen), ());
-          Success((acc, e))
+          var acc1 := AddToAcc_AllLocals(acc, vars);
+          Success((acc1, e))
 
       case Update(vars, vals) =>
-        var (acc', vals') :- InlineInExprs(p, acc, vals);
-        :- Need(CanUpdateVars(SeqToSet(vars), acc'.frozen), ());
-        Success((acc', e.(vals := vals')))
+        var (acc1, vals') :- InlineInExprs(p, acc, vals);
+        :- Need(CanUpdateVars(SeqToSet(vars), acc1.frozen), ());
+        var acc2 := AddToAcc_AllLocals(acc1, vars);
+        Success((acc2, e.(vals := vals')))
 
       case Bind(bvars, bvals, bbody) =>
-        // Rk.: we actually ignore the `Bind` case in the proofs, and use the fact that we should
-        // have converted let-bindings to scopes with variable declarations before calling this
-        // pass (this makes the proofs a lot easier).
-        var (acc1, bvals') :- InlineInExprs(p, acc, bvals);
+        // We ignore the `Bind` case in the proofs, and use the fact that we should have converted
+        // let-bindings to scopes with variable declarations before calling this pass (this makes
+        // the proofs a lot easier).
+        Failure (())
+/*        var (acc1, bvals') :- InlineInExprs(p, acc, bvals);
         :- Need(CanUpdateVars(VarsToNameSet(bvars), acc1.frozen), ()); // Not necessary, but let's make things simple for now
         // For now, we try to inline only if there is exactly one variable
         // Rk.: we return the original acc because there is a scope
@@ -190,7 +208,7 @@ module Bootstrap.Transforms.InlineVar.Base {
             Success((acc, Expr.Block([bbody'])))
         else
           var (acc2, bbody') :- InlineInExpr(p, acc1, bbody);
-          Success((acc, Expr.Bind(bvars, bvals', bbody')))
+          Success((acc, Expr.Bind(bvars, bvals', bbody')))*/
 
       case If(cond, thn, els) =>
         var (acc1, cond') :- InlineInExpr(p, acc, cond);
@@ -312,6 +330,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
 //    && ctx'.rollback.Keys <= ctx.rollback.Keys
 //    && ctx.rollback.Keys <= ctx'.rollback.Keys + acc.subst.Keys
 //    && EqCtx(map x | x in ctx'.rollback.Keys :: ctx.rollback[x], ctx'.rollback)
+    && ctx.locals.Keys + ctx.rollback.Keys <= acc.all_locals
     && EqCtx(ctx.rollback, ctx'.rollback)
   }
 
@@ -529,7 +548,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     && forall i | 0 <= i < |argvs.vs| :: EqValue(argvs.vs[i], argvs.vs'[i])
   }
 
-  lemma {:verify false} BuildClosure_UpdateState_Inv(
+  lemma {:verify true} BuildClosure_UpdateState_Inv(
     acc: Acc, env: Environment, ctx: State, ctx': State, env': Environment, ctx1: State, ctx1': State,
     vars: seq<string>, vals: VS)
     requires Inv(MState(env, acc, ctx, ctx'))
@@ -537,8 +556,12 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     requires VS_UpdateStatePre(MState(env, acc, ctx, ctx'), vars, vals)
     requires ctx1.locals == AugmentContext(ctx.locals, vars, vals.vs);
     requires ctx1'.locals == AugmentContext(ctx'.locals, vars, vals.vs');
-    ensures EqStateWithAcc_Locals(env', acc, ctx1, ctx1')
+    ensures
+      var acc1 := AddToAcc_AllLocals(acc, vars);
+      EqStateWithAcc_Locals(env', acc1, ctx1, ctx1')
   {
+    var acc1 := AddToAcc_AllLocals(acc, vars);
+
     MapOfPairs_SeqZip_EqCtx(vars, vals.vs, vals.vs');
     var nbinds := MapOfPairs(Seq.Zip(vars, vals.vs));
     var nbinds' := MapOfPairs(Seq.Zip(vars, vals.vs'));
@@ -561,7 +584,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     }
 
     // This is true because the new bindings are the same on the two sides:
-    assert ctx1'.locals.Keys + acc.subst.Keys == ctx1.locals.Keys by { reveal EqStateWithAcc(); }
+    assert ctx1'.locals.Keys + acc1.subst.Keys == ctx1.locals.Keys by { reveal EqStateWithAcc(); }
 
     assert EqCtx(map x | x in ctx1'.locals.Keys :: ctx1.locals[x], ctx1'.locals) by {
       // TODO: lemma:
@@ -576,13 +599,22 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
       reveal GEqCtx();
     }
 
-    assert EqStateOnAcc(env', acc, ctx1, ctx1') by {
-      assert acc.subst.Keys <= acc.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); } // Ok
-      assert (forall x | x in acc.subst.Keys :: VarsOfExpr(acc.subst[x]) <= acc.frozen) by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
+/*    assert nbinds.Keys == SeqToSet(vars) by {
+      MapOfPairs_SeqZip_Keys(vars, vals.vs);
+      reveal SeqToSet();
+    }
+//    assume ctx1.locals.Keys == ctx.locals.Keys + nbinds.Keys;
+    assert acc1.all_locals == acc.all_locals + nbinds.Keys;
+    assert ctx1.locals.Keys + ctx1.rollback.Keys == acc1.all_locals by { reveal EqStateWithAcc(); }
+*/
+
+    assert EqStateOnAcc(env', acc1, ctx1, ctx1') by {
+      assert acc1.subst.Keys <= acc1.frozen by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); } // Ok
+      assert (forall x | x in acc1.subst.Keys :: VarsOfExpr(acc1.subst[x]) <= acc1.frozen) by { reveal EqStateWithAcc(); reveal EqStateOnAcc(); }
       assume ( // TODO: general lemma: adding bindings which are not used leads to same interp
         // TODO: we may have a problem with the environment
-        forall x | x in acc.subst.Keys ::
-        var res := InterpExpr(acc.subst[x], env', ctx1');
+        forall x | x in acc1.subst.Keys ::
+        var res := InterpExpr(acc1.subst[x], env', ctx1');
         match res {
           case Success(Return(v, ctx1'')) =>
             && ctx1'' == ctx1'
@@ -592,7 +624,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
         reveal EqStateOnAcc();
     }
 
-    assert EqStateWithAcc_Locals(env', acc, ctx1, ctx1');
+    assert EqStateWithAcc_Locals(env', acc1, ctx1, ctx1');
   }
 
   function {:verify false} BuildClosureCallState ...
@@ -1183,7 +1215,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
     requires
       var (acc1, vals') := InlineInExprs(p, st.acc, vals).value;
       && CanUpdateVars(VarsToNameSet(vdecls), acc1.frozen)
-      && CanInlineVar(p, vdecls[0], vals[0], vals'[0])
+      && CanInlineVar(p, vdecls[0], vals[0], vals'[0], acc1.all_locals)
     ensures P(st, e)
   {
     var ires := InlineInExpr(p, st.acc, e);
@@ -1271,7 +1303,7 @@ module Bootstrap.Transforms.InlineVar.BaseProofs refines Semantics.ExprInduction
   lemma {:verify false} InductVarDecl_Some_Succ  ... {
     reveal InterpExpr();
     var (acc1, vals') := InlineInExprs(p, st.acc, vals).value;
-    if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals[0], vals'[0]) {
+    if |vdecls| == 1 && CanInlineVar(p, vdecls[0], vals[0], vals'[0], acc1.all_locals) {
       // Case where we add variables to inline to the accumulator
       var acc2 := AddToAcc(st.acc, vdecls[0], vals'[0]);
 

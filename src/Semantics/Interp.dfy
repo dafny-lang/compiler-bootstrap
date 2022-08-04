@@ -1015,6 +1015,9 @@ module Bootstrap.Semantics.Interp {
   // - ``Block`` takes one single expression, controls a scope and always evaluates to unit
   // - have an equivalent of the Lisp progn
   // - keep ``Bind``
+  // DISCUSS: or we can use InterpExprs and check afterwards that the blocks didn't evaluate
+  // to unit?... We could update InterpExprs so that it always returns the sequence of values
+  // which were computed, up to the point where it failed (if one expression failed).
   function method {:opaque} InterpBlock_Exprs(es: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
     decreases env.fuel, es, 0
