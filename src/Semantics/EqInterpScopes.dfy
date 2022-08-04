@@ -519,7 +519,7 @@ module Bootstrap.Semantics.EqInterpScopes {
     requires Seq_All(SupportsInterp, es)
     requires Seq_All(SupportsInterp, es')
     requires EqState(ctx, ctx')
-    // Rk.: we need this predicate, otherwise we don't manage to guide the instantiation in ``EqInterpBlockExprs_Inst``
+    // Rem.: we need this predicate, otherwise we don't manage to guide the instantiation in ``EqInterpBlockExprs_Inst``
   {
     EqResultRolledValue(keys, InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es', env, ctx'))
   }

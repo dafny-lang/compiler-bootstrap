@@ -143,7 +143,6 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     var bop' := Exprs.BinaryOp(FlipNegatedBinop(op));
     var e := Exprs.Apply(Exprs.Eager(bop), args);
     var e' := FlipNegatedBinop_Single(op, args);
-    reveal SupportsInterp(); // TODO: remove?
 
     if SupportsInterp(e) {
       assert SupportsInterp(e');

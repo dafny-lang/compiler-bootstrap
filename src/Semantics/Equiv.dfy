@@ -43,7 +43,7 @@ module Bootstrap.Semantics.Equiv {
   datatype Equivs =
     EQ(eq_value: (WV, WV) -> bool, eq_state: (State, State) -> bool)
 
-  // TODO: not sure it was worth making this opaque
+  // TODO(SMH): not sure it was worth making this opaque
   predicate {:opaque} GEqCtx(
     eq_value: (WV,WV) -> bool, ctx: Context, ctx': Context
   )
@@ -57,7 +57,7 @@ module Bootstrap.Semantics.Equiv {
   predicate GEqState(
     eq_value: (WV,WV) -> bool, ctx: State, ctx': State)
   {
-    // Rk.: at some point I tried a slightly weaker condition on the rollbacks:
+    // Rem.(SMH): at some point I tried a slightly weaker condition on the rollbacks:
     // `ctx.locals + ctx.rollback ~= ctx'.locals + ctx'.rollback`
     // (instead of `ctx.rollback ~= ctx'.rollback).
     // However, with this condition we can't prove reflexivity of `EqInterp`:
@@ -101,7 +101,7 @@ module Bootstrap.Semantics.Equiv {
     // TODO(SMH): we might want to be more precise in the `OutOfFuel` case, especially because
     // we might want to verify non-terminating functions.
     //
-    // Rk.: whenever this function is updated, don't forget to update:
+    // Rem.: whenever this function is updated, don't forget to update:
     // - ``EqValue_Closure``
     // - ``EqPureInterpResult``
     // - ``EqInterpResultSeq1Value``
@@ -152,22 +152,22 @@ module Bootstrap.Semantics.Equiv {
     // - they are not closures and are equal/have equivalent children values
     // - they are closures and, when applied to equivalent inputs, they return equivalent outputs
     //
-    // Rk.: we could write the predicate in a simpler manner by using `==` in case the values are not
+    // Rem.: we could write the predicate in a simpler manner by using `==` in case the values are not
     // closures, but we prepare the terrain for a more general handling of collections.
     //
-    // Rk.: for now, we assume the termination. This function terminates because the size of the
+    // Rem.: for now, we assume the termination. This function terminates because the size of the
     // type of the values decreases, the interesting case being the closures (see ``EqValue_Closure``).
     // Whenever we find a closure `fn_ty = (ty_0, ..., ty_n) -> ret_ty`, we need to call ``EqValue``
     // on valid inputs (with types `ty_i < fn_ty`) and on its output (with type `ret_ty < fn_ty`).
     //
-    // Rk.: I initially wanted to make the definition opaque to prevent context saturation, because
+    // Rem.(SMH): I initially wanted to make the definition opaque to prevent context saturation, because
     // in most situations we don't need to know the content of EqValue.
     // However it made me run into the following issue:
     // BUG(https://github.com/dafny-lang/dafny/issues/2260)
     // As ``EqValue`` appears a lot in foralls, using the `reveal` trick seemed too cumbersome
     // to be a valid option.
     //
-    // Rk.: we initially wrote this definition with a match on the pair `(v, v')`:
+    // Rem.: we initially wrote this definition with a match on the pair `(v, v')`:
     // ```
     // match (v, v') {
     //   case (Unit, Unit) => true
@@ -230,13 +230,13 @@ module Bootstrap.Semantics.Equiv {
     //
     // See ``EqValue``.
     //
-    // Rk.: contrary to ``EqValue``, it seems ok to make ``EqValue_Closure`` opaque.
+    // Rem.: contrary to ``EqValue``, it seems ok to make ``EqValue_Closure`` opaque.
   {
     var Closure(ctx, vars, body) := v;
     var Closure(ctx', vars', body') := v';
     && |vars| == |vars'|
     && (
-    // TODO: we should actually quantify over a pair of equivalent environments (and propagate
+    // TODO(SMH): we should actually quantify over a pair of equivalent environments (and propagate
     // that everywhere: all lemmas should take two environments as inputs). Note that the
     // proof of reflexivity will probably require some step indexing, because the environments
     // should be initialized as the set containing the external functions and the program we are
@@ -318,7 +318,7 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
-  // TODO: this should be moved to EqInterp_Refl.dfy, but is needed for the proof that of EqValue_Refl,
+  // TODO(SMH): this should be moved to EqInterp_Refl.dfy, but is needed for the proof of EqValue_Refl,
   // which is then used in the proof of EqInterp_Refl. See the comments there about the termination
   // issues.
   lemma InterpExpr_Refl(e: Exprs.T, env: Environment, ctx: State, ctx': State)
@@ -870,7 +870,7 @@ module Bootstrap.Semantics.Equiv {
 
       match res1 {
         case Success(Return(v, ctx1)) => {
-          // TODO: the following statement generates an error.
+          // TODO(SMH): the following statement generates an error.
           // See: https://github.com/dafny-lang/dafny/issues/2258
           //var Success(Return(v', ctx1')) := res1;
           var Return(v', ctx1') := res1'.value;
@@ -1072,7 +1072,7 @@ module Bootstrap.Semantics.Equiv {
     reveal SaveToRollback();
   }
 
-  // TODO: we could split this lemma, whose proof is big (though straightforward),
+  // TODO(SMH): we could split this lemma, whose proof is big (though straightforward),
   // but it is a bit annoying to do...
   lemma InterpBinaryOp_Eq(
     e: Interp.Expr, e': Interp.Expr, bop: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
@@ -1146,12 +1146,12 @@ module Bootstrap.Semantics.Equiv {
         }
       }
       case Multisets(op) => {
-        // Rk.: this proof is similar to the one for Sets
+        // Rem.: this proof is similar to the one for Sets
         if op.InMultiset? || op.NotInMultiset? {
           EqValue_HasEqValue_Eq(v0, v0');
         }
         else if op.MultisetSelect? {
-          // Rk.: this proof is similar to the one for Sets
+          // Rem.: this proof is similar to the one for Sets
           EqValue_HasEqValue_Eq(v1, v1');
         }
         else {
@@ -1170,7 +1170,7 @@ module Bootstrap.Semantics.Equiv {
         }
       }
       case Sequences(op) => {
-        // Rk.: the proof strategy is given by the Sets case
+        // Rem.: the proof strategy is given by the Sets case
         EqValue_HasEqValue_Eq(v0, v0');
         EqValue_HasEqValue_Eq(v1, v1');
         var retv' := res'.value;
@@ -1189,7 +1189,7 @@ module Bootstrap.Semantics.Equiv {
         }
       }
       case Maps(op) => {
-        // Rk.: the proof strategy is given by the Sets case
+        // Rem.: the proof strategy is given by the Sets case
         EqValue_HasEqValue_Eq(v0, v0');
         EqValue_HasEqValue_Eq(v1, v1');
 

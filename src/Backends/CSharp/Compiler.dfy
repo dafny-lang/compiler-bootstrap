@@ -62,7 +62,7 @@ module Compiler {
 
   function method CompileLiteralExpr(l: Exprs.Literal) : StrTree {
     match l {
-      case LitUnit => Str("()") // TODO(SMH): that may not be the proper way of handling unit in Java
+      case LitUnit => Unsupported
       case LitBool(b: bool) => Str(if b then "true" else "false")
       case LitInt(i: int) => CompileInt(i)
       case LitReal(r: real) =>

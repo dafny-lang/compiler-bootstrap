@@ -445,7 +445,7 @@ module Bootstrap.AST.Translator {
     var bvs :- Seq.MapResult(lhss, (pat: C.CasePattern<C.BoundVar>) reads * =>
       :- Need(pat.Var != null, UnsupportedExpr(le));
       var ty :- TranslateType(pat.Var.Type);
-      Success(DE.Variable(TypeConv.AsString(pat.Var.Name), ty)));
+      Success(DE.TypedVar(TypeConv.AsString(pat.Var.Name), ty)));
     var rhss := ListUtils.ToSeq(le.RHSs);
     var elems :- Seq.MapResult(rhss, e requires e in rhss reads * =>
       assume Decreases(e, le); TranslateExpression(e));

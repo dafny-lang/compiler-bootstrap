@@ -391,19 +391,19 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
   type EqWV = Interp.EqWV // FIXME
   type Context = Values.Context
 
-  // TODO: maybe not necessary to make this opaque
+  // TODO(SMH): maybe not necessary to make this opaque
   // FIXME(CPC): Change to Interp.Expr and remove SupportsInterp below
   predicate {:opaque} EqInterp_CanBeMapLifted_Pre(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
   {
     && EqState(ctx, ctx')
     && Exprs.ConstructorsMatch(e, e')
     && All_Rel_Forall(EqInterp, e.Children(), e'.Children())
-    && SupportsInterp(e) // TODO: remove (`Expr` is now a subset type)
-    && SupportsInterp(e') // TODO: remove (`Expr` is now a subset type)
+    && SupportsInterp(e) // TODO(SMH): remove (`Expr` is now a subset type)
+    && SupportsInterp(e') // TODO(SMH): remove (`Expr` is now a subset type)
     && InterpExpr(e, env, ctx).Success? // We eliminate the failure case, which is trivial
   }
 
-  // TODO: maybe not necessary to make this opaque
+  // TODO(SMH): maybe not necessary to make this opaque
   predicate {:opaque} EqInterp_CanBeMapLifted_Post(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
   {
@@ -668,7 +668,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     }
   }
 
-  // TODO: e and e' should be the same actually
+  // TODO(SMH): e and e' should be the same actually
   lemma EqInterp_Expr_UnaryOp_CanBeMapLifted(
     e: Interp.Expr, e': Interp.Expr, op: UnaryOp, v: WV, v': WV
   )
@@ -718,8 +718,6 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     }
   }
 
-  // TODO: we could split this lemma, whose proof is big (though straightforward),
-  // but it is a bit annoying to do...
   lemma EqInterp_Expr_BinaryOp_CanBeMapLifted(
     e: Interp.Expr, e': Interp.Expr, bop: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
   )
@@ -918,7 +916,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     var res := InterpExpr(e, env, ctx);
     var res' := InterpExpr(e', env, ctx');
 
-    var vars := Seq.Map((v: Exprs.Var) => v.name, vdecls);
+    var vars := Seq.Map((v: Exprs.TypedVar) => v.name, vdecls);
 
     assert vdecls == vdecls';
 

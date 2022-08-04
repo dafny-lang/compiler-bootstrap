@@ -58,13 +58,13 @@ module Bootstrap.Passes.SimplifyEmptyBlocks {
   //    if b then {} else e --> if !b then e else {} // This allows us to only print `if !b then e` in the output program
   //    ```
   //
-  // Rk.: those transformations are complementary if performed in a bottom-up manner, as simplifying
+  // Rem.: those transformations are complementary if performed in a bottom-up manner, as simplifying
   // some blocks might lead to the simplification of some `if then else` branches which might in
   // turn lead to the simplification of other blocks, etc.
   //
-  // Rk.: pass 3. removes expressions that might fail. A pass like (3.) is correct because, following definition of ``EqInterp``, the original program (before simplification) is assumed to not fail. 
+  // Rem.: pass 3. removes expressions that might fail. A pass like (3.) is correct because, following definition of ``EqInterp``, the original program (before simplification) is assumed to not fail. 
   //
-  // Rk.: one reason why we need these passes is that Dafny-in-Dafny unifies let
+  // Rem.: one reason why we need these passes is that Dafny-in-Dafny unifies let
   // expressions and variable-declaration statements. For let expressions, this
   // can lead to the introduction of unnecessary blocks and hurt readability.
   //   ```
@@ -114,7 +114,7 @@ module FilterCommon {
 
   const EmptyBlock: Interp.Expr := reveal SupportsInterp(); Expr.Block([])
 
-  // TODO: move?
+  // TODO(SMH): move?
   predicate method IsEmptyBlock(e: Expr)
   {
     e.Block? && e.stmts == []
@@ -125,7 +125,7 @@ module FilterCommon {
     // For sanity
   {}
 
-  // TODO: move?
+  // TODO(SMH): move?
   predicate method IsNotEmptyBlock(e: Expr)
   {
     !IsEmptyBlock(e)
@@ -214,7 +214,7 @@ module FilterEmptyBlocks {
     // a smarter way.
     if es == [] {
       // Trivial
-      reveal GEqCtx(); // TODO: remove?
+      reveal GEqCtx();
       reveal EqScopes.Base.EqSubCtx();
     }
     else if |es| == 1 {
@@ -341,7 +341,7 @@ module FilterEmptyBlocks {
 module InlineLastBlock {
   // Tranformation 2
   //
-  // Rk.: the key element in the correctness proof is the invariant provided by the
+  // Rem.: the key element in the correctness proof is the invariant provided by the
   // lemmas in the ``EqInterpScopes`` module.
   
   import Utils.Lib
@@ -511,7 +511,7 @@ module InlineLastBlock {
     }
   }
 
-  // Rk.: modulo the names, this is exactly the same proof as for ``FilterEmptyBlocks_Single_Rel``
+  // Rem.: modulo the names, this is exactly the same proof as for ``FilterEmptyBlocks_Single_Rel``
   lemma InlineLastBlock_Single_Rel(e: Expr)
     ensures Tr_Expr_Rel(e, InlineLastBlock_Single(e))
   {

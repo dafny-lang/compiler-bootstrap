@@ -32,7 +32,7 @@ module Types {
     | Function(args: seq<Type>, ret: Type) // TODO
     | Class(classType: ClassType)
   {
-    // TODO: remove?
+    // TODO(SMH): remove?
     predicate method NoLeftFunction()
     {
       match this {
@@ -56,7 +56,7 @@ module Types {
       }
     }
 
-    // TODO: remove?
+    // TODO(SMH): remove?
     predicate method WellFormed() {
       match this {
         case Unit => true
@@ -243,7 +243,7 @@ module Exprs {
 /// caller's context. (In most cases, though, variables passed into an ``Abs``
 /// are not mutated at all, because dafny lambdas are pure).
 
-  datatype Var = Variable(name: string, ty: Types.Type)
+  datatype TypedVar = TypedVar(name: string, ty: Types.Type)
 
   // DISCUSS: if we use `Option<seq<Expr>>` in the `Expr.VarDecl` variant instead of introducing
   // this auxiliary datatype, Dafny fails to prove termination of simple functions like ``Depth``.
@@ -257,8 +257,8 @@ module Exprs {
     | Abs(vars: seq<string>, body: Expr)
     | Apply(aop: ApplyOp, args: seq<Expr>)
     | Block(stmts: seq<Expr>)
-    | Bind(bvars: seq<Var>, bvals: seq<Expr>, bbody: Expr)
-    | VarDecl(vdecls: seq<Var>, ovals: OptExprs)
+    | Bind(bvars: seq<TypedVar>, bvals: seq<Expr>, bbody: Expr)
+    | VarDecl(vdecls: seq<TypedVar>, ovals: OptExprs)
     // DISCUSS: `ovals` may make `VarDecl` slightly redundant with `Update` (i.e., we
     // can always decompose `VarDecl` with initialization expressions as `VarDecl` followed
     // by `Update`). It is however useful for pretty printing purposes, and in the definition
