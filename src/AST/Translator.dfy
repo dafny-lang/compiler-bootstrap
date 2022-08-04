@@ -182,7 +182,7 @@ module Bootstrap.AST.Translator {
     (map k | k in LazyBinopMap  :: DE.Lazy(LazyBinopMap[k])) +
     (map k | k in EagerBinopMap :: DE.Eager(DE.BinaryOp(EagerBinopMap[k])))
 
-  // Wo we desugar binds to variable declarations?
+  // Do we desugar binds to variable declarations?
   const bindToVarDecl: bool := false
 
   // Wo we wrap the content of `if then else` branches in blocks?
