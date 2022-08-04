@@ -290,10 +290,7 @@ module Exprs {
         case VarDecl(vdecls, ovals) =>
           match ovals {
             case Some(vals) =>
-              var f := (e: Expr) requires e in ovals.value =>
-                assert e < ovals;
-                e.Depth();
-              Seq.MaxF(f, vals, 0)
+              Seq.MaxF(var f := (e: Expr) requires e in ovals.value => e.Depth(); f, vals, 0)
             case None => 0
           }
         case Update(vars, vals) =>
@@ -323,16 +320,24 @@ module Exprs {
       }
     }
 
-    // TODO(SMH): for some reason Dafny doesn't manage to prove that ``Size`` below is correct if
-    // I don't introduce this auxiliary function. TODO: report as a bug.
-    static function method AddNat(x: nat, y: nat): nat {
-      x + y
-    }
-
     function method Size() : nat
       decreases this.Depth(), 0
     {
-      1 + Exprs_Size(this.Children())
+      1 + match this {
+        case Var(_) => 0
+        case Literal(lit) => 0
+        case Abs(vars, body) => body.Size()
+        case Apply(_, args) => Exprs_Size(args)
+        case Block(stmts) => Exprs_Size(stmts)
+        case Bind(vars, vals, body) => Exprs_Size(vals) + body.Size()
+        case VarDecl(vdecls, ovals) =>
+          match ovals {
+            case Some(vals) => Exprs_Size(vals)
+            case None => 0
+          }
+        case Update(vars, vals) => Exprs_Size(vals)
+        case If(cond, thn, els) => cond.Size() + thn.Size() + els.Size()
+      }
     }
 
     static function method MaxDepth(es: seq<Expr>) : nat {
@@ -371,25 +376,6 @@ module Exprs {
         assert es[i] == es[1..][i - 1];
         Exprs_Size_Index(es[1..], i - 1);
       }
-    }
-
-    static lemma Size_Decreases(e: Expr)
-      ensures e.Abs? ==> e.body.Size() < e.Size()
-      ensures e.If? ==> e.cond.Size() < e.Size() && e.thn.Size() < e.Size() && e.els.Size() < e.Size()
-      ensures e.Bind? ==> Exprs_Size(e.bvals) < e.Size() && e.bbody.Size() < e.Size()
-    {
-      var es := e.Children();
-      match e
-        case Abs(_, body) =>
-          assert body == es[0];
-        case If(cond, thn, els) =>
-          assert es[0] == cond;
-          assert es[1] == thn;
-          assert es[2] == els;
-        case Bind(_, bvals, bbody) =>
-          Exprs_Size_Append(bvals, [bbody]);
-          Exprs_Size_Index(es, |es| - 1);
-        case _ =>
     }
   }
 
