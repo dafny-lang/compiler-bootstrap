@@ -251,13 +251,13 @@ abstract module Bootstrap.Semantics.ExprInduction {
   // user side (ex.: `if then else`).
   lemma InductExprs_Cons(st: S, e: Expr, es: seq<Expr>)
     ensures P_Fail(st, e) ==> Pes_Fail(st, [e] + es)
-    ensures !P_Fail(st, e) ==> forall st1, v :: P_Succ(st, e, st1, v) && Pes_Fail(st1, es) ==> Pes_Fail(st, [e] + es)
-    ensures forall st1, v, st2, vs :: P_Succ(st, e, st1, v) && Pes_Succ(st1, es, st2, vs) ==> Pes_Succ(st, [e] + es, st2, AppendValue(v, vs))
+    ensures forall st1, v | P_Succ(st, e, st1, v) && Pes_Fail(st1, es) :: Pes_Fail(st, [e] + es)
+    ensures forall st1, v, st2, vs | P_Succ(st, e, st1, v) && Pes_Succ(st1, es, st2, vs) :: Pes_Succ(st, [e] + es, st2, AppendValue(v, vs))
 
   lemma InductApplyLazy_Fail(st: S, e: Expr, arg0: Expr, arg1: Expr)
     requires e.Apply? && e.aop.Lazy? && e.args == [arg0, arg1]
     requires !P_Fail(st, e)
-    // TODO(SMH): requires P(st, arg0)
+    requires P(st, arg0)
     ensures !P_Fail(st, arg0)
 
   lemma InductApplyLazy_Succ(st: S, e: Expr, arg0: Expr, arg1: Expr, st1: S, v0: V)
@@ -270,7 +270,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductApplyEager_Fail(st: S, e: Expr, args: seq<Expr>)
     requires e.Apply? && e.aop.Eager? && e.args == args
     requires !P_Fail(st, e)
-    // TODO(SMH): requires Pes(st, args)
+    requires Pes(st, args)
     ensures !Pes_Fail(st, args)
 
   lemma InductApplyEagerUnaryOp_Succ(st: S, e: Expr, op: UnaryOps.T, arg0: Expr, st1: S, v0: V)

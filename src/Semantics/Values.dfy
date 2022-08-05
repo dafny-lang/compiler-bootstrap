@@ -21,6 +21,10 @@ module Bootstrap.Semantics.Values {
     | Multiset(ms: multiset<Value>)
     | Seq(sq: seq<Value>)
     | Set(st: set<Value>)
+    // TODO(SMH): closures should capture the global context. In particular, the current definition
+    // prevents us from proving that variable inlining is correct in the presence of closures (if you
+    // by inlining a variable you move its rhs inside a closure, the inlined expression might be evaluated
+    // in a different global context).
     | Closure(ctx: Context, vars: seq<string>, body: Exprs.T)
   {
     predicate method HasType(ty: Types.T)
