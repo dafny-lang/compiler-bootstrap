@@ -113,6 +113,10 @@ csharp_dll := $(call plugin_dll,CSharp)
 test/%.cs: test/%.dfy $(csharp_dll) $(DafnyRuntime)
 	$(dafny_codegen) -plugin:$(csharp_dll) -compileTarget:cs "$<"
 
+boogie_dll := $(call plugin_dll,Boogie)
+test/%.bpl: test/%.dfy $(boogie_dll) $(DafnyRuntime)
+	$(dafny_codegen) -plugin:$(boogie_dll) -compileTarget:bpl "$<"
+
 # Compile the REPL
 # DISCUSS: Dependency tracking in Dafny
 $(repl)/Repl.cs: $(repl)/Repl.dfy $(ast_model) $(dfy_models) $(dfy_interop) $(DafnyRuntime)

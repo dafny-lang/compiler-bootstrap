@@ -8,8 +8,8 @@ include "../../Transforms/BottomUp.dfy"
 include "../../Utils/Library.dfy"
 include "Compiler.dfy"
 
-module {:options "-functionSyntax:4"} {:extern "Bootstrap.Backends.Boogie.Interface"}
-  Bootstrap.Backends.Boogie.Interface
+module {:options "-functionSyntax:4"} {:extern "Bootstrap.Backends.Boogie.Plugin"}
+  Bootstrap.Backends.Boogie.Plugin
 {
   import Interop.CSharpDafnyASTModel
   import opened Interop.CSharpDafnyInterop

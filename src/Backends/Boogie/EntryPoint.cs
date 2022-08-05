@@ -1,9 +1,9 @@
 using System.Collections.ObjectModel;
-using Bootstrap.Backends.Boogie;
+using Bootstrap.Backends.Boogie.Plugin;
 
-namespace Microsoft.Dafny.Compilers.SelfHosting.CSharp;
+namespace Microsoft.Dafny.Compilers.Dafny.Boogie;
 
-internal class SelfHostingCSharpCompiler : Plugins.Compiler {
+internal class DafnyBoogieCompilerPlugin : Plugins.Compiler {
   private readonly DafnyBoogieCompiler compiler = new ();
 
   public override IReadOnlySet<string> SupportedExtensions => new HashSet<string> { };

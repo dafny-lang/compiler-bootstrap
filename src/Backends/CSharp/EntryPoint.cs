@@ -1,9 +1,9 @@
 using System.Collections.ObjectModel;
 using Bootstrap.Backends.CSharp;
 
-namespace Microsoft.Dafny.Compilers.SelfHosting.CSharp;
+namespace Microsoft.Dafny.Compilers.Dafny.CSharp;
 
-internal class SelfHostingCSharpCompiler : Plugins.Compiler {
+internal class DafnyCSharpCompilerPlugin : Plugins.Compiler {
   private readonly DafnyCSharpCompiler compiler = new ();
 
   public override IReadOnlySet<string> SupportedExtensions => new HashSet<string> { ".cs", ".dll" };

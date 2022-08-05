@@ -86,6 +86,9 @@ module {:options "-functionSyntax:4"}
 
   function Annotated<A, T>(a: A, annot: T): A {
     a
+  } by method {
+    print "!!", annot, "\n";
+    return a;
   }
 
   predicate SupportsVerification_Expr(e: Expr) {
@@ -130,6 +133,7 @@ module {:options "-functionSyntax:4"}
         match op {
           case Eager(Builtin(Assert)) => (forall e <- es :: SupportsVerification_Expr(e))
           case Eager(Builtin(Progn)) => (forall e <- es :: SupportsVerification_Stmt(e))
+          case Eager(Builtin(Print)) => true
           case _ => Annotated(false, "Stmt.Apply")
         }
       case Block(exprs) =>
@@ -185,6 +189,8 @@ module {:options "-functionSyntax:4"}
           case Eager(Builtin(Progn)) =>
             var bexprs := Seq.Map(x requires x in args => TranslateStmt(x), args);
             Seq.FoldR((acc, x) => BV.Seq(x, acc), BV.SimpleCmd(BV.Skip), bexprs)
+          case Eager(Builtin(Print)) =>
+            BV.SimpleCmd(BV.Skip)
         }
       case Block(exprs) =>
         var bexprs := Seq.Map(x requires x in exprs => TranslateStmt(x), exprs);
