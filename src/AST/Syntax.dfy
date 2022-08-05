@@ -354,6 +354,7 @@ module Exprs {
         es[0].Size() + Exprs_Size(es[1..])
     }
 
+    // TODO(SMH): remove?
     static lemma Exprs_Size_Append(es: seq<Expr>, es': seq<Expr>)
       ensures Exprs_Size(es + es') == Exprs_Size(es) + Exprs_Size(es')
     {
@@ -375,6 +376,19 @@ module Exprs {
       else {
         assert es[i] == es[1..][i - 1];
         Exprs_Size_Index(es[1..], i - 1);
+      }
+    }
+
+    static lemma Exprs_Size_Mem(es: seq<Expr>, e: Expr)
+      requires e in es
+      ensures e.Size() <= Exprs_Size(es)
+    {
+      if es == [] {}
+      else {
+        if e == es[0] {}
+        else {
+          Exprs_Size_Mem(es[1..], e);
+        }
       }
     }
   }

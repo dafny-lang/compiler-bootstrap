@@ -323,7 +323,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductIf_Fail(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr)
     requires e.If? && e.cond == cond && e.thn == thn && e.els == els
     requires !P_Fail(st, e)
-    // TODO(SMH): requires Pes(st, cond)
+    requires P(st, cond)
     ensures !P_Fail(st, cond)
 
   lemma InductIf_Succ(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr, st_cond: S, condv: V)
@@ -354,7 +354,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductVarDecl_Some_Fail(st: S, e: Expr, vdecls: seq<Exprs.TypedVar>, vals: seq<Expr>)
     requires e.VarDecl? && e.vdecls == vdecls && e.ovals.Some? && e.ovals.value == vals
     requires !P_Fail(st, e)
-    // TODO(SMH): requires Pes(st, vals)
+    requires Pes(st, vals)
     ensures !Pes_Fail(st, vals)
 
   // DISCUSS: we want to consistently adopt the style we described for ``InductVarDecl_None_Succ``,
@@ -379,7 +379,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductUpdate_Fail(st: S, e: Expr, vars: seq<string>, vals: seq<Expr>)
     requires e.Update? && e.vars == vars && e.vals == vals
     requires !P_Fail(st, e)
-    // TODO(SMH): requires Pes(st, vals)
+    requires Pes(st, vals)
     ensures !Pes_Fail(st, vals)
 
   lemma InductUpdate_Succ(
@@ -398,7 +398,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires e.Bind? && e.bvars == bvars && e.bvals == bvals && e.bbody == bbody
     requires !P_Fail(st, e)
     requires vars == VarsToNames(bvars)
-    // TODO(SMH): requires Pes(st1, bvals)
+    requires Pes(st, bvals)
     ensures !Pes_Fail(st, bvals)
     ensures
       forall st1, vals :: Pes_Succ(st, bvals, st1, vals) ==>
@@ -426,7 +426,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires e.Block? && e.stmts == stmts
     requires !P_Fail(st, e)
     requires st_start == StateStartScope(st)
-    // TODO(SMH): requires Pes(st_start, stmts)
+    requires Pes(st_start, stmts)
     ensures !Pes_Fail(st_start, stmts)
 
   // DISCUSS: we can't have this automatic proofs for this lemma, because we implicitly rely on the
