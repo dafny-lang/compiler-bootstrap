@@ -1014,10 +1014,6 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
 
     var vars := VarsToNames(bvars);
 
-    var ctx1 := StartScope(ctx);
-    var ctx1' := StartScope(ctx');
-    assert EqState(ctx1, ctx1') by { reveal GEqCtx(); }
-
     assert All_Rel_Forall(EqInterp, vals, vals') by {
       forall i:nat | i < |vals| ensures EqInterp(vals[i], vals'[i]) {
         assert vals[i] == e.Children()[i];
@@ -1030,24 +1026,21 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     }
 
     // The rhs evaluate to similar results
-    var res2 := InterpExprs(vals, env, ctx1);
-    var res2' := InterpExprs(vals', env, ctx1');
-    InterpExprs_EqInterp_Inst(vals, vals', env, ctx1, ctx1');
-    assert EqInterpResultSeqValue(res2, res2');
-    var Return(valsvs, ctx2) := res2.value;
-    var Return(valsvs', ctx2') := res2'.value;
+    var res1 := InterpExprs(vals, env, ctx);
+    var res1' := InterpExprs(vals', env, ctx');
+    InterpExprs_EqInterp_Inst(vals, vals', env, ctx, ctx');
+    assert EqInterpResultSeqValue(res1, res1');
+    var Return(valsvs, ctx1) := res1.value;
+    var Return(valsvs', ctx1') := res1'.value;
 
-    var ctx3 := SaveToRollback(ctx2, vars);
-    var ctx3' := SaveToRollback(ctx2', vars);
-    SaveToRollback_Equiv(ctx2, ctx2', vars);
-    assert EqState(ctx3, ctx3');
+    // Update the contexts
+    AugmentContext_Equiv(ctx1.locals, ctx1'.locals, vars, valsvs, valsvs');
+    var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, valsvs));
+    var ctx2' := ctx1'.(locals := AugmentContext(ctx1'.locals, vars, valsvs'));
+    assert EqState(ctx2, ctx2');
 
-    AugmentContext_Equiv(ctx3.locals, ctx3'.locals, vars, valsvs, valsvs');
-    var ctx4 := ctx3.(locals := AugmentContext(ctx3.locals, vars, valsvs));
-    var ctx4' := ctx3'.(locals := AugmentContext(ctx3'.locals, vars, valsvs'));
-    assert EqState(ctx4, ctx4');
-
-    EqInterp_Inst(body, body', env, ctx4, ctx4');
+    // Evaluate the bodies
+    EqInterp_Inst(body, body', env, ctx2, ctx2');
 
     reveal GEqCtx();
   }
