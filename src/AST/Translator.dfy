@@ -182,9 +182,6 @@ module Bootstrap.AST.Translator {
     (map k | k in LazyBinopMap  :: DE.Lazy(LazyBinopMap[k])) +
     (map k | k in EagerBinopMap :: DE.Eager(DE.BinaryOp(EagerBinopMap[k])))
 
-  // Do we desugar binds to variable declarations?
-  const bindToVarDecl: bool := false
-
   // Wo we wrap the content of `if then else` branches in blocks?
   const wrapBranchesInBlocks: bool := true
 
@@ -433,7 +430,7 @@ module Bootstrap.AST.Translator {
     Success(DE.Abs(bvars, body))
   }
 
-  function method TranslateLetExpr(as_bind: bool, le: C.LetExpr)
+  function method TranslateLetExpr(le: C.LetExpr)
     : (e: TranslationResult<Expr>)
     reads *
     decreases ASTHeight(le), 0
@@ -452,13 +449,7 @@ module Bootstrap.AST.Translator {
     :- Need(|bvs| == |elems|, UnsupportedExpr(le));
     assume Decreases(le.Body, le);
     var body :- TranslateExpression(le.Body);
-    if as_bind then
-      Success(DE.Bind(bvs, elems, body))
-    else
-      var vdecl := DE.VarDecl(bvs, DE.Some(elems));
-      var block := DE.Block([vdecl, body]);
-      assert P.All_Expr(block, DE.WellFormed); // Doesn't work without this assertion
-      Success(block)
+    Success(DE.Bind(bvs, elems, body))
   }
 
   function method TranslateConcreteSyntaxExpression(ce: C.ConcreteSyntaxExpression)
@@ -517,7 +508,7 @@ module Bootstrap.AST.Translator {
     else if c is C.LambdaExpr then
       TranslateLambdaExpr(c as C.LambdaExpr)
     else if c is C.LetExpr then
-      TranslateLetExpr(bindToVarDecl, c as C.LetExpr)
+      TranslateLetExpr(c as C.LetExpr)
     else if c is C.ITEExpr then
       TranslateITEExpr(c as C.ITEExpr)
     else if c is C.ConcreteSyntaxExpression then
