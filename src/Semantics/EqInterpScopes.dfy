@@ -285,6 +285,11 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
     st'
   }
 
+  function StateBindEndScope ...
+  {
+    
+  }
+
   function StateStartScope ...
     ensures Inv(st) ==> Inv(st')
   {

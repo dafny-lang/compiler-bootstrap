@@ -15,127 +15,137 @@ module Bootstrap.Semantics.InterpStateIneq.Base refines ExprInduction {
   //
   // Declarations
   //
-  type Value = Interp.Value
+  type {:verify false} Value = Interp.Value
 
-  datatype MState = MState(env: Environment, ctx: State)
+  datatype {:verify false} MState = MState(env: Environment, ctx: State)
 
-  type S(!new) = MState
-  type V(!new) = Value
-  type VS(!new) = seq<Value>
+  type {:verify false} S(!new) = MState
+  type {:verify false} V(!new) = Value
+  type {:verify false} VS(!new) = seq<Value>
 
-  predicate StateSmaller(ctx: State, ctx': State)
+  predicate {:verify false} StateSmaller(ctx: State, ctx': State)
   {
     // We have to pay attention to one thing, which is that when we evaluate a variable declaration,
     // we *remove* the binding from the local variables, but if this binding is already present,
     // we save it in the rollback.
-    ctx.locals.Keys + ctx.rollback.Keys <= ctx'.locals.Keys + ctx'.rollback.Keys
+    && ctx.locals.Keys + ctx.rollback.Keys <= ctx'.locals.Keys + ctx'.rollback.Keys
+    && ctx.rollback.Keys <= ctx'.rollback.Keys
   }
 
-  predicate InterpResultStateSmaller<V>(ctx: State, res: InterpResult<V>)
+  predicate {:verify false} InterpResultStateSmaller<V>(ctx: State, res: InterpResult<V>)
   {
     match res
       case Success(Return(_, ctx')) => StateSmaller(ctx, ctx')
       case Failure(_) => true
   }
 
-  predicate P(st: S, e: Expr)
+  predicate {:verify false} P(st: S, e: Expr)
   {
     InterpResultStateSmaller(st.ctx, InterpExpr(e, st.env, st.ctx))
   }
   
-  predicate P_Succ(st: S, e: Expr, st': S, v: V)
+  predicate {:verify false} P_Succ(st: S, e: Expr, st': S, v: V)
   {
     && InterpResultStateSmaller(st.ctx, InterpExpr(e, st.env, st.ctx))
     && InterpExpr(e, st.env, st.ctx) == Success(Return(v, st'.ctx))
     && st.env == st'.env
   }
 
-  predicate P_Fail(st: S, e: Expr)
+  predicate {:verify false} P_Fail(st: S, e: Expr)
   {
     InterpExpr(e, st.env, st.ctx).Failure?
   }
 
-  predicate Pes(st: S, es: seq<Expr>)
+  predicate {:verify false} Pes(st: S, es: seq<Expr>)
   {
     InterpResultStateSmaller(st.ctx, InterpExprs(es, st.env, st.ctx))
   }
 
-  predicate Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS)
+  predicate {:verify false} Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS)
   {
     && InterpResultStateSmaller(st.ctx, InterpExprs(es, st.env, st.ctx))
     && InterpExprs(es, st.env, st.ctx) == Success(Return(vs, st'.ctx))
     && st.env == st'.env
   }
 
-  predicate Pes_Fail(st: S, es: seq<Expr>)
+  predicate {:verify false} Pes_Fail(st: S, es: seq<Expr>)
   {
     InterpExprs(es, st.env, st.ctx).Failure?
   }
 
-  function AppendValue ...
+  function {:verify false} AppendValue ...
   {
     [v] + vs
   }
 
-  function SeqVToVS ...
+  function {:verify false} SeqVToVS ...
   {
     vs
   }
   
-  function GetNilVS ...
+  function {:verify false} GetNilVS ...
   {
     []
   }
 
-  ghost const UnitV := Values.Unit
+  ghost const {:verify false} UnitV := Values.Unit
 
-  function VS_Last ...
+  function {:verify false} VS_Last ...
   {
     vs[|vs| - 1]
   }
 
-  predicate VS_UpdateStatePre ...
+  predicate {:verify false} VS_UpdateStatePre ...
   {
     && |argvs| == |vars|
   }
 
-  function BuildClosureCallState ...
+  function {:verify false} BuildClosureCallState ...
   {
     var ctx1 := BuildCallState(st.ctx.locals, vars, argvs);
     MState(st.env, ctx1)
   }
 
-  function UpdateState ...
+  function {:verify false} UpdateState ...
   {
     var ctx1 := st.ctx.(locals := AugmentContext(st.ctx.locals, vars, vals));
     MState(st.env, ctx1)
   }
 
-  function StateSaveToRollback ...
+  function {:verify false} StateSaveToRollback ...
   {
     var ctx := SaveToRollback(st.ctx, vars);
     var st' := MState(st.env, ctx);
     st'
   }
 
-  function StateStartScope ...
+  function {:verify false} StateBindEndScope ...
+  {
+//    var ctx' := st.ctx.(locals := CtxBindEndScope(st0.ctx.locals, st.ctx.locals, vars));
+//    assert ctx' == st.ctx.(locals := st0.ctx.locals + (st.ctx.locals - set v | v in vars));
+    var ctx' := st.ctx.(locals := st0.ctx.locals + (st.ctx.locals - set v | v in vars));
+    var st' := MState(st.env, ctx');
+    st'
+  }
+
+  function {:verify false} StateStartScope ...
   {
     var ctx := StartScope(st.ctx);
     MState(st.env, ctx)
   }
 
-  function StateEndScope ...
+  function {:verify false} StateEndScope ...
   {
     var ctx := EndScope(st0.ctx, st.ctx);
     MState(st.env, ctx)
   }
 
-  function P_Step ... {
+  function {:verify false} P_Step ... {
     var Return(v, ctx1) := InterpExpr(e, st.env, st.ctx).value;
     (MState(st.env, ctx1), v)
   }
 
-  function Pes_Step ... {
+  function {:verify false} Pes_Step ... {
     var Return(vs, ctx1) := InterpExprs(es, st.env, st.ctx).value;
     (MState(st.env, ctx1), vs)
   }
@@ -144,57 +154,84 @@ module Bootstrap.Semantics.InterpStateIneq.Base refines ExprInduction {
   // Lemmas
   //
 
-  lemma P_Fail_Sound ... {}
-  lemma P_Succ_Sound ... {}
-  lemma Pes_Fail_Sound ... {}
-  lemma Pes_Succ_Sound ... {}
+  lemma {:verify false} P_Fail_Sound ... {}
+  lemma {:verify false} P_Succ_Sound ... {}
+  lemma {:verify false} Pes_Fail_Sound ... {}
+  lemma {:verify false} Pes_Succ_Sound ... {}
 
-  lemma Pes_Succ_Inj ... {}
-  lemma SeqVToVS_Append ... {}
+  lemma {:verify false} Pes_Succ_Inj ... {}
+  lemma {:verify false} SeqVToVS_Append ... {}
 
-  lemma InductVar ... { reveal InterpExpr(); }
+  lemma {:verify false} InductVar ... { reveal InterpExpr(); }
 
-  lemma InductLiteral ... { reveal InterpExpr(); }
+  lemma {:verify false} InductLiteral ... { reveal InterpExpr(); }
 
-  lemma InductAbs ... { reveal InterpExpr(); }
+  lemma {:verify false} InductAbs ... { reveal InterpExpr(); }
 
-  lemma InductAbs_CallState ... {
+  lemma {:verify false} InductAbs_CallState ... {
     reveal InterpExpr();
     reveal InterpCallFunctionBody();
     reveal BuildCallState();
   }
 
-  lemma InductExprs_Nil ... { reveal InterpExprs(); }
-  lemma InductExprs_Cons ... { reveal InterpExprs(); }
+  lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); }
+  lemma {:verify false} InductExprs_Cons ... { reveal InterpExprs(); }
 
-  lemma InductApplyLazy_Fail ... { reveal InterpExpr(); }
-  lemma InductApplyLazy_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyLazy_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyLazy_Succ ... { reveal InterpExpr(); }
 
-  lemma InductApplyEager_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyEager_Fail ... { reveal InterpExpr(); }
 
-  lemma InductApplyEagerUnaryOp_Succ ... { reveal InterpExpr(); }
-  lemma InductApplyEagerBinaryOp_Succ ... { reveal InterpExpr(); }
-  lemma InductApplyEagerTernaryOp_Succ ... { reveal InterpExpr(); }
-  lemma InductApplyEagerBuiltinDisplay ... { reveal InterpExpr(); }
-  lemma InductApplyEagerFunctionCall ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyEagerUnaryOp_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyEagerBinaryOp_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyEagerTernaryOp_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyEagerBuiltinDisplay ... { reveal InterpExpr(); }
+  lemma {:verify false} InductApplyEagerFunctionCall ... { reveal InterpExpr(); }
 
-  lemma InductIf_Fail ... { reveal InterpExpr(); }
-  lemma InductIf_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductIf_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductIf_Succ ... { reveal InterpExpr(); }
 
-  lemma InductUpdate_Fail ... { reveal InterpExpr(); }
-  lemma InductUpdate_Succ ... { reveal InterpExpr(); }
+  lemma {:verify false} InductUpdate_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductUpdate_Succ ... { reveal InterpExpr(); }
 
-  lemma InductVarDecl_None_Succ ... { reveal InterpExpr(); reveal SaveToRollback(); }
-  lemma InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
-  lemma InductVarDecl_Some_Succ  ... { reveal InterpExpr(); reveal SaveToRollback(); }
+  lemma {:verify false} InductVarDecl_None_Succ ... { reveal InterpExpr(); reveal SaveToRollback(); }
+  lemma {:verify false} InductVarDecl_Some_Fail ... { reveal InterpExpr(); }
+  lemma {:verify false} InductVarDecl_Some_Succ  ... { reveal InterpExpr(); reveal SaveToRollback(); }
 
-  lemma InductBind_Fail ... { reveal InterpExpr(); reveal SaveToRollback(); }
-  lemma InductBind_Succ ... { reveal InterpExpr(); reveal SaveToRollback(); }
+  lemma {:verify false} InductBind_Fail ... { reveal InterpExpr(); }
+  lemma {:verify true} InductBind_Succ ... {
+    reveal InterpExpr();
+    // In practice we could ignore this case: we need to prove this monotonicity property in the case
+    // where we have variable declarations, not variable bindings. But it is quite convenient that
+    // the property is true when also having variable bindings: it makes the work simpler.
+    assert st4.ctx.locals == st1.ctx.locals + (st3.ctx.locals - set v | v in vars);
+//    assert st4.ctx == st4.ctx.(locals := CtxBindEndScope(st1.ctx.locals, st3.ctx.locals, vars));
+    assert st1.ctx.locals.Keys <= st4.ctx.locals.Keys;
+    assert st1.ctx.rollback.Keys <= st4.ctx.rollback.Keys;
+/*    assert StateSmaller(st.ctx, st1.ctx);
+    assert StateSmaller(st1.ctx, st4.ctx);
+    assert StateSmaller(st.ctx, st4.ctx);
+//    assert InterpExpr(e, st.env, st.ctx) == Success(Return(v, st4.ctx));
+
+    var MState(env, ctx) := st;
+    var Return(vals, ctx1) := InterpExprs(bvals, env, ctx).value;
+    var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, vals));
+    var Return(val, ctx3) := InterpExpr(bbody, env, ctx2).value;
+    var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
+    assert InterpExpr(e, st.env, st.ctx) == Success(Return(val, ctx4));
+
+    assume false;*/
+    //assert P_Succ(st, e, st4, v);
+//    assume false;
+//    assume false;
+//    assert st.ctx.locals.Keys + st.ctx.rollback.Keys <= st1.ctx.
+//    assume false;
+  }
 
   // TODO(SMH): I tried simplifying the proofs below by adding a `requires` in ``InductBlock_Fail``
   // and ``InductBlock_Succ`` to provide the result of calling ``InterpExprs_Block_Equiv_Strong``,
   // but it didn't work due to SMT solvers' misteries.
-  lemma InductBlock_Fail ...
+  lemma {:verify false} InductBlock_Fail ...
   {
     reveal InterpExpr();
     reveal InterpBlock();
@@ -205,7 +242,7 @@ module Bootstrap.Semantics.InterpStateIneq.Base refines ExprInduction {
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx);
   }
 
-  lemma InductBlock_Succ ...
+  lemma {:verify false} InductBlock_Succ ...
   {
     reveal InterpExpr();
     reveal InterpBlock();
@@ -228,14 +265,14 @@ module Bootstrap.Semantics.InterpStateIneq {
   import opened Utils.Lib.Datatypes
   import opened Base
 
-  type Expr = Interp.Expr
-  ghost const StateSmaller := Base.StateSmaller
-  predicate InterpResultStateSmaller<V>(ctx: State, res: InterpResult<V>)
+  type {:verify false} Expr = Interp.Expr
+  ghost const {:verify false} StateSmaller := Base.StateSmaller
+  predicate {:verify false} InterpResultStateSmaller<V>(ctx: State, res: InterpResult<V>)
   {
     Base.InterpResultStateSmaller(ctx, res)
   }
 
-  lemma InterpBlock_Exprs_StateSmaller(es: seq<Expr>, env: Environment, ctx: State)
+  lemma {:verify false} InterpBlock_Exprs_StateSmaller(es: seq<Expr>, env: Environment, ctx: State)
     // TODO(SMH): for some reason, using ``Seq_All`` makes some proofs fail. The weird thing is
     // that I can then prove `Seq_All(SupportsInterp, es)` in an assertion just before the call
     // to the lemma, but the lemma precondition keeps failing.
@@ -248,13 +285,13 @@ module Bootstrap.Semantics.InterpStateIneq {
     reveal InterpExprs_Block();
   }
 
-  lemma InterpExprs_StateSmaller(es: seq<Expr>, env: Environment, ctx: State)
+  lemma {:verify false} InterpExprs_StateSmaller(es: seq<Expr>, env: Environment, ctx: State)
     ensures InterpResultStateSmaller(ctx, InterpExprs(es, env, ctx))
   {
     Base.Pes_Satisfied(MState(env, ctx), es);
   }
 
-  lemma InterpExpr_StateSmaller(e: Expr, env: Environment, ctx: State)
+  lemma {:verify false} InterpExpr_StateSmaller(e: Expr, env: Environment, ctx: State)
     ensures InterpResultStateSmaller(ctx, InterpExpr(e, env, ctx))
   {
     Base.P_Satisfied(MState(env, ctx), e);

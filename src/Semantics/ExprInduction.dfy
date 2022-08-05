@@ -132,12 +132,17 @@ abstract module Bootstrap.Semantics.ExprInduction {
   function BuildClosureCallState(st: S, vars: seq<string>, body: Expr, env: Environment, argvs: VS): (st':S)
     requires VS_UpdateStatePre(st, vars, argvs)
 
-  // For the ``Update`` case: returns a new state updated with new bindings
+  // For the ``Update`` and the ``Bind`` case: returns a new state updated with new bindings.
   function UpdateState(st: S, vars: seq<string>, vals: VS): (st':S)
     requires VS_UpdateStatePre(st, vars, vals)
 
   // Rollback
   function StateSaveToRollback(st: S, vars: seq<string>): (st':S)
+
+  // For ``Bind``: used to remove from the context the variables introduced by the bind, while
+  // preserving the mutation. `st0` is the state just before we introduce the let-bounded variables,
+  // `st1 is the state resulting from evaluating the body.
+  function StateBindEndScope(st0: S, st: S, vars: seq<string>): (st':S)
 
   function StateStartScope(st: S): (st':S)
   function StateEndScope(st0: S, st: S): (st':S)
@@ -252,6 +257,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductApplyLazy_Fail(st: S, e: Expr, arg0: Expr, arg1: Expr)
     requires e.Apply? && e.aop.Lazy? && e.args == [arg0, arg1]
     requires !P_Fail(st, e)
+    // TODO(SMH): requires P(st, arg0)
     ensures !P_Fail(st, arg0)
 
   lemma InductApplyLazy_Succ(st: S, e: Expr, arg0: Expr, arg1: Expr, st1: S, v0: V)
@@ -264,6 +270,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductApplyEager_Fail(st: S, e: Expr, args: seq<Expr>)
     requires e.Apply? && e.aop.Eager? && e.args == args
     requires !P_Fail(st, e)
+    // TODO(SMH): requires Pes(st, args)
     ensures !Pes_Fail(st, args)
 
   lemma InductApplyEagerUnaryOp_Succ(st: S, e: Expr, op: UnaryOps.T, arg0: Expr, st1: S, v0: V)
@@ -316,6 +323,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductIf_Fail(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr)
     requires e.If? && e.cond == cond && e.thn == thn && e.els == els
     requires !P_Fail(st, e)
+    // TODO(SMH): requires Pes(st, cond)
     ensures !P_Fail(st, cond)
 
   lemma InductIf_Succ(st: S, e: Expr, cond: Expr, thn: Expr, els: Expr, st_cond: S, condv: V)
@@ -346,6 +354,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma InductVarDecl_Some_Fail(st: S, e: Expr, vdecls: seq<Exprs.TypedVar>, vals: seq<Expr>)
     requires e.VarDecl? && e.vdecls == vdecls && e.ovals.Some? && e.ovals.value == vals
     requires !P_Fail(st, e)
+    // TODO(SMH): requires Pes(st, vals)
     ensures !Pes_Fail(st, vals)
 
   // DISCUSS: we want to consistently adopt the style we described for ``InductVarDecl_None_Succ``,
@@ -359,16 +368,18 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires Pes_Succ(st, vals, st1, values)
     requires vars == VarsToNames(vdecls)
     requires st2 == StateSaveToRollback(st1, vars)
+    // TODO(SMH): the VS_UpdateStatePre could be given by InductVarDecl_Some_Fail
     requires VS_UpdateStatePre(st2, vars, values) ==> st3 == UpdateState(st2, vars, values) // Slightly convoluted, but ``UpdateState`` has a pre
     ensures VS_UpdateStatePre(st2, vars, values)
     // This is not necessary but can help the proofs - what really matters is that ``StateSaveToRollback``
     // and ``UpdateState`` appear somewhere
-    ensures P_Succ(st, e, st3, UnitV)
+    ensures P_Succ(st, e, st3, UnitV) // TODO: remove: it is not true in the case of variables inlining. Maybe: P_Succ(...) ==> P(...) (trivially true, but can help Z3)?
     ensures P(st, e)
 
   lemma InductUpdate_Fail(st: S, e: Expr, vars: seq<string>, vals: seq<Expr>)
     requires e.Update? && e.vars == vars && e.vals == vals
     requires !P_Fail(st, e)
+    // TODO(SMH): requires Pes(st, vals)
     ensures !Pes_Fail(st, vals)
 
   lemma InductUpdate_Succ(
@@ -376,43 +387,46 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires e.Update? && e.vars == vars && e.vals == vals
     requires !P_Fail(st, e)
     requires Pes_Succ(st, vals, st1, values)
+    // TODO(SMH): the VS_UpdateStatePre could be given by InductUpdateFail
     requires VS_UpdateStatePre(st1, vars, values) ==> st2 == UpdateState(st1, vars, values) // Slightly convoluted, but ``UpdateState`` has a pre
     ensures VS_UpdateStatePre(st1, vars, values)
     // This post is not necessary: what matters is that ``UpdateState`` appears somewhere
     ensures P_Succ(st, e, st2, UnitV)
     ensures P(st, e)
 
-  lemma InductBind_Fail(st: S, e: Expr, bvars: seq<Exprs.TypedVar>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>, st1: S)
+  lemma InductBind_Fail(st: S, e: Expr, bvars: seq<Exprs.TypedVar>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>)
     requires e.Bind? && e.bvars == bvars && e.bvals == bvals && e.bbody == bbody
     requires !P_Fail(st, e)
     requires vars == VarsToNames(bvars)
-    requires st1 == StateStartScope(st)
-    ensures !Pes_Fail(st1, bvals)
+    // TODO(SMH): requires Pes(st1, bvals)
+    ensures !Pes_Fail(st, bvals)
     ensures
-      forall st2, vals :: Pes_Succ(st1, bvals, st2, vals) ==>
-      var st3 := StateSaveToRollback(st2, vars);
-      && VS_UpdateStatePre(st3, vars, vals)
-      && !P_Fail(UpdateState(st3, vars, vals), bbody)
+      forall st1, vals :: Pes_Succ(st, bvals, st1, vals) ==>
+      && VS_UpdateStatePre(st1, vars, vals)
+      && !P_Fail(UpdateState(st1, vars, vals), bbody)
 
   lemma InductBind_Succ(
     st: S, e: Expr, bvars: seq<Exprs.TypedVar>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>,
-    st1: S, st2: S, vals: VS, st3: S, st4: S, v: V, st5: S, st6: S)
+    st1: S, vals: VS, st2: S, st3: S, v: V, st4: S)
     requires e.Bind? && e.bvars == bvars && e.bvals == bvals && e.bbody == bbody
     requires !P_Fail(st, e)
     requires vars == VarsToNames(bvars)
-    requires st1 == StateStartScope(st)
-    requires Pes_Succ(st1, bvals, st2, vals)
-    requires st3 == StateSaveToRollback(st2, vars)
-    requires VS_UpdateStatePre(st3, vars, vals) ==> st4 == UpdateState(st3, vars, vals)
-    requires P_Succ(st4, bbody, st5, v)
-    requires st6 == StateEndScope(st, st5)
-    ensures VS_UpdateStatePre(st3, vars, vals)
-    ensures P_Succ(st, e, st6, v)
+    requires Pes_Succ(st, bvals, st1, vals)
+    requires VS_UpdateStatePre(st1, vars, vals)
+    requires st2 == UpdateState(st1, vars, vals)
+    requires P_Succ(st2, bbody, st3, v)
+    requires st4 == StateBindEndScope(st1, st3, vars) // ``StateBindEndScope`` may have a postcondition, so it's good to have it
+    // We don't necessarily have P_Succ(...) (can happen when we verify transformations: one of the
+    // intermediate states may not be equal to what we have above, but `P(st,e)` is still true), so
+    // we simply write an implication to guide the solver.
+    ensures P_Succ(st, e, st4, v) ==> P(st, e)
+    ensures P(st, e)
 
   lemma InductBlock_Fail(st: S, e: Expr, stmts: seq<Expr>, st_start: S)
     requires e.Block? && e.stmts == stmts
     requires !P_Fail(st, e)
     requires st_start == StateStartScope(st)
+    // TODO(SMH): requires Pes(st_start, stmts)
     ensures !Pes_Fail(st_start, stmts)
 
   // DISCUSS: we can't have this automatic proofs for this lemma, because we implicitly rely on the
@@ -691,34 +705,24 @@ abstract module Bootstrap.Semantics.ExprInduction {
 
       case Bind(bvars, bvals, bbody) =>
         var vars := VarsToNames(bvars);
-        var st1 := StateStartScope(st);
 
         assert Exprs.Exprs_Size(bvals) < e.Size();
-        Pes_Satisfied(st1, bvals); // Recursion
-        assert !Pes_Fail(st1, bvals) by { InductBind_Fail(st, e, bvars, bvals, bbody, vars, st1); }
 
-        var (st2, vals) := Pes_Step(st1, bvals);
-        var st3 := StateSaveToRollback(st2, vars);
+        Pes_Satisfied(st, bvals); // Recursion
+        assert !Pes_Fail(st, bvals) by { InductBind_Fail(st, e, bvars, bvals, bbody, vars); }
 
-        // Slightly convoluted case: see the ``Update`` case above
-        if !VS_UpdateStatePre(st3, vars, vals) {
-          assert false by { InductBind_Fail(st, e, bvars, bvals, bbody, vars, st1); }
-        }
-        else {
-          var st4 := UpdateState(st3, vars, vals);
+        var (st1, vals) := Pes_Step(st, bvals);
+        assert VS_UpdateStatePre(st1, vars, vals) by { InductBind_Fail(st, e, bvars, bvals, bbody, vars); }
 
-          assert bbody.Size() < e.Size();
-          P_Satisfied(st4, bbody); // Recursion
-          assert !P_Fail(st4, bbody) by { InductBind_Fail(st, e, bvars, bvals, bbody, vars, st1); }
+        var st2 := UpdateState(st1, vars, vals);
+        P_Satisfied(st2, bbody); // Recursion
+        assert !P_Fail(st2, bbody) by { InductBind_Fail(st, e, bvars, bvals, bbody, vars); }
 
-          var (st5, v) := P_Step(st4, bbody);
-          var st6 := StateEndScope(st, st5);
-          assert P_Succ(st, e, st6, v) by {
-            InductBind_Succ(st, e, bvars, bvals, bbody, vars, st1, st2, vals, st3, st4, v, st5, st6);
-          }
-          P_Succ_Sound(st, e, st6, v);
-        }
+        var (st3, v) := P_Step(st2, bbody);
+        var st4 := StateBindEndScope(st1, st3, vars);
 
+        InductBind_Succ(st, e, bvars, bvals, bbody, vars, st1, vals, st2, st3, v, st4);
+  
       case Block(stmts) =>
         var st_start := StateStartScope(st);
 

@@ -286,24 +286,15 @@ module Bootstrap.Semantics.Interp {
               InterpFunctionCall(e, env, argvs[0], argvs[1..])
           })
 
-      case Bind(bvars, vals: seq<Expr>, body: Expr) =>
+      case Bind(bvars, bvals: seq<Expr>, body: Expr) =>
         // This is ``InterpBind`` inlined (see the discussion for the ``Block`` case)
         var vars := VarsToNames(bvars);
-        // A bind acts like a scope containing variable declarations:
-        // - Open a scope
-        var ctx1 := StartScope(ctx);
-        // - Evaluate the rhs
-        var Return(vals, ctx2) :- InterpExprs(vals, env, ctx1);
-        // - Save the shadowed variables to the rollback
-        var ctx3 := SaveToRollback(ctx2, vars);
-        // - Augment the context with the new bindings
-        var ctx4 := ctx3.(locals := AugmentContext(ctx3.locals, vars, vals));
-        // - Execute the body
-        var Return(v, ctx5) :- InterpExpr(body, env, ctx4);
-        // - End the scope
-        var ctx6 := EndScope(ctx, ctx5);
-        // Return
-        Success(Return(v, ctx6))
+        var Return(vals, ctx1) :- InterpExprs(bvals, env, ctx);
+        var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, vals));
+        var Return(val, ctx3) :- InterpExpr(body, env, ctx2);
+//        var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
+        var ctx4 := ctx3.(locals := ctx1.locals + (ctx3.locals - set v | v in vars));
+        Success(Return(val, ctx4))
 
       case VarDecl(vdecls, ovals) =>
         var vars := VarsToNames(vdecls);
@@ -536,6 +527,11 @@ module Bootstrap.Semantics.Interp {
     reveal InterpLazy_Eagerly();
   }
 
+  function method CtxBindEndScope(ctx: Context,  ctx': Context, vars: seq<string>): Context
+  {
+    ctx + (ctx' - set v | v in vars)
+  }
+
   // This function is provided for convenience, and actually not used by ``InterpExpr``; for
   // detailed explanations, see the comments for ``InterpBlock``
   function method {:opaque} InterpBind(e: Expr, env: Environment, ctx: State)
@@ -543,23 +539,15 @@ module Bootstrap.Semantics.Interp {
     requires e.Bind?
   {
     reveal SupportsInterp();
-    var Bind(bvars, vals, body) := e;
+    var Bind(bvars, bvals, body) := e;
     var vars := VarsToNames(bvars);
-    // A bind acts like a scope containing variable declarations:
-    // - Open a scope
-    var ctx1 := StartScope(ctx);
-    // - Evaluate the rhs
-    var Return(vals, ctx2) :- InterpExprs(vals, env, ctx1);
-    // - Save the shadowed variables to the rollback
-    var ctx3 := SaveToRollback(ctx2, vars);
-    // - Augment the context with the new bindings
-    var ctx4 := ctx3.(locals := AugmentContext(ctx3.locals, vars, vals));
-    // - Execute the body
-    var Return(v, ctx5) :- InterpExpr(body, env, ctx4);
-    // - End the scope
-    var ctx6 := EndScope(ctx, ctx5);
-    // Return
-    Success(Return(v, ctx6))
+
+    var Return(vals, ctx1) :- InterpExprs(bvals, env, ctx);
+    var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, vals));
+    var Return(val, ctx3) :- InterpExpr(body, env, ctx2);
+//    var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
+    var ctx4 := ctx3.(locals := ctx1.locals + (ctx3.locals - set v | v in vars));
+    Success(Return(val, ctx4))
   }
 
   function method {:opaque} InterpUnaryOp(expr: Expr, op: Syntax.UnaryOp, v0: Value)
