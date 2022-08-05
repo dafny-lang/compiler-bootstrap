@@ -292,8 +292,7 @@ module Bootstrap.Semantics.Interp {
         var Return(vals, ctx1) :- InterpExprs(bvals, env, ctx);
         var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, vals));
         var Return(val, ctx3) :- InterpExpr(body, env, ctx2);
-//        var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
-        var ctx4 := ctx3.(locals := ctx1.locals + (ctx3.locals - set v | v in vars));
+        var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
         Success(Return(val, ctx4))
 
       case VarDecl(vdecls, ovals) =>
@@ -545,8 +544,7 @@ module Bootstrap.Semantics.Interp {
     var Return(vals, ctx1) :- InterpExprs(bvals, env, ctx);
     var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, vals));
     var Return(val, ctx3) :- InterpExpr(body, env, ctx2);
-//    var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
-    var ctx4 := ctx3.(locals := ctx1.locals + (ctx3.locals - set v | v in vars));
+    var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
     Success(Return(val, ctx4))
   }
 

@@ -287,7 +287,12 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
 
   function StateBindEndScope ...
   {
-    
+    var MState(_, _, ctx0, _, ctx0') := st0;
+    var MState(env, or, ctx, or', ctx') := st;
+    var ctx1 := ctx.(locals := CtxBindEndScope(ctx0.locals, ctx.locals, vars));
+    var ctx1' := ctx'.(locals := CtxBindEndScope(ctx0'.locals, ctx'.locals, vars));
+    var st' := MState(env, or, ctx1, or', ctx1');
+    st'
   }
 
   function StateStartScope ...
@@ -430,7 +435,16 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
   lemma InductVarDecl_Some_Succ  ... { reveal InterpExpr(); }
 
   lemma InductBind_Fail ... { reveal InterpExpr(); }
-  lemma InductBind_Succ ... { reveal InterpExpr(); }
+  lemma InductBind_Succ ... {
+    reveal InterpExpr();
+
+    // Sanity check: there are issues in ``EqInterpScopes``
+    var MState(env, _, ctx, _, ctx') := st;
+    assert InterpExpr(e, env, ctx) == Success(Return(v.v, st4.ctx));
+    assert InterpExpr(e, env, ctx') == Success(Return(v.v', st4.ctx'));
+
+    reveal GEqCtx();
+  }
 
   // TODO(SMH): I tried simplifying the proofs below by adding a `requires` in ``InductBlock_Fail``
   // and ``InductBlock_Succ`` to provide the result of calling ``InterpExprs_Block_Equiv_Strong``,
