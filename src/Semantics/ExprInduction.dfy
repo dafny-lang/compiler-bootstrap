@@ -401,7 +401,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires Pes(st, bvals)
     ensures !Pes_Fail(st, bvals)
     ensures
-      forall st1, vals :: Pes_Succ(st, bvals, st1, vals) ==>
+      forall st1, vals | Pes_Succ(st, bvals, st1, vals) ::
       && VS_UpdateStatePre(st1, vars, vals)
       && !P_Fail(UpdateState(st1, vars, vals), bbody)
 
