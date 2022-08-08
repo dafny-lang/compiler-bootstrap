@@ -935,7 +935,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
 //        InterpBind_Correct(e', st.env, st.ctx');
 //      }
       var env := st.env;
-      var Bind(bvars', bvals', bbody') := e'; // If we don't annotate e' with a type, this fails
+      var Bind(bvars', bvals', bbody') := e'; // TODO(SMH): If we don't annotate e' with a type, this fails
       var vars := VarsToNames(bvars');
       assert bvars' == bvars;
       assert bvals' == SubstInExprs(st.acc, bvals);
