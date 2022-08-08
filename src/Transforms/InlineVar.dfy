@@ -106,7 +106,7 @@ module Bootstrap.Transforms.InlineVar.Subst.Base {
     !e.VarDecl?
   }
     
-  function method {:verify false} {:verify false} SubstInExpr(acc: SubstAcc, e: Expr): (e':Expr)
+  function method {:verify false} SubstInExpr(acc: SubstAcc, e: Expr): (e':Expr)
 //    requires forall x | x in acc.subst.Keys :: Deep.All_Expr(acc.subst[x], NotVarDecl)
 //    requires Deep.All_Expr(e, NotVarDecl)
 //    ensures Deep.All_Expr(e', NotVarDecl)
@@ -524,6 +524,35 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     st'
   }
 
+  function {:verify true} StateBindEndScope ...
+  {
+    var MState(env0, acc0, ctx0, ctx0') := st0;
+    var MState(env, acc, ctx, ctx') := st;
+    var ctx1 := ctx.(locals := CtxBindEndScope(ctx0.locals, ctx.locals, vars));
+    var ctx1' := ctx'.(locals := CtxBindEndScope(ctx0'.locals, ctx'.locals, vars));
+    var st' := MState(env0, acc0, ctx1, ctx1');
+    st'
+  }
+
+  predicate {:verify true} StateBindEndScope_InvRel_Pre(st0: S, st: S, vars: seq<string>)
+  {
+    && st0.env == st.env
+    && st0.acc == st.acc
+    && Inv(st0)
+    && Inv(st)
+    && StateRel(st0, st)
+  }
+
+  lemma {:verify true} StateBindEndScope_InvRel(st0: S, st: S, vars: seq<string>)
+    requires StateBindEndScope_InvRel_Pre(st0, st, vars)
+    ensures
+      var st' := StateBindEndScope(st0, st, vars);
+      && Inv(st')
+      && StateRel(st, st')
+  {
+    assume false;
+  }
+
   function {:verify false} StateStartScope ...
     ensures Inv(st) ==> st' == st && StateRel(st, st')
   {
@@ -787,6 +816,24 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
   lemma {:verify false} InductVarDecl_Some_Fail ... {} // This case is ignored
   lemma {:verify false} InductVarDecl_Some_Succ  ... {} // This case is ignored
 
+  lemma {:verify false} InductBind_UpdateState_Pre(
+    st: S, e: Expr, bvars: seq<Exprs.TypedVar>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>,
+    st1: S, vals: VS)
+    requires e.Bind? && e.bvars == bvars && e.bvals == bvals && e.bbody == bbody
+    requires !P_Fail(st, e)
+    requires vars == VarsToNames(bvars)
+    requires Pes_Succ(st, bvals, st1, vals)
+    requires VS_UpdateStatePre(st1, vars, vals)
+    ensures UpdateState_Pre(st1, vars)
+    // We need this intermediary lemma to deal with context explosion
+  {
+    assert st1.acc == st.acc;
+    assert AccNoIntersect(st.acc, UpdtVarsOfExpr(e));
+    reveal AccNoIntersect();
+    reveal SeqToSet();
+    reveal VarsToNameSet();
+  }
+
   lemma {:verify false} InductBind_Fail ... {
     reveal InterpExpr();
 
@@ -796,10 +843,9 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
       && VS_UpdateStatePre(st1, vars, vals)
       && !P_Fail(UpdateState(st1, vars, vals), bbody)
     {
-      assert VS_UpdateStatePre(st1, vars, vals);
-      assert Inv(st1);
-      assume AccNoIntersect(st1.acc, SeqToSet(vars));
-      assert UpdateState_Pre(st1, vars);
+      assert UpdateState_Pre(st1, vars) by {
+        InductBind_UpdateState_Pre(st, e, bvars, bvals, bbody, vars, st1, vals);
+      }
       var st2 := UpdateState(st1, vars, vals);
       assert Inv(st2) && StateRel(st1, st2);
 
@@ -811,7 +857,247 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     }
   }
 
-  lemma {:verify false} InductBind_Succ ... { assume false; reveal InterpExpr(); } // TODO
+/*  lemma {:verify true} Test(e: Expr, acc: SubstAcc)
+    requires e.Bind?
+    ensures SubstInExpr(acc, e).Bind?
+  {
+
+  }*/
+
+/*  predicate {:opaque} {:verify true} InterpBind_Succ_Pre(
+    st: S, e: Expr, bvars: seq<Exprs.TypedVar>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>,
+    st1: S, vals: VS, st2: S, st3: S, v: V, st4: S) {
+//    && e.Bind? && e.bvars == bvars && e.bvals == bvals && e.bbody == bbody
+    && !P_Fail(st, e)
+    && vars == VarsToNames(bvars)
+    && Pes_Succ(st, bvals, st1, vals)
+    && VS_UpdateStatePre(st1, vars, vals)
+    && st2 == UpdateState(st1, vars, vals)
+    && P_Succ(st2, bbody, st3, v)
+    && st4 == StateBindEndScope(st1, st3, vars)
+  }*/
+
+  lemma {:verify true} InductBind_Succ_Aux(
+    st: S, e: Expr, bvars: seq<Exprs.TypedVar>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>,
+    st1: S, vals: VS, st2: S, st3: S, v: V, st4: S)
+    requires e.Bind? && e.bvars == bvars && e.bvals == bvals && e.bbody == bbody
+//    requires InterpBind_Succ_Pre(st, e, bvars, bvals, bbody, vars, st1, vals, st2, st3, v, st4)
+    requires HNFail: !P_Fail(st, e)
+    requires vars == VarsToNames(bvars)
+    requires HVals: Pes_Succ(st, bvals, st1, vals)
+    requires VS_UpdateStatePre(st1, vars, vals)
+    requires HUpdt: st2 == UpdateState(st1, vars, vals)
+    requires HBody: P_Succ(st2, bbody, st3, v)
+    requires HEnd: st4 == StateBindEndScope(st1, st3, vars)
+    ensures P_Succ(st, e, st4, v)
+  {
+///    assume false;
+
+    assert AUpdt: Inv(st2) && StateRel(st1, st2) by {
+      assert UpdateState_Pre(st1, vars) by {
+        reveal HNFail;
+        reveal HVals;
+        InductBind_UpdateState_Pre(st, e, bvars, bvals, bbody, vars, st1, vals);
+      }
+      
+      reveal HNFail;
+      reveal HVals;
+      reveal HUpdt;
+    }
+
+    assert AEnd: Inv(st4) && StateRel(st3, st4) by {
+      reveal HNFail;
+      reveal HVals;
+      reveal HUpdt;
+      reveal HBody;
+      reveal HEnd;
+      reveal AUpdt;
+
+      assert st1.env == st1.env;
+      assert st1.acc == st3.acc;
+      assert Inv(st1);
+      assert Inv(st3);
+      assert StateRel(st1, st3) by {
+        StateRel_Trans(st1, st2, st3);
+      }
+      assert StateBindEndScope_InvRel_Pre(st1, st3, vars);
+      StateBindEndScope_InvRel(st1, st3, vars);
+    }
+
+    assert P_Succ(st, e, st4, v) by {
+      var res := InterpExpr(e, st.env, st.ctx);
+      var e': Expr := SubstInExpr(st.acc, e); // TODO(SMH): for some reason, type inference fails here
+      var res' := InterpExpr(e', st.env, st.ctx');
+
+      assert Inv(st) && ExprValid(st.acc, e) && res.Success? by { reveal HNFail; }
+
+//      assert res' == InterpBind(e', st.env, st.ctx') by {
+//        InterpBind_Correct(e', st.env, st.ctx');
+//      }
+      var env := st.env;
+      var Bind(bvars', bvals', bbody') := e'; // If we don't annotate e' with a type, this fails
+      var vars := VarsToNames(bvars');
+      assert bvars' == bvars;
+      assert bvals' == SubstInExprs(st.acc, bvals);
+      assert bbody' == SubstInExpr(st.acc, bbody);
+
+      // The following assertions are mostly for sanity
+      assert AU': res' == // unfold assertion
+        (var Return(valsvs', ctx1') :- InterpExprs(bvals', env, st.ctx');
+         var ctx2' := ctx1'.(locals := AugmentContext(ctx1'.locals, vars, valsvs'));
+         var Return(val', ctx3') :- InterpExpr(bbody', env, ctx2');
+         var ctx4' := ctx3'.(locals := CtxBindEndScope(ctx1'.locals, ctx3'.locals, vars));
+         Success(Return(val', ctx4'))) by {
+          reveal InterpExpr();
+      }
+      assert AU: res == // unfoldind assertion
+        (var Return(valsvs, ctx1) :- InterpExprs(bvals, env, st.ctx);
+         var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, valsvs));
+         var Return(val, ctx3) :- InterpExpr(bbody, env, ctx2);
+         var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
+         Success(Return(val, ctx4))) by {
+          reveal InterpExpr();
+      }
+
+      var res1 := InterpExprs(bvals, env, st.ctx);
+      var res1' := InterpExprs(bvals', env, st.ctx');
+      assert res1.Success? by { reveal InterpExpr(); reveal HNFail; }
+      assert res1'.Success? by { reveal InterpExpr(); reveal HNFail; reveal HVals; }
+      var Return(valsvs, ctx1) := res.value;
+      var Return(valsvs', ctx1') := res'.value;
+      assert ctx1 == st1.ctx by {
+        assert Pes_Succ(st, bvals, st1, vals) by { reveal HVals; } // TODO(SMH): this fails!!!!
+        assume false;
+      }
+//      assert ctx1 == st1.ctx by { reveal HVals; }
+//      assert ctx1' == st1.ctx' by { reveal HVals; }
+
+      assume false;
+
+/*      reveal InterpExpr();
+      // TODO: what is below is necessary?
+      InterpBind_Correct(e, st.env, st.ctx);
+      InterpBind_Correct(e, st.env, st.ctx');
+      reveal InterpBind();*/
+
+      assert e.Bind?;
+      assert e'.Bind?; // TODO(SMH): what!!? can't prove that???
+
+      assume false;
+
+      assert res' == InterpBind(e', st.env, st.ctx') by {
+        InterpBind_Correct(e', st.env, st.ctx');
+      }
+/*      assert res' ==
+        (var Bind(bvars, bvals, bbody) := e';
+         var vars := VarsToNames(bvars);
+         var env := st.env;
+         var ctx := st.ctx';
+         var Return(vals, ctx1) :- InterpExprs(bvals, env, ctx);
+         var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, vals));
+         var Return(val, ctx3) :- InterpExpr(bbody, env, ctx2);
+         var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
+         Success(Return(val, ctx4))) by {
+          reveal InterpBind();
+      }*/
+
+//      assert res'.Success?; // TODO
+      assume false;
+//      assert res.Success?;
+//      assert res'.Success?;
+/*      assume (
+        match (res, res') {
+        case (Success(Return(v1, ctx1)), Success(Return(v1', ctx1'))) =>
+          var st1 := MState(st.env, st.acc, ctx1, ctx1');
+          && EqValue(v1, v1')
+          && Inv(st1)
+          && StateRel(st, st1)
+          // Additional
+          && st1 == st4
+          && v == MValue(v1, v1')
+        case _ => false
+      });*/
+    }
+
+//    StateRel_Trans_Forall();
+//    assume false;
+  }
+
+
+  lemma {:verify false} InductBind_Succ ... {
+//    assert InterpBind_Succ_Pre(st, e, bvars, bvals, bbody, vars, st1, vals, st2, st3, v, st4) by {
+//      reveal InterpBind_Succ_Pre();
+//    }
+    InductBind_Succ_Aux(st, e, bvars, bvals, bbody, vars, st1, vals, st2, st3, v, st4);
+    
+/*    assert UpdateState_Pre(st1, vars) by {
+      InductBind_UpdateState_Pre(st, e, bvars, bvals, bbody, vars, st1, vals);
+    }
+
+    assert st1.env == st1.env; // Ok
+    assert st1.acc == st3.acc; // Ok
+    assert Inv(st1); // Ok
+    assert Inv(st3); // Ok
+    assert StateRel(st1, st3) by {
+      StateRel_Trans(st1, st2, st3);
+    }
+    StateBindEndScope_InvRel(st1, st3, vars);
+
+    assert P_Succ(st, e, st4, v) by {
+      var res := InterpExpr(e, st.env, st.ctx);
+      var e': Expr := SubstInExpr(st.acc, e); // TODO(SMH): for some reason, type inference fails here
+      var res' := InterpExpr(e', st.env, st.ctx');
+      assert Inv(st); //  Ok
+      assert ExprValid(st.acc, e); // Ok
+      assert res.Success?;
+
+/*      reveal InterpExpr();
+      // TODO: what is below is necessary?
+      InterpBind_Correct(e, st.env, st.ctx);
+      InterpBind_Correct(e, st.env, st.ctx');
+      reveal InterpBind();*/
+
+      assert e.Bind?;
+      assume e'.Bind?; // TODO(SMH): what!!? can't prove that???
+
+      assert res' == InterpBind(e', st.env, st.ctx') by {
+        InterpBind_Correct(e', st.env, st.ctx');
+      }
+/*      assert res' ==
+        (var Bind(bvars, bvals, bbody) := e';
+         var vars := VarsToNames(bvars);
+         var env := st.env;
+         var ctx := st.ctx';
+         var Return(vals, ctx1) :- InterpExprs(bvals, env, ctx);
+         var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, vals));
+         var Return(val, ctx3) :- InterpExpr(bbody, env, ctx2);
+         var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
+         Success(Return(val, ctx4))) by {
+          reveal InterpBind();
+      }*/
+
+//      assert res'.Success?; // TODO
+      assume false;
+//      assert res.Success?;
+//      assert res'.Success?;
+/*      assume (
+        match (res, res') {
+        case (Success(Return(v1, ctx1)), Success(Return(v1', ctx1'))) =>
+          var st1 := MState(st.env, st.acc, ctx1, ctx1');
+          && EqValue(v1, v1')
+          && Inv(st1)
+          && StateRel(st, st1)
+          // Additional
+          && st1 == st4
+          && v == MValue(v1, v1')
+        case _ => false
+      });*/
+    }
+
+//    StateRel_Trans_Forall();
+//    assume false;
+*/
+  }
 
   lemma {:verify false} InductBlock_Fail ...
   {
