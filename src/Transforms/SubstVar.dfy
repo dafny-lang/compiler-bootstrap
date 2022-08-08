@@ -1,7 +1,3 @@
-//include "../Interop/CSharpDafnyASTModel.dfy"
-//include "../Interop/CSharpInterop.dfy"
-//include "../Interop/CSharpDafnyInterop.dfy"
-//include "../Interop/CSharpDafnyASTInterop.dfy"
 include "../Utils/Library.dfy"
 include "../Utils/StrTree.dfy"
 include "../Semantics/Interp.dfy"
@@ -10,9 +6,8 @@ include "../Semantics/ExprInduction.dfy"
 include "../Semantics/InterpStateIneq.dfy"
 include "../Semantics/EqInterpRefl.dfy"
 include "../Semantics/Pure.dfy"
-//include "InterpStateIneq.dfy"
 
-module Bootstrap.Transforms.InlineVar.Subst.Base {
+module Bootstrap.Transforms.SubstVar.Subst.Base {
   import opened AST.Syntax
   import opened Utils.Lib
   import opened Utils.Lib.Datatypes
@@ -107,9 +102,6 @@ module Bootstrap.Transforms.InlineVar.Subst.Base {
   }
     
   function method SubstInExpr(acc: SubstAcc, e: Expr): (e':Expr)
-//    requires forall x | x in acc.subst.Keys :: Deep.All_Expr(acc.subst[x], NotVarDecl)
-//    requires Deep.All_Expr(e, NotVarDecl)
-//    ensures Deep.All_Expr(e', NotVarDecl)
     decreases e.Size(), 0
     // Substitute in an expression.
     //
@@ -172,9 +164,6 @@ module Bootstrap.Transforms.InlineVar.Subst.Base {
 
   function method {:verify false} SubstInExprs(acc: SubstAcc, es: seq<Expr>) :
     (es': seq<Expr>)
-//    requires forall x | x in acc.subst.Keys :: Deep.All_Expr(acc.subst[x], NotVarDecl)
-//    requires forall e | e in es :: Deep.All_Expr(e, NotVarDecl)
-//    ensures forall e | e in es' :: Deep.All_Expr(e, NotVarDecl)
     ensures |es'| == |es|
     decreases Expr.Exprs_Size(es), 1
   {
@@ -186,7 +175,7 @@ module Bootstrap.Transforms.InlineVar.Subst.Base {
   }
 }
 
-module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInduction {
+module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprInduction {
   import opened Semantics.Pure
   import opened Base
   import Semantics.InterpStateIneq
@@ -238,38 +227,11 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
 
   predicate ExprValid(acc: SubstAcc, e: Expr)
   {
-//    Deep.AllImpliesChildren(e, NotVarDecl);
-//    VarsOfExpr_ChildrenSmaller(false, e);
     && Deep.All_Expr(e, NotVarDecl)
     // We don't need to use the Deep predicate (it is actually equivalent to not using it) but
     // that makes the proofs easier.
     && Deep.All_Expr(e, var f := (e: Syntax.Expr) => AccNoIntersect(acc, UpdtVarsOfExpr(e)); f)
-//    && forall x | x in acc.subst :: ({x} + AllVarsOfExpr(acc.subst[x])) * UpdtVarsOfExpr(e) == {}
   }
-
-/*  lemma {:verify false} ExprsValid_ImpliesTail(acc: SubstAcc, e: Expr, es: seq<Expr>)
-    requires |es| > 0
-    requires ExprsValid(st, [e] + es)
-    requires ExprValid(st, e)
-    ensures forall e' | e' in e.Children() :: ExprValid(st, e')
-  {
-    reveal ExprValid();
-    Deep.AllImpliesChildren(e, NotVarDecl);
-    VarsOfExpr_ChildrenSmaller(false, e);
-  }*/
-
-
-/*  predicate ExprValid(st: MState, e: Expr)
-    ensures ExprValid(st, e) ==> forall e' | e' in e.Children() :: ExprValid_Aux(st, e')
-  {
-    var b := ExprValid_Aux(st, e);
-    assert b ==> forall e' | e' in e.Children() :: ExprValid_Aux(st, e') by {
-      if b {
-        ExprValid_ImpliesChildren(st, e);
-      }
-    }
-    b
-  }*/
 
   predicate ExprsValid(acc: SubstAcc, es: seq<Expr>)
   {
@@ -281,7 +243,6 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
   {
     && st.acc.subst.Keys <= st'.acc.subst.Keys
     && forall x | x in st.acc.subst.Keys :: st'.acc.subst[x] == st.acc.subst[x]
-//    && st.env == st'.env
   }
 
   lemma StateRel_Trans(st0: MState, st1: MState, st2: MState)
@@ -444,7 +405,6 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
   {
     && Inv(st)
     && AccNoIntersect(st.acc, SeqToSet(vars))
-//    && CanUpdateVars(SeqToSet(vars), st.acc.frozen)
   }
 
   function UpdateState ...
