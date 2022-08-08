@@ -517,8 +517,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
   }
 
   function StateSaveToRollback ...
-    // TODO: remove
-//    ensures StateSaveToRollback_Pre(st, vars) ==> Inv(st') && StateRel(st, st')
+    // TODO: merge with ..._Aux
   {
     var st' := StateSaveToRollback_Aux(st, vars);
     st'
@@ -534,23 +533,68 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     st'
   }
 
-  predicate StateBindEndScope_InvRel_Pre(st0: S, st: S, vars: seq<string>)
+  predicate StateBindEndScope_InvRel_Pre(
+    st0: S, st0': S, st: S, vars: seq<string>, vals: VS, bbody: Expr, v: V)
   {
-    && st0.env == st.env
-    && st0.acc == st.acc
     && Inv(st0)
     && Inv(st)
-    && StateRel(st0, st)
+    && StateRel(st0, st) // TODO: remove
+    && VS_UpdateStatePre(st0, vars, vals)
+    && st0' == UpdateState(st0, vars, vals)
+    && EqSeqValue(vals.vs, vals.vs')
+    && P_Succ(st0', bbody, st, v)
+    && AccNoIntersect(st0.acc, UpdtVarsOfExpr(bbody))
   }
 
-  lemma StateBindEndScope_InvRel(st0: S, st: S, vars: seq<string>)
-    requires StateBindEndScope_InvRel_Pre(st0, st, vars)
+  lemma StateBindEndScope_InvRel(
+    st0: S, st0': S, st: S, vars: seq<string>, vals: VS, bbody: Expr, v: V)
+    requires StateBindEndScope_InvRel_Pre(st0, st0', st, vars, vals, bbody, v)
     ensures
       var st' := StateBindEndScope(st0, st, vars);
       && Inv(st')
       && StateRel(st, st')
   {
-    assume false;
+    var st' := StateBindEndScope(st0, st, vars);
+    var MState(env0, acc0, ctx0, ctx0') := st;
+    var MState(env1, acc1, ctx1, ctx1') := st';
+
+    var bbody' := SubstInExpr(st0'.acc, bbody);
+
+    assert EqStateWithAcc(env1, acc1, ctx1, ctx1') by {
+      assert ctx1.rollback == ctx1'.rollback == map [] by { reveal EqStateWithAcc(); }
+      assert EqCtx(ctx1.locals, ctx1'.locals) by {
+        reveal EqStateWithAcc();
+        reveal GEqCtx();
+      }
+      assert AccValid(env1, acc1, ctx1, ctx1') by {
+        assert acc1.subst.Keys <= ctx1'.locals.Keys by { reveal EqStateWithAcc(); reveal AccValid(); }
+        assert forall x | x in acc1.subst.Keys :: Deep.All_Expr(acc1.subst[x], NotVarDecl) by { reveal EqStateWithAcc(); reveal AccValid(); }
+
+        // TODO(SMH): the following two assertions are not used yet - TODO: remove?
+        assert st0.ctx.locals.Keys <= st.ctx.locals.Keys by {
+          InterpStateIneq.InterpExpr_StateSmaller(bbody, st0'.env, st0'.ctx);
+        }
+        assert st0.ctx'.locals.Keys <= st.ctx'.locals.Keys by {
+          InterpStateIneq.InterpExpr_StateSmaller(bbody', st0'.env, st0'.ctx');
+        }
+
+        // TODO: we need two lemmas:
+        // - updating variables which don't appear in an expression leaves the evaluation unchanged
+        // - if an expression doesn't syntactically updates some variables (in the sense of
+        //   ``UpdtVarsOfExpr``), it also doesn't semantically update them
+        assume (forall x | x in acc1.subst.Keys ::
+           var res := InterpExpr(acc1.subst[x], env1, ctx1');
+           && res.Success?
+           && res.value == Return(ctx1'.locals[x], ctx1'));
+        reveal AccValid();
+      }
+      reveal EqStateWithAcc();
+    }
+    assert StateRel(st, st') by {
+      assert st.acc.subst.Keys <= st'.acc.subst.Keys;
+      assert forall x | x in st.acc.subst.Keys :: st'.acc.subst[x] == st.acc.subst[x];
+      reveal StateRel();
+    }
   }
 
   function StateStartScope ...
@@ -905,15 +949,18 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
       reveal HEnd;
       reveal AUpdt;
 
-      assert st1.env == st1.env;
-      assert st1.acc == st3.acc;
       assert Inv(st1);
       assert Inv(st3);
       assert StateRel(st1, st3) by {
         StateRel_Trans(st1, st2, st3);
       }
-      assert StateBindEndScope_InvRel_Pre(st1, st3, vars);
-      StateBindEndScope_InvRel(st1, st3, vars);
+      assert EqSeqValue(vals.vs, vals.vs');
+      assert AccNoIntersect(st1.acc, UpdtVarsOfExpr(bbody)) by {
+        reveal AccNoIntersect();
+        reveal SeqToSet();
+      }
+      assert StateBindEndScope_InvRel_Pre(st1, st2, st3, vars, vals, bbody, v);
+      StateBindEndScope_InvRel(st1, st2, st3, vars, vals, bbody, v);
     }
 
     assert P_Succ(st, e, st4, v) by {
