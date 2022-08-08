@@ -124,8 +124,8 @@ module Bootstrap.Transforms.InlineVar.Subst.Base {
       case Literal(_) => e
 
       case Abs(vars, body) =>
-        // TODO(SMH): for now we ignore abstractions because we need to update the closures so
-        // that they carry the global environment
+        // TODO(SMH): for now we ignore abstractions because we need to update the closures
+        // definition so that they carry the global environment (not only the local env)
 //        var body' := SubstInExpr(acc, body);
 //        e.(body := body')
         e
@@ -194,11 +194,8 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
 
   type Value = Interp.Value
   type Context = Interp.Context
-//  const {:verify false} VarsToNames := Interp.VarsToNames
 
   const p: (Exprs.TypedVar, Expr) -> bool
-
-//  const EmptyCtx: Context := map[]
 
   // - `ctx`: the environment to execute the original expression
   // - `ctx'`: the environment to execute the expression on which we performed inlinings
@@ -208,10 +205,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
 
   // TODO(SMH): remove `ctx`?
   predicate {:opaque} AccValid(env: Environment, acc: SubstAcc, ctx: State, ctx': State)
-//    requires acc.subst.Keys <= ctx.locals.Keys
   {
-//    && acc.subst.Keys <= acc.frozen
-//    && (forall x | x in acc.subst.Keys :: VarsOfExpr(acc.subst[x]) <= acc.frozen)
     && acc.subst.Keys <= ctx'.locals.Keys
     && forall x | x in acc.subst.Keys :: Deep.All_Expr(acc.subst[x], NotVarDecl)
     && (forall x | x in acc.subst.Keys ::
@@ -233,12 +227,6 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
   {
     EqStateWithAcc(st.env, st.acc, st.ctx, st.ctx')
   }
-
-/*  lemma {:verify false} VarsOfExpr_ChildrenSmaller(read: bool, e: Expr)
-    ensures forall e' | e' in e.Children() :: VarsOfExpr(read, e') <= VarsOfExpr(read, e)
-  {
-    assume false; // TODO
-  }*/
 
   predicate {:opaque} AccNoIntersect(acc: SubstAcc, vars: set<string>)
   {
@@ -505,21 +493,12 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     st'
   }
 
-  // TODO: remove this auxiliary definition
-  function StateSaveToRollback_Aux(st: S, vars: seq<string>): (st':S)
-    // ``StateSaveToRollback``, without pre and postconditions
+  function StateSaveToRollback ...
   {
     var MState(env, acc, ctx, ctx') := st;
     var ctx1 := SaveToRollback(st.ctx, vars);
     var ctx1' := SaveToRollback(st.ctx', vars);
     var st' := MState(st.env, acc, ctx1, ctx1');
-    st'
-  }
-
-  function StateSaveToRollback ...
-    // TODO: merge with ..._Aux
-  {
-    var st' := StateSaveToRollback_Aux(st, vars);
     st'
   }
 
@@ -638,6 +617,8 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     && AccNoIntersect(st0.acc, UpdtVarsOfExprs(stmts))
     // TODO(SMH): add condition stating that `st` was only updated over `UpdtVarsOfExprs(stmts)`
     // (we need a lemma about that).
+    // TODO(SMH): actually, better to follow the style of ``StateBindEndScope_InvRel_Pre``
+    // (add more input parameters and put more precise information in the pre)
   }
 
   lemma StateEndScope_InvRel(st0: S, st: S, stmts: seq<Expr>)
