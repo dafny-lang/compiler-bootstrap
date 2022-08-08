@@ -23,17 +23,17 @@ module Bootstrap.Transforms.InlineVar.Subst.Base {
   import opened Generic
   import Shallow
 
-  type {:verify false} Environment = Interp.Environment
-  type {:verify false} State = Interp.State
-  type {:verify false} Expr = Interp.Expr
+  type Environment = Interp.Environment
+  type State = Interp.State
+  type Expr = Interp.Expr
 
-  function method {:verify false} {:opaque} SeqToSet<T>(s: seq<T>): set<T>
+  function method {:opaque} SeqToSet<T>(s: seq<T>): set<T>
     // Unfortunately, we need this small opaque helper to prevent with proof explosions.
   {
     set x | x in s
   }
 
-  function method {:verify false} {:opaque} VarsToNameSet(vars: seq<Exprs.TypedVar>): set<string>
+  function method {:opaque} VarsToNameSet(vars: seq<Exprs.TypedVar>): set<string>
     // Same as for ``SeqToSet``: making this definition opaque is annoying, but we need it to
     // prevent proof explosions.
   {
@@ -41,7 +41,7 @@ module Bootstrap.Transforms.InlineVar.Subst.Base {
   }
 
   // TODO(SMH): move?
-  function method {:verify false} VarsOfExpr(read: bool, e: Syntax.Expr): set<string>
+  function method VarsOfExpr(read: bool, e: Syntax.Expr): set<string>
     decreases e.Size(), 0
     // Return the set of all variables used in an expression (accessed, updated or even declared).
     //
@@ -69,29 +69,29 @@ module Bootstrap.Transforms.InlineVar.Subst.Base {
     }
   }
 
-  function method {:verify false} VarsOfExprs(read: bool, es: seq<Syntax.Expr>): set<string>
+  function method VarsOfExprs(read: bool, es: seq<Syntax.Expr>): set<string>
     decreases Expr.Exprs_Size(es), 1
   {
     if es == [] then {}
     else VarsOfExpr(read, es[0]) + VarsOfExprs(read, es[1..])
   }
 
-  function method {:verify false} UpdtVarsOfExpr(e: Syntax.Expr): set<string>
+  function method UpdtVarsOfExpr(e: Syntax.Expr): set<string>
   {
     VarsOfExpr(false, e)
   }
 
-  function method {:verify false} UpdtVarsOfExprs(es: seq<Syntax.Expr>): set<string>
+  function method UpdtVarsOfExprs(es: seq<Syntax.Expr>): set<string>
   {
     VarsOfExprs(false, es)
   }
 
-  function method {:verify false} AllVarsOfExpr(e: Syntax.Expr): set<string>
+  function method AllVarsOfExpr(e: Syntax.Expr): set<string>
   {
     VarsOfExpr(true, e)
   }
 
-  function method {:verify false} AllVarsOfExprs(es: seq<Syntax.Expr>): set<string>
+  function method AllVarsOfExprs(es: seq<Syntax.Expr>): set<string>
   {
     VarsOfExprs(true, es)
   }
@@ -99,14 +99,14 @@ module Bootstrap.Transforms.InlineVar.Subst.Base {
   // Accumulator used for substitutions.
   // `subst`: the substitution
   // `frozen`: the variables which appear in the expressions with which we substitute
-  datatype {:verify false} SubstAcc = SubstAcc(subst: map<string, Expr>)//, frozen: set<string>)
+  datatype SubstAcc = SubstAcc(subst: map<string, Expr>)//, frozen: set<string>)
 
-  predicate method {:verify false} NotVarDecl(e: Syntax.Expr)
+  predicate method NotVarDecl(e: Syntax.Expr)
   {
     !e.VarDecl?
   }
     
-  function method {:verify false} SubstInExpr(acc: SubstAcc, e: Expr): (e':Expr)
+  function method SubstInExpr(acc: SubstAcc, e: Expr): (e':Expr)
 //    requires forall x | x in acc.subst.Keys :: Deep.All_Expr(acc.subst[x], NotVarDecl)
 //    requires Deep.All_Expr(e, NotVarDecl)
 //    ensures Deep.All_Expr(e', NotVarDecl)
@@ -170,7 +170,7 @@ module Bootstrap.Transforms.InlineVar.Subst.Base {
     }
   }
 
-  function method {:verify false} {:verify false} SubstInExprs(acc: SubstAcc, es: seq<Expr>) :
+  function method {:verify false} SubstInExprs(acc: SubstAcc, es: seq<Expr>) :
     (es': seq<Expr>)
 //    requires forall x | x in acc.subst.Keys :: Deep.All_Expr(acc.subst[x], NotVarDecl)
 //    requires forall e | e in es :: Deep.All_Expr(e, NotVarDecl)
@@ -192,22 +192,22 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
   import Semantics.InterpStateIneq
   import Semantics.EqInterpRefl
 
-  type {:verify false} Value = Interp.Value
-  type {:verify false} Context = Interp.Context
+  type Value = Interp.Value
+  type Context = Interp.Context
 //  const {:verify false} VarsToNames := Interp.VarsToNames
 
-  const {:verify false} p: (Exprs.TypedVar, Expr) -> bool
+  const p: (Exprs.TypedVar, Expr) -> bool
 
 //  const EmptyCtx: Context := map[]
 
   // - `ctx`: the environment to execute the original expression
   // - `ctx'`: the environment to execute the expression on which we performed inlinings
-  datatype {:verify false} MState = MState(env: Environment, acc: SubstAcc, ctx: State, ctx': State)
-  datatype {:verify false} MValue = MValue(v: Value, v': Value)
-  datatype {:verify false} MSeqValue = MSeqValue(vs: seq<Value>, vs': seq<Value>)
+  datatype MState = MState(env: Environment, acc: SubstAcc, ctx: State, ctx': State)
+  datatype MValue = MValue(v: Value, v': Value)
+  datatype MSeqValue = MSeqValue(vs: seq<Value>, vs': seq<Value>)
 
   // TODO(SMH): remove `ctx`?
-  predicate {:verify false} {:opaque} AccValid(env: Environment, acc: SubstAcc, ctx: State, ctx': State)
+  predicate {:opaque} AccValid(env: Environment, acc: SubstAcc, ctx: State, ctx': State)
 //    requires acc.subst.Keys <= ctx.locals.Keys
   {
 //    && acc.subst.Keys <= acc.frozen
@@ -220,7 +220,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
        && res.value == Return(ctx'.locals[x], ctx'))
   }
 
-  predicate {:verify false} {:opaque} EqStateWithAcc(env: Environment, acc: SubstAcc, ctx: State, ctx': State)
+  predicate {:opaque} EqStateWithAcc(env: Environment, acc: SubstAcc, ctx: State, ctx': State)
     // Predicate stating the conditions under which two states are equivalent under the presence of
     // an inlining accumulator.
   {
@@ -229,7 +229,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     && AccValid(env, acc, ctx, ctx')
   }
 
-  predicate {:verify false} Inv(st: MState)
+  predicate Inv(st: MState)
   {
     EqStateWithAcc(st.env, st.acc, st.ctx, st.ctx')
   }
@@ -240,7 +240,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     assume false; // TODO
   }*/
 
-  predicate {:verify false} {:opaque} AccNoIntersect(acc: SubstAcc, vars: set<string>)
+  predicate {:opaque} AccNoIntersect(acc: SubstAcc, vars: set<string>)
   {
     // The variables used in the substitution don't intersect the variables updated in the expression.
     // Note that we are voluntarily conservative to simplify the proofs - we can make the theorems
@@ -248,7 +248,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     && forall x | x in acc.subst :: ({x} + AllVarsOfExpr(acc.subst[x])) * vars == {}
   }
 
-  predicate {:verify false} ExprValid(acc: SubstAcc, e: Expr)
+  predicate ExprValid(acc: SubstAcc, e: Expr)
   {
 //    Deep.AllImpliesChildren(e, NotVarDecl);
 //    VarsOfExpr_ChildrenSmaller(false, e);
@@ -283,20 +283,20 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     b
   }*/
 
-  predicate {:verify false} ExprsValid(acc: SubstAcc, es: seq<Expr>)
+  predicate ExprsValid(acc: SubstAcc, es: seq<Expr>)
   {
     forall e | e in es :: ExprValid(acc, e)
   }
 
 
-  predicate {:verify false} {:opaque} StateRel(st: MState, st': MState)
+  predicate {:opaque} StateRel(st: MState, st': MState)
   {
     && st.acc.subst.Keys <= st'.acc.subst.Keys
     && forall x | x in st.acc.subst.Keys :: st'.acc.subst[x] == st.acc.subst[x]
 //    && st.env == st'.env
   }
 
-  lemma {:verify false} StateRel_Trans(st0: MState, st1: MState, st2: MState)
+  lemma StateRel_Trans(st0: MState, st1: MState, st2: MState)
     requires StateRel(st0, st1)
     requires StateRel(st1, st2)
     ensures StateRel(st0, st2)
@@ -304,7 +304,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     reveal StateRel();
   }
 
-  lemma {:verify false} StateRel_Trans_Forall()
+  lemma StateRel_Trans_Forall()
     ensures forall st0, st1, st2 | StateRel(st0, st1) && StateRel(st1, st2) :: StateRel(st0, st2)
   {
     reveal StateRel(); // BUG(https://github.com/dafny-lang/dafny/issues/2260)
@@ -313,17 +313,17 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     }
   }
 
-  lemma {:verify false} StateRel_Refl(st: MState)
+  lemma StateRel_Refl(st: MState)
     ensures StateRel(st, st)
   {
     reveal StateRel();
   }
 
-  type {:verify false} S(!new) = MState
-  type {:verify false} V(!new) = MValue
-  type {:verify false} VS(!new) = vs:MSeqValue | |vs.vs| == |vs.vs'| witness MSeqValue([], [])
+  type S(!new) = MState
+  type V(!new) = MValue
+  type VS(!new) = vs:MSeqValue | |vs.vs| == |vs.vs'| witness MSeqValue([], [])
 
-  predicate {:verify false} P(st: S, e: Expr)
+  predicate P(st: S, e: Expr)
   {
     var res := InterpExpr(e, st.env, st.ctx);
     var e' := SubstInExpr(st.acc, e);
@@ -341,7 +341,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     }
   }
   
-  predicate {:verify false} P_Succ(st: S, e: Expr, st': S, v: V)
+  predicate P_Succ(st: S, e: Expr, st': S, v: V)
   {
     var res := InterpExpr(e, st.env, st.ctx);
     var e' := SubstInExpr(st.acc, e);
@@ -361,12 +361,12 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
       })
   }
 
-  predicate {:verify false} P_Fail(st: S, e: Expr)
+  predicate P_Fail(st: S, e: Expr)
   {
     Inv(st) ==> ExprValid(st.acc, e) ==> InterpExpr(e, st.env, st.ctx).Failure?
   }
 
-  predicate {:verify false} Pes(st: S, es: seq<Expr>)
+  predicate Pes(st: S, es: seq<Expr>)
   {
     var res := InterpExprs(es, st.env, st.ctx);
     var es' := SubstInExprs(st.acc, es);
@@ -384,7 +384,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     }
   }
 
-  predicate {:verify false} Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS)
+  predicate Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS)
   {
     var res := InterpExprs(es, st.env, st.ctx);
     var es' := SubstInExprs(st.acc, es);
@@ -404,44 +404,44 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
       })
   }
 
-  predicate {:verify false} Pes_Fail(st: S, es: seq<Expr>)
+  predicate Pes_Fail(st: S, es: seq<Expr>)
   {
     Inv(st) ==> ExprsValid(st.acc, es) ==> InterpExprs(es, st.env, st.ctx).Failure?
   }
 
-  function {:verify false} AppendValue ...
+  function AppendValue ...
   {
     MSeqValue([v.v] + vs.vs, [v.v'] + vs.vs')
   }
 
-  function {:verify false} SeqVToVS ...
+  function SeqVToVS ...
   {
     if vs == [] then MSeqValue([], [])
     else
       AppendValue(MValue(vs[0].v, vs[0].v'), SeqVToVS(vs[1..]))
   }
   
-  function {:verify false} GetNilVS ...
+  function GetNilVS ...
   {
     MSeqValue([], [])
   }
 
-  ghost const {:verify false} UnitV := MValue(Values.Unit, Values.Unit)
+  ghost const UnitV := MValue(Values.Unit, Values.Unit)
 
-  function {:verify false} VS_Last ...
+  function VS_Last ...
   {
     var v := vs.vs[|vs.vs| - 1];
     var v' := vs.vs'[|vs.vs| - 1];
     MValue(v, v')
   }
 
-  predicate {:verify false} VS_UpdateStatePre ...
+  predicate VS_UpdateStatePre ...
   {
     && |argvs.vs| == |argvs.vs'| == |vars|
     && forall i | 0 <= i < |argvs.vs| :: EqValue(argvs.vs[i], argvs.vs'[i])
   }
 
-  function {:verify false} BuildClosureCallState ...
+  function BuildClosureCallState ...
   {
     var acc := st.acc;
     var ctx := st.ctx;
@@ -452,14 +452,14 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     st'
   }
   
-  predicate {:verify false} UpdateState_Pre(st: S, vars: seq<string>)
+  predicate UpdateState_Pre(st: S, vars: seq<string>)
   {
     && Inv(st)
     && AccNoIntersect(st.acc, SeqToSet(vars))
 //    && CanUpdateVars(SeqToSet(vars), st.acc.frozen)
   }
 
-  function {:verify false} UpdateState ...
+  function UpdateState ...
     // Adding this postcondition makes the InductUpdate proofs easier
     ensures UpdateState_Pre(st, vars) ==> Inv(st') && StateRel(st, st')
   {
@@ -506,7 +506,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
   }
 
   // TODO: remove this auxiliary definition
-  function {:verify false} StateSaveToRollback_Aux(st: S, vars: seq<string>): (st':S)
+  function StateSaveToRollback_Aux(st: S, vars: seq<string>): (st':S)
     // ``StateSaveToRollback``, without pre and postconditions
   {
     var MState(env, acc, ctx, ctx') := st;
@@ -516,7 +516,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     st'
   }
 
-  function {:verify false} StateSaveToRollback ...
+  function StateSaveToRollback ...
     // TODO: remove
 //    ensures StateSaveToRollback_Pre(st, vars) ==> Inv(st') && StateRel(st, st')
   {
@@ -524,7 +524,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     st'
   }
 
-  function {:verify true} StateBindEndScope ...
+  function StateBindEndScope ...
   {
     var MState(env0, acc0, ctx0, ctx0') := st0;
     var MState(env, acc, ctx, ctx') := st;
@@ -534,7 +534,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     st'
   }
 
-  predicate {:verify true} StateBindEndScope_InvRel_Pre(st0: S, st: S, vars: seq<string>)
+  predicate StateBindEndScope_InvRel_Pre(st0: S, st: S, vars: seq<string>)
   {
     && st0.env == st.env
     && st0.acc == st.acc
@@ -543,7 +543,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     && StateRel(st0, st)
   }
 
-  lemma {:verify true} StateBindEndScope_InvRel(st0: S, st: S, vars: seq<string>)
+  lemma StateBindEndScope_InvRel(st0: S, st: S, vars: seq<string>)
     requires StateBindEndScope_InvRel_Pre(st0, st, vars)
     ensures
       var st' := StateBindEndScope(st0, st, vars);
@@ -553,7 +553,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     assume false;
   }
 
-  function {:verify false} StateStartScope ...
+  function StateStartScope ...
     ensures Inv(st) ==> st' == st && StateRel(st, st')
   {
     var MState(env, acc, ctx, ctx') := st;
@@ -569,13 +569,13 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     st'
   }
 
-  predicate {:verify false} EndScope_StateSmaller(ctx: State, ctx': State)
+  predicate EndScope_StateSmaller(ctx: State, ctx': State)
     // Auxiliary predicate
   {
     ctx.locals.Keys <= ctx'.locals.Keys + ctx'.rollback.Keys
   }
 
-  function {:verify false} StateEndScope ...
+  function StateEndScope ...
   {
     var MState(env, acc, ctx0, ctx0') := st0;
     var ctx1 := EndScope(st0.ctx, st.ctx);
@@ -584,7 +584,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     st'
   }
 
-  predicate {:verify false} StateEndScope_Pre(st0: S, st: S, stmts: seq<Expr>)
+  predicate StateEndScope_Pre(st0: S, st: S, stmts: seq<Expr>)
   {
     && Inv(st0)
     && Inv(st)
@@ -596,7 +596,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     // (we need a lemma about that).
   }
 
-  lemma {:verify false} StateEndScope_InvRel(st0: S, st: S, stmts: seq<Expr>)
+  lemma StateEndScope_InvRel(st0: S, st: S, stmts: seq<Expr>)
     requires StateEndScope_Pre(st0, st, stmts)
     ensures var st' := StateEndScope(st0, st); Inv(st') && StateRel(st0, st')
   {
@@ -633,7 +633,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     }
   }
 
-  function {:verify false} P_Step ...
+  function P_Step ...
   {
     var Return(v1, ctx1) := InterpExpr(e, st.env, st.ctx).value;
     var e' := SubstInExpr(st.acc, e);
@@ -641,7 +641,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     (MState(st.env, st.acc, ctx1, ctx1'), MValue(v1, v1'))
   }
 
-  function {:verify false} Pes_Step ...
+  function Pes_Step ...
   {
     var Return(vs1, ctx1) := InterpExprs(es, st.env, st.ctx).value;
     var es' := SubstInExprs(st.acc, es);
@@ -653,15 +653,15 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
   // Lemmas
   //
 
-  lemma {:verify false} P_Fail_Sound ... {}
-  lemma {:verify false} P_Succ_Sound ... {}
-  lemma {:verify false} Pes_Fail_Sound ... {}
-  lemma {:verify false} Pes_Succ_Sound ... {}
+  lemma P_Fail_Sound ... {}
+  lemma P_Succ_Sound ... {}
+  lemma Pes_Fail_Sound ... {}
+  lemma Pes_Succ_Sound ... {}
 
-  lemma {:verify false} Pes_Succ_Inj ... {}
-  lemma {:verify false} SeqVToVS_Append ... {}
+  lemma Pes_Succ_Inj ... {}
+  lemma SeqVToVS_Append ... {}
 
-  lemma {:verify false} InductVar ... {
+  lemma InductVar ... {
     reveal InterpExpr();
     reveal GEqCtx();
 
@@ -715,9 +715,9 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     }
   }
 
-  lemma {:verify false} InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); StateRel_Refl(st); }
+  lemma InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); StateRel_Refl(st); }
 
-  lemma {:verify false} InductAbs ... {
+  lemma InductAbs ... {
     reveal InterpExpr();
     reveal EqValue_Closure();
     var MState(env, acc, ctx, ctx') := st;
@@ -747,33 +747,33 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     StateRel_Refl(st);
   }
 
-  lemma {:verify false} InductAbs_CallState ... {
+  lemma InductAbs_CallState ... {
     reveal InterpExpr();
     reveal InterpCallFunctionBody();
     reveal BuildCallState();
   }
 
-  lemma {:verify false} InductExprs_Nil ... { reveal InterpExprs(); StateRel_Refl(st); }
-  lemma {:verify false} InductExprs_Cons ... { reveal InterpExprs(); StateRel_Trans_Forall(); }
+  lemma InductExprs_Nil ... { reveal InterpExprs(); StateRel_Refl(st); }
+  lemma InductExprs_Cons ... { reveal InterpExprs(); StateRel_Trans_Forall(); }
 
-  lemma {:verify false} InductApplyLazy_Fail ... { reveal InterpExpr(); }
-  lemma {:verify false} InductApplyLazy_Succ ... { reveal InterpExpr(); StateRel_Trans_Forall(); }
+  lemma InductApplyLazy_Fail ... { reveal InterpExpr(); }
+  lemma InductApplyLazy_Succ ... { reveal InterpExpr(); StateRel_Trans_Forall(); }
 
-  lemma {:verify false} InductApplyEager_Fail ... { reveal InterpExpr(); }
-  lemma {:verify false} InductApplyEagerUnaryOp_Succ ... {
+  lemma InductApplyEager_Fail ... { reveal InterpExpr(); }
+  lemma InductApplyEagerUnaryOp_Succ ... {
     reveal InterpExpr();
     reveal InterpUnaryOp();
     StateRel_Trans_Forall();
   }
 
-  lemma {:verify false} InductApplyEagerBinaryOp_Succ ... {
+  lemma InductApplyEagerBinaryOp_Succ ... {
     reveal InterpExpr();
     var e' := SubstInExpr(st.acc, e);
     InterpBinaryOp_Eq(e, e', op, v0.v, v1.v, v0.v', v1.v');
     StateRel_Trans_Forall();
   }
 
-  lemma {:verify false} {:fuel SeqVToVS, 2} InductApplyEagerTernaryOp_Succ ... {
+  lemma {:fuel SeqVToVS, 2} InductApplyEagerTernaryOp_Succ ... {
     reveal InterpExpr();
     var e' := SubstInExpr(st.acc, e);
     // TODO(SMH): ``SeqVToVS`` is called on literals: we shouldn't need fuel 2
@@ -782,25 +782,25 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     StateRel_Trans_Forall();
   }
 
-  lemma {:verify false} InductApplyEagerBuiltinDisplay ... {
+  lemma InductApplyEagerBuiltinDisplay ... {
     reveal InterpExpr();
     var e' := SubstInExpr(st.acc, e);
     Interp_Apply_Display_EqValue(e, e', ty.kind, argvs.vs, argvs.vs');
     StateRel_Trans_Forall();
   }
 
-  lemma {:verify false} InductApplyEagerFunctionCall ... {
+  lemma InductApplyEagerFunctionCall ... {
     reveal InterpExpr();
     var e' := SubstInExpr(st.acc, e);
     InterpFunctionCall_EqState(e, e', st.env, fv.v, fv.v', argvs.vs, argvs.vs');
     StateRel_Trans_Forall();
   }
 
-  lemma {:verify false} InductIf_Fail ... { reveal InterpExpr(); }
-  lemma {:verify false} InductIf_Succ ... { reveal InterpExpr(); StateRel_Trans_Forall(); }
+  lemma InductIf_Fail ... { reveal InterpExpr(); }
+  lemma InductIf_Succ ... { reveal InterpExpr(); StateRel_Trans_Forall(); }
 
-  lemma {:verify false} InductUpdate_Fail ... { reveal InterpExpr(); }
-  lemma {:verify false} InductUpdate_Succ ... {
+  lemma InductUpdate_Fail ... { reveal InterpExpr(); }
+  lemma InductUpdate_Succ ... {
     reveal InterpExpr();
     assert UpdateState_Pre(st1, vars) by {
       assert Inv(st1);
@@ -812,11 +812,11 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     StateRel_Trans_Forall();
   }
 
-  lemma {:verify false} InductVarDecl_None_Succ ... {} // This case is ignored
-  lemma {:verify false} InductVarDecl_Some_Fail ... {} // This case is ignored
-  lemma {:verify false} InductVarDecl_Some_Succ  ... {} // This case is ignored
+  lemma InductVarDecl_None_Succ ... {} // This case is ignored
+  lemma InductVarDecl_Some_Fail ... {} // This case is ignored
+  lemma InductVarDecl_Some_Succ  ... {} // This case is ignored
 
-  lemma {:verify false} InductBind_UpdateState_Pre(
+  lemma InductBind_UpdateState_Pre(
     st: S, e: Expr, bvars: seq<Exprs.TypedVar>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>,
     st1: S, vals: VS)
     requires e.Bind? && e.bvars == bvars && e.bvals == bvals && e.bbody == bbody
@@ -834,7 +834,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     reveal VarsToNameSet();
   }
 
-  lemma {:verify false} InductBind_Fail ... {
+  lemma InductBind_Fail ... {
     reveal InterpExpr();
 
     assert !Pes_Fail(st, bvals);
@@ -857,31 +857,17 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     }
   }
 
-/*  lemma {:verify true} Test(e: Expr, acc: SubstAcc)
-    requires e.Bind?
-    ensures SubstInExpr(acc, e).Bind?
+  // TODO(SMH): move up?
+  predicate StateSameEnvAcc(st0: S, st1: S)
   {
+    && st0.env == st1.env
+    && st0.acc == st1.acc
+  }
 
-  }*/
-
-/*  predicate {:opaque} {:verify true} InterpBind_Succ_Pre(
-    st: S, e: Expr, bvars: seq<Exprs.TypedVar>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>,
-    st1: S, vals: VS, st2: S, st3: S, v: V, st4: S) {
-//    && e.Bind? && e.bvars == bvars && e.bvals == bvals && e.bbody == bbody
-    && !P_Fail(st, e)
-    && vars == VarsToNames(bvars)
-    && Pes_Succ(st, bvals, st1, vals)
-    && VS_UpdateStatePre(st1, vars, vals)
-    && st2 == UpdateState(st1, vars, vals)
-    && P_Succ(st2, bbody, st3, v)
-    && st4 == StateBindEndScope(st1, st3, vars)
-  }*/
-
-  lemma {:verify true} InductBind_Succ_Aux(
+  lemma InductBind_Succ_Aux(
     st: S, e: Expr, bvars: seq<Exprs.TypedVar>, bvals: seq<Expr>, bbody: Expr, vars: seq<string>,
     st1: S, vals: VS, st2: S, st3: S, v: V, st4: S)
     requires e.Bind? && e.bvars == bvars && e.bvals == bvals && e.bbody == bbody
-//    requires InterpBind_Succ_Pre(st, e, bvars, bvals, bbody, vars, st1, vals, st2, st3, v, st4)
     requires HNFail: !P_Fail(st, e)
     requires vars == VarsToNames(bvars)
     requires HVals: Pes_Succ(st, bvals, st1, vals)
@@ -890,8 +876,14 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     requires HBody: P_Succ(st2, bbody, st3, v)
     requires HEnd: st4 == StateBindEndScope(st1, st3, vars)
     ensures P_Succ(st, e, st4, v)
+    // Rem.(SMH): this lemma is exactly ``InductBind_Succ``, but with labels added to the
+    // preconditions so as to control the context. Doing this is painful, but if we don't,
+    // many trivial proof obligations fail because the context explodes (it seems).
   {
-///    assume false;
+    assert StateSameEnvAcc(st, st1) by { reveal HVals; }
+    assert StateSameEnvAcc(st1, st2) by { reveal HUpdt; }
+    assert StateSameEnvAcc(st2, st3) by { reveal HBody; }
+    assert StateSameEnvAcc(st3, st4) by { reveal HEnd; }
 
     assert AUpdt: Inv(st2) && StateRel(st1, st2) by {
       assert UpdateState_Pre(st1, vars) by {
@@ -931,9 +923,6 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
 
       assert Inv(st) && ExprValid(st.acc, e) && res.Success? by { reveal HNFail; }
 
-//      assert res' == InterpBind(e', st.env, st.ctx') by {
-//        InterpBind_Correct(e', st.env, st.ctx');
-//      }
       var env := st.env;
       var Bind(bvars', bvals', bbody') := e'; // TODO(SMH): If we don't annotate e' with a type, this fails
       var vars := VarsToNames(bvars');
@@ -941,15 +930,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
       assert bvals' == SubstInExprs(st.acc, bvals);
       assert bbody' == SubstInExpr(st.acc, bbody);
 
-      // The following assertions are mostly for sanity
-      assert AU': res' == // unfold assertion
-        (var Return(valsvs', ctx1') :- InterpExprs(bvals', env, st.ctx');
-         var ctx2' := ctx1'.(locals := AugmentContext(ctx1'.locals, vars, valsvs'));
-         var Return(val', ctx3') :- InterpExpr(bbody', env, ctx2');
-         var ctx4' := ctx3'.(locals := CtxBindEndScope(ctx1'.locals, ctx3'.locals, vars));
-         Success(Return(val', ctx4'))) by {
-          reveal InterpExpr();
-      }
+      // The following two assertions are mostly for sanity
       assert AU: res == // unfoldind assertion
         (var Return(valsvs, ctx1) :- InterpExprs(bvals, env, st.ctx);
          var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, valsvs));
@@ -959,147 +940,71 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
           reveal InterpExpr();
       }
 
+      assert AU': res' == // unfold assertion
+        (var Return(valsvs', ctx1') :- InterpExprs(bvals', env, st.ctx');
+         var ctx2' := ctx1'.(locals := AugmentContext(ctx1'.locals, vars, valsvs'));
+         var Return(val', ctx3') :- InterpExpr(bbody', env, ctx2');
+         var ctx4' := ctx3'.(locals := CtxBindEndScope(ctx1'.locals, ctx3'.locals, vars));
+         Success(Return(val', ctx4'))) by {
+          reveal InterpExpr();
+      }
+
       var res1 := InterpExprs(bvals, env, st.ctx);
       var res1' := InterpExprs(bvals', env, st.ctx');
       assert res1.Success? by { reveal InterpExpr(); reveal HNFail; }
-      assert res1'.Success? by { reveal InterpExpr(); reveal HNFail; reveal HVals; }
-      var Return(valsvs, ctx1) := res.value;
-      var Return(valsvs', ctx1') := res'.value;
-      assert ctx1 == st1.ctx by {
-        assert Pes_Succ(st, bvals, st1, vals) by { reveal HVals; } // TODO(SMH): this fails!!!!
-        assume false;
+      assert res1'.Success? by { reveal HVals; }
+      var Return(valsvs, ctx1) := res1.value;
+      var Return(valsvs', ctx1') := res1'.value;
+
+      assert ctx1 == st1.ctx by { reveal HVals; }
+      assert ctx1' == st1.ctx' by { reveal HVals; }
+      assert vals == MSeqValue(valsvs, valsvs') by { reveal HVals; }
+
+      var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, valsvs));
+      var ctx2' := ctx1'.(locals := AugmentContext(ctx1'.locals, vars, valsvs'));
+      assert ctx2 == st2.ctx by { reveal HUpdt; }
+      assert ctx2' == st2.ctx' by { reveal HUpdt; }
+
+      var res3 := InterpExpr(bbody, env, ctx2);
+      var res3' := InterpExpr(bbody', env, ctx2');
+      assert res3.Success? by { reveal InterpExpr(); reveal HNFail; }
+      assert res3'.Success? by { reveal HBody; }
+      var Return(val, ctx3) := res3.value;
+      var Return(val', ctx3') := res3'.value;
+
+      assert ctx3 == st3.ctx && val == v.v by { reveal HBody; }
+      assert ctx3' == st3.ctx' && val' == v.v' by { reveal HBody; }
+
+      var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
+      var ctx4' := ctx3'.(locals := CtxBindEndScope(ctx1'.locals, ctx3'.locals, vars));
+      assert res == Success(Return(val, ctx4)) by { reveal InterpExpr(); }
+      assert res' == Success(Return(val', ctx4')) by { reveal InterpExpr(); }
+      assert ctx4 == st4.ctx && val == v.v by { reveal HEnd; }
+      assert ctx4' == st4.ctx' && val' == v.v' by { reveal HEnd; }
+      
+      var stf := MState(st.env, st.acc, ctx4, ctx4');
+      assert EqValue(val, val') by { reveal HBody; }
+      assert Inv(st4) by { reveal AEnd; }
+      assert StateRel(st, st4) by {
+        assert StateRel(st, st1) by { reveal HVals; }
+        assert StateRel(st1, st2) by { reveal AUpdt; }
+        StateRel_Trans(st, st1, st2);
+        assert StateRel(st2, st3) by { reveal HBody; }
+        StateRel_Trans(st, st2, st3);
+        assert StateRel(st3, st4) by { reveal AEnd; }
+        StateRel_Trans(st, st3, st4);
       }
-//      assert ctx1 == st1.ctx by { reveal HVals; }
-//      assert ctx1' == st1.ctx' by { reveal HVals; }
-
-      assume false;
-
-/*      reveal InterpExpr();
-      // TODO: what is below is necessary?
-      InterpBind_Correct(e, st.env, st.ctx);
-      InterpBind_Correct(e, st.env, st.ctx');
-      reveal InterpBind();*/
-
-      assert e.Bind?;
-      assert e'.Bind?; // TODO(SMH): what!!? can't prove that???
-
-      assume false;
-
-      assert res' == InterpBind(e', st.env, st.ctx') by {
-        InterpBind_Correct(e', st.env, st.ctx');
-      }
-/*      assert res' ==
-        (var Bind(bvars, bvals, bbody) := e';
-         var vars := VarsToNames(bvars);
-         var env := st.env;
-         var ctx := st.ctx';
-         var Return(vals, ctx1) :- InterpExprs(bvals, env, ctx);
-         var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, vals));
-         var Return(val, ctx3) :- InterpExpr(bbody, env, ctx2);
-         var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
-         Success(Return(val, ctx4))) by {
-          reveal InterpBind();
-      }*/
-
-//      assert res'.Success?; // TODO
-      assume false;
-//      assert res.Success?;
-//      assert res'.Success?;
-/*      assume (
-        match (res, res') {
-        case (Success(Return(v1, ctx1)), Success(Return(v1', ctx1'))) =>
-          var st1 := MState(st.env, st.acc, ctx1, ctx1');
-          && EqValue(v1, v1')
-          && Inv(st1)
-          && StateRel(st, st1)
-          // Additional
-          && st1 == st4
-          && v == MValue(v1, v1')
-        case _ => false
-      });*/
+      assert stf == st4;
+      assert v == MValue(val, val');
     }
-
-//    StateRel_Trans_Forall();
-//    assume false;
   }
 
 
-  lemma {:verify false} InductBind_Succ ... {
-//    assert InterpBind_Succ_Pre(st, e, bvars, bvals, bbody, vars, st1, vals, st2, st3, v, st4) by {
-//      reveal InterpBind_Succ_Pre();
-//    }
+  lemma InductBind_Succ ... {
     InductBind_Succ_Aux(st, e, bvars, bvals, bbody, vars, st1, vals, st2, st3, v, st4);
-    
-/*    assert UpdateState_Pre(st1, vars) by {
-      InductBind_UpdateState_Pre(st, e, bvars, bvals, bbody, vars, st1, vals);
-    }
-
-    assert st1.env == st1.env; // Ok
-    assert st1.acc == st3.acc; // Ok
-    assert Inv(st1); // Ok
-    assert Inv(st3); // Ok
-    assert StateRel(st1, st3) by {
-      StateRel_Trans(st1, st2, st3);
-    }
-    StateBindEndScope_InvRel(st1, st3, vars);
-
-    assert P_Succ(st, e, st4, v) by {
-      var res := InterpExpr(e, st.env, st.ctx);
-      var e': Expr := SubstInExpr(st.acc, e); // TODO(SMH): for some reason, type inference fails here
-      var res' := InterpExpr(e', st.env, st.ctx');
-      assert Inv(st); //  Ok
-      assert ExprValid(st.acc, e); // Ok
-      assert res.Success?;
-
-/*      reveal InterpExpr();
-      // TODO: what is below is necessary?
-      InterpBind_Correct(e, st.env, st.ctx);
-      InterpBind_Correct(e, st.env, st.ctx');
-      reveal InterpBind();*/
-
-      assert e.Bind?;
-      assume e'.Bind?; // TODO(SMH): what!!? can't prove that???
-
-      assert res' == InterpBind(e', st.env, st.ctx') by {
-        InterpBind_Correct(e', st.env, st.ctx');
-      }
-/*      assert res' ==
-        (var Bind(bvars, bvals, bbody) := e';
-         var vars := VarsToNames(bvars);
-         var env := st.env;
-         var ctx := st.ctx';
-         var Return(vals, ctx1) :- InterpExprs(bvals, env, ctx);
-         var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, vals));
-         var Return(val, ctx3) :- InterpExpr(bbody, env, ctx2);
-         var ctx4 := ctx3.(locals := CtxBindEndScope(ctx1.locals, ctx3.locals, vars));
-         Success(Return(val, ctx4))) by {
-          reveal InterpBind();
-      }*/
-
-//      assert res'.Success?; // TODO
-      assume false;
-//      assert res.Success?;
-//      assert res'.Success?;
-/*      assume (
-        match (res, res') {
-        case (Success(Return(v1, ctx1)), Success(Return(v1', ctx1'))) =>
-          var st1 := MState(st.env, st.acc, ctx1, ctx1');
-          && EqValue(v1, v1')
-          && Inv(st1)
-          && StateRel(st, st1)
-          // Additional
-          && st1 == st4
-          && v == MValue(v1, v1')
-        case _ => false
-      });*/
-    }
-
-//    StateRel_Trans_Forall();
-//    assume false;
-*/
   }
 
-  lemma {:verify false} InductBlock_Fail ...
+  lemma InductBlock_Fail ...
   {
     reveal InterpExpr();
     reveal InterpBlock();
@@ -1113,7 +1018,7 @@ module Bootstrap.Transforms.InlineVar.Subst.BaseProofs refines Semantics.ExprInd
     InterpExprs_Block_Equiv_Strong(stmts', st.env, st_start.ctx');
   }
 
-  lemma {:verify false} InductBlock_Succ ...
+  lemma InductBlock_Succ ...
   {
     reveal InterpExpr();
     reveal InterpBlock();
