@@ -259,6 +259,15 @@ module {:options "-functionSyntax:4"}
     else e
   }
 
+  /*
+     print 1 / x;
+     Seq([Print(Div(Const(1), Var(x)))])
+     Seq([Print(Seq([Assert(0 != x); Div(Const(1), Var(x))]))])
+     Seq([Seq([Assert(0 != x); Print(Seq([Div(Const(1), Var(x))]))])])
+     Seq([Seq([Assert(0 != x); Print(Div(Const(1), Var(x)))])])
+
+   */
+
   const RemovePrognTR: BottomUp.BottomUpTransformer :=
     assume false; Generic.TR(RemoveProgns1, _ => true)
 
@@ -327,6 +336,10 @@ module {:options "-functionSyntax:4"}
     else AddAssertion(MergeAsserts(wfs), e)
   }
 
+  // F(L; x, y)
+  // assert WF(x); assert WF(y); F(L; x, y)
+
+  // FIXME this should collect sequences of asserts and assumes
   function LiftAsserts1(e: WfExpr): (e': WfExpr) {
     match e {
       case Var(_) => e
@@ -344,8 +357,7 @@ module {:options "-functionSyntax:4"}
         };
         AddAssertions(RemoveNone(wfs), Exprs.Apply(op, exprs))
       case Block(exprs) =>
-        var (wfs, exprs) := PeelOffAsserts(exprs);
-        AddAssertions(RemoveNone(wfs), Exprs.Block(exprs))
+        e
       case Bind(vars, vals, body) =>
         var (wfs_vals, vals) := PeelOffAsserts(vals);
         var (wf_body, body) := PeelOffAssert(body);
@@ -360,6 +372,10 @@ module {:options "-functionSyntax:4"}
         AddAssertions(RemoveNone([wf_cond, wf_thn, wf_els]), Exprs.If(cond, thn, els))
     }
   }
+
+  // FIXME lift all assertions, keep a list
+  // FIXME If can remain an if
+  // FIXME translate asserts and assumes
 
   const LiftAssertsTR: BottomUp.BottomUpTransformer :=
     assume false; Generic.TR(LiftAsserts1, _ => true)
@@ -404,5 +420,14 @@ module {:options "-functionSyntax:4"}
         case Success(vc) => vc.ToString(indent := 0)
         case Failure(msg) => "!! " + msg
     )
+  }
+
+  method Run(p: Program) {
+    match CompileProgram(p)
+      case Failure(msg) =>
+        print "!! " + msg;
+      case Success(bp) =>
+        var RunBoogie(bp, ...);
+        print(result);
   }
 }

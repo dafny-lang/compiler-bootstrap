@@ -127,6 +127,9 @@ $(repl)/Repl.cs: $(repl)/Repl.dfy $(ast_model) $(dfy_models) $(dfy_interop) $(Da
 $(repl_dll): $(repl)/Repl.cs $(repl)/REPLInterop.cs $(cs_interop)
 	dotnet build --configuration=Release $(repl)/REPL.csproj
 
+# TODO: Translator for assert
+# TODO: Example input
+
 # Entry points
 # ============
 
