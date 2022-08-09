@@ -426,6 +426,14 @@ module Bootstrap.Semantics.Equiv {
     reveal EqValue_Closure();
   }
 
+  lemma EqCtx_Refl(ctx: Context)
+    requires WellFormedContext(ctx)
+    ensures EqCtx(ctx, ctx)
+  {
+    reveal GEqCtx();
+    EqValue_Refl_Forall();
+  }
+
   lemma EqState_Refl(ctx: State)
     ensures EqState(ctx, ctx)
   {
@@ -1015,6 +1023,40 @@ module Bootstrap.Semantics.Equiv {
 
     reveal GEqCtx();
     MapOfPairs_EqCtx(pl, pl');
+  }
+
+  // TODO:move?
+  lemma MapOfPairs_Keys(pl: seq<(string, WV)>)
+    ensures MapOfPairs(pl).Keys == set x | x in pl :: x.0
+  {
+    if pl == [] {}
+    else {
+      var lastidx := |pl| - 1;
+      var pl' := pl[..lastidx];
+      MapOfPairs_Keys(pl');
+
+      var p := pl[lastidx];
+      var m := MapOfPairs(pl);
+      var m' := MapOfPairs(pl');
+
+      assert m.Keys == m'.Keys + {p.0};
+      var s := set x | x in pl :: x.0;
+      var s' := set x | x in (pl' + pl[lastidx..|pl|]) :: x.0;
+      assert s == s';
+    }
+  }
+
+  // TODO:move?
+  lemma {:vcs_split_on_every_assert}
+  MapOfPairs_SeqZip_Keys(vars: seq<string>, argvs: seq<WV>)
+    requires |vars| == |argvs|
+    ensures
+      var m := MapOfPairs(Seq.Zip(vars, argvs));
+      m.Keys == set x | x in vars
+  {
+    var pl := Seq.Zip(vars, argvs);
+    assert (set x | x in pl :: x.0) == (set x | x in  vars);
+    MapOfPairs_Keys(pl);
   }
 
   lemma CtxUnion_Eq(ctx: Context, add: Context, ctx': Context, add': Context)

@@ -228,6 +228,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
 
   lemma InductLiteral(st: S, e: Expr)
     requires e.Literal?
+//    requires !P_Fail(st, e) // TODO
     ensures P(st, e)
 
   lemma InductAbs(st: S, e: Expr, vars: seq<string>, body: Expr)
