@@ -163,36 +163,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
     forall e | e in es :: ExprValid(acc, e)
   }
 
-
-  predicate {:opaque} StateRel(st: MState, st': MState)
-  {
-    && st.acc.subst.Keys <= st'.acc.subst.Keys
-    && forall x | x in st.acc.subst.Keys :: st'.acc.subst[x] == st.acc.subst[x]
-  }
-
-  lemma StateRel_Trans(st0: MState, st1: MState, st2: MState)
-    requires StateRel(st0, st1)
-    requires StateRel(st1, st2)
-    ensures StateRel(st0, st2)
-  {
-    reveal StateRel();
-  }
-
-  lemma StateRel_Trans_Forall()
-    ensures forall st0, st1, st2 | StateRel(st0, st1) && StateRel(st1, st2) :: StateRel(st0, st2)
-  {
-    reveal StateRel(); // BUG(https://github.com/dafny-lang/dafny/issues/2260)
-    forall st0, st1, st2 | StateRel(st0, st1) && StateRel(st1, st2) ensures StateRel(st0, st2) {
-      StateRel_Trans(st0, st1, st2);
-    }
-  }
-
-  lemma StateRel_Refl(st: MState)
-    ensures StateRel(st, st)
-  {
-    reveal StateRel();
-  }
-
   type S(!new) = MState
   type V(!new) = MValue
   type VS(!new) = vs:MSeqValue | |vs.vs| == |vs.vs'| witness MSeqValue([], [])
@@ -209,7 +179,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
         var st1 := MState(st.env, st.acc, ctx1, ctx1');
         && EqValue(v1, v1')
         && Inv(st1)
-        && StateRel(st, st1)
       case (Failure(_), _) => true
       case _ => false
     }
@@ -227,7 +196,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
           var st1 := MState(st.env, st.acc, ctx1, ctx1');
           && EqValue(v1, v1')
           && Inv(st1)
-          && StateRel(st, st1)
           // Additional
           && st1 == st'
           && v == MValue(v1, v1')
@@ -252,7 +220,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
         var st1 := MState(st.env, st.acc, ctx1, ctx1');
         && EqSeqValue(vs1, vs1')
         && Inv(st1)
-        && StateRel(st, st1)
       case (Failure(_), _) => true
       case _ => false
     }
@@ -270,7 +237,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
           var st1 := MState(st.env, st.acc, ctx1, ctx1');
           && EqSeqValue(vs1, vs1')
           && Inv(st1)
-          && StateRel(st, st1)
           // Additional
           && st1 == st'
           && vs == MSeqValue(vs1, vs1')
@@ -334,7 +300,7 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
 
   function UpdateState ...
     // Adding this postcondition makes the InductUpdate proofs easier
-    ensures UpdateState_Pre(st, vars) ==> Inv(st') && StateRel(st, st')
+    ensures UpdateState_Pre(st, vars) ==> Inv(st')
   {
     var MState(env, acc, ctx, ctx') := st;
     var ctx1 := st.ctx.(locals := AugmentContext(st.ctx.locals, vars, vals.vs));
@@ -342,7 +308,7 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
     var st' := MState(env, st.acc, ctx1, ctx1');
 
     var b := UpdateState_Pre(st, vars);
-    assert b ==> Inv(st') && StateRel(st, st') by {
+    assert b ==> Inv(st') by {
       if b {
         MapOfPairs_SeqZip_EqCtx(vars, vals.vs, vals.vs');
         var nbinds := MapOfPairs(Seq.Zip(vars, vals.vs));
@@ -370,9 +336,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
           }
           reveal EqStateWithAcc();
         }
-
-        // The two states are trivially related because the accumulator is unchanged
-        assert StateRel(st, st') by { reveal StateRel(); }
       }
     }
     st'
@@ -402,7 +365,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
   {
     && Inv(st0)
     && Inv(st)
-    && StateRel(st0, st) // TODO: remove
     && VS_UpdateStatePre(st0, vars, vals)
     && st0' == UpdateState(st0, vars, vals)
     && EqSeqValue(vals.vs, vals.vs')
@@ -416,7 +378,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
     ensures
       var st' := StateBindEndScope(st0, st, vars);
       && Inv(st')
-      && StateRel(st, st')
   {
     var st' := StateBindEndScope(st0, st, vars);
     var MState(env0, acc0, ctx0, ctx0') := st;
@@ -454,24 +415,18 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
       }
       reveal EqStateWithAcc();
     }
-    assert StateRel(st, st') by {
-      assert st.acc.subst.Keys <= st'.acc.subst.Keys;
-      assert forall x | x in st.acc.subst.Keys :: st'.acc.subst[x] == st.acc.subst[x];
-      reveal StateRel();
-    }
   }
 
   function StateStartScope ...
-    ensures Inv(st) ==> st' == st && StateRel(st, st')
+    ensures Inv(st) ==> st' == st
   {
     var MState(env, acc, ctx, ctx') := st;
     var ctx1 := StartScope(ctx);
     var ctx1' := StartScope(ctx');
     var st' := MState(env, acc, ctx1, ctx1');
 
-    assert Inv(st) ==> st' == st && StateRel(st, st') by {
-        reveal EqStateWithAcc();
-        reveal StateRel();
+    assert Inv(st) ==> st' == st by {
+      reveal EqStateWithAcc();
     }
 
     st'
@@ -496,7 +451,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
   {
     && Inv(st0)
     && Inv(st)
-    && StateRel(st0, st)
     && EndScope_StateSmaller(st0.ctx, st.ctx)
     && EndScope_StateSmaller(st0.ctx', st.ctx')
     && AccNoIntersect(st0.acc, UpdtVarsOfExprs(stmts))
@@ -508,7 +462,7 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
 
   lemma StateEndScope_InvRel(st0: S, st: S, stmts: seq<Expr>)
     requires StateEndScope_Pre(st0, st, stmts)
-    ensures var st' := StateEndScope(st0, st); Inv(st') && StateRel(st0, st')
+    ensures var st' := StateEndScope(st0, st); Inv(st')
   {
     var MState(env, acc, ctx0, ctx0') := st0;
     var ctx1 := EndScope(st0.ctx, st.ctx);
@@ -537,9 +491,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
         reveal AccValid();
       }
       reveal EqStateWithAcc();
-    }
-    assert StateRel(st0, st') by {
-      reveal StateRel();
     }
   }
 
@@ -578,8 +529,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
     var env := st.env;
     var acc := st.acc;
     var x := e.name;
-
-    StateRel_Refl(st);
 
     if x in acc.subst.Keys {
       // We inlined the variable
@@ -625,7 +574,7 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
     }
   }
 
-  lemma InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); StateRel_Refl(st); }
+  lemma InductLiteral ... { reveal InterpExpr(); reveal InterpLiteral(); }
 
   lemma InductAbs ... {
     reveal InterpExpr();
@@ -654,7 +603,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
     }
 
     assert EqValue_Closure(cv, cv');
-    StateRel_Refl(st);
   }
 
   lemma InductAbs_CallState ... {
@@ -663,24 +611,22 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
     reveal BuildCallState();
   }
 
-  lemma InductExprs_Nil ... { reveal InterpExprs(); StateRel_Refl(st); }
-  lemma InductExprs_Cons ... { reveal InterpExprs(); StateRel_Trans_Forall(); }
+  lemma InductExprs_Nil ... { reveal InterpExprs(); }
+  lemma InductExprs_Cons ... { reveal InterpExprs(); }
 
   lemma InductApplyLazy_Fail ... { reveal InterpExpr(); }
-  lemma InductApplyLazy_Succ ... { reveal InterpExpr(); StateRel_Trans_Forall(); }
+  lemma InductApplyLazy_Succ ... { reveal InterpExpr(); }
 
   lemma InductApplyEager_Fail ... { reveal InterpExpr(); }
   lemma InductApplyEagerUnaryOp_Succ ... {
     reveal InterpExpr();
     reveal InterpUnaryOp();
-    StateRel_Trans_Forall();
   }
 
   lemma InductApplyEagerBinaryOp_Succ ... {
     reveal InterpExpr();
     var e' := SubstInExpr(st.acc, e);
     InterpBinaryOp_Eq(e, e', op, v0.v, v1.v, v0.v', v1.v');
-    StateRel_Trans_Forall();
   }
 
   lemma {:fuel SeqVToVS, 2} InductApplyEagerTernaryOp_Succ ... {
@@ -689,25 +635,22 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
     // TODO(SMH): ``SeqVToVS`` is called on literals: we shouldn't need fuel 2
     assert SeqVToVS([v0, v1, v2]) == MSeqValue([v0.v, v1.v, v2.v], [v0.v', v1.v', v2.v']);
     InterpTernaryOp_Eq(e, e', op, v0.v, v1.v, v2.v, v0.v', v1.v', v2.v');
-    StateRel_Trans_Forall();
   }
 
   lemma InductApplyEagerBuiltinDisplay ... {
     reveal InterpExpr();
     var e' := SubstInExpr(st.acc, e);
     Interp_Apply_Display_EqValue(e, e', ty.kind, argvs.vs, argvs.vs');
-    StateRel_Trans_Forall();
   }
 
   lemma InductApplyEagerFunctionCall ... {
     reveal InterpExpr();
     var e' := SubstInExpr(st.acc, e);
     InterpFunctionCall_EqState(e, e', st.env, fv.v, fv.v', argvs.vs, argvs.vs');
-    StateRel_Trans_Forall();
   }
 
   lemma InductIf_Fail ... { reveal InterpExpr(); }
-  lemma InductIf_Succ ... { reveal InterpExpr(); StateRel_Trans_Forall(); }
+  lemma InductIf_Succ ... { reveal InterpExpr(); }
 
   lemma InductUpdate_Fail ... { reveal InterpExpr(); }
   lemma InductUpdate_Succ ... {
@@ -719,7 +662,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
         reveal SeqToSet();
       }
     }
-    StateRel_Trans_Forall();
   }
 
   lemma InductVarDecl_None_Succ ... {} // This case is ignored
@@ -757,7 +699,7 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
         InductBind_UpdateState_Pre(st, e, bvars, bvals, bbody, vars, st1, vals);
       }
       var st2 := UpdateState(st1, vars, vals);
-      assert Inv(st2) && StateRel(st1, st2);
+      assert Inv(st2);
 
       assert ExprValid(st2.acc, bbody) by {
         assert ExprValid(st2.acc, e);
@@ -795,7 +737,7 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
     assert StateSameEnvAcc(st2, st3) by { reveal HBody; }
     assert StateSameEnvAcc(st3, st4) by { reveal HEnd; }
 
-    assert AUpdt: Inv(st2) && StateRel(st1, st2) by {
+    assert AUpdt: Inv(st2) by {
       assert UpdateState_Pre(st1, vars) by {
         reveal HNFail;
         reveal HVals;
@@ -807,7 +749,7 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
       reveal HUpdt;
     }
 
-    assert AEnd: Inv(st4) && StateRel(st3, st4) by {
+    assert AEnd: Inv(st4) by {
       reveal HNFail;
       reveal HVals;
       reveal HUpdt;
@@ -817,9 +759,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
 
       assert Inv(st1);
       assert Inv(st3);
-      assert StateRel(st1, st3) by {
-        StateRel_Trans(st1, st2, st3);
-      }
       assert EqSeqValue(vals.vs, vals.vs');
       assert AccNoIntersect(st1.acc, UpdtVarsOfExpr(bbody)) by {
         reveal AccNoIntersect();
@@ -898,15 +837,6 @@ module Bootstrap.Transforms.SubstVar.Subst.BaseProofs refines Semantics.ExprIndu
       var stf := MState(st.env, st.acc, ctx4, ctx4');
       assert EqValue(val, val') by { reveal HBody; }
       assert Inv(st4) by { reveal AEnd; }
-      assert StateRel(st, st4) by {
-        assert StateRel(st, st1) by { reveal HVals; }
-        assert StateRel(st1, st2) by { reveal AUpdt; }
-        StateRel_Trans(st, st1, st2);
-        assert StateRel(st2, st3) by { reveal HBody; }
-        StateRel_Trans(st, st2, st3);
-        assert StateRel(st3, st4) by { reveal AEnd; }
-        StateRel_Trans(st, st3, st4);
-      }
       assert stf == st4;
       assert v == MValue(val, val');
     }
