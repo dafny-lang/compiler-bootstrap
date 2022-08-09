@@ -609,7 +609,12 @@ module Bootstrap.Transforms.VarsOfExprAddUselessBindings refines Semantics.ExprI
       var st1 := BuildClosureCallState(st, vars, body, env, argvs);
 
 //      assert 
-      assert ctx1' == ctx1.(locals := ctx1.locals + add) by { // TODO: this is false. Update the invariant
+      assert ctx1' == ctx1.(locals := ctx1.locals + add) by {
+        // TODO: this is false: we have: ctx1'.locals == ctx.locals + m' + add
+        // (and m' != m)
+        // This will probably not work with the invariant, that we should update?...
+        // Also, maybe:
+        // MState(env, ctx, ctx', add) where ctx ~= ctx'
         assert SeqToSet(vars) !! st.add.Keys by {
           reveal SeqToSet();
           reveal ExprValid();
