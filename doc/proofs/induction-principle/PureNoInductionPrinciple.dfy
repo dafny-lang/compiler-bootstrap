@@ -1,0 +1,87 @@
+include "Utils.dfy"
+include "AST.dfy"
+include "Interp.dfy"
+include "Pure.dfy"
+
+module PureNoInductionPrinciple {
+  // This module does the same proof as ``IsPure``, but without using the induction
+  // principle. We do this to allow comparing the two approaches.
+
+  import opened Utils
+  import opened AST
+  import opened Interp
+  import Pure
+
+  ghost const ResultSameCtx: (set<string>, Context, InterpResult) -> bool := Pure.ResultSameCtx
+
+  lemma InterpExpr_Pure(e: Expr, ctx: Context, locals: set<string> := {})
+    requires Pure.IsPure(e, locals)
+    requires ctx.Keys >= locals
+    ensures ResultSameCtx(locals, ctx, InterpExpr(e, ctx))
+  {
+    match e
+      case Var(name) =>
+      case Literal(n) =>
+
+      case Bind(bvar, bval, body) =>
+        var res1 := InterpExpr(bval, ctx); // Manual introduction
+        InterpExpr_Pure(bval, ctx, locals); // Recursive call
+
+        if res1.Success? { // Manual introduction
+          var (bvalv, ctx1) := res1.value; // Manual introduction
+
+          var ctx2 := ctx1[bvar := bvalv]; // Manual introduction
+          var locals' := {bvar} + locals; // Manual introduction
+
+          // Below: pay attention to the arguments (`locals'`, `ctx2` for instance)!
+          InterpExpr_Pure(body, ctx2, locals'); // Recursive call
+          
+          // When the proofs fail, we often need to introduce more values,
+          // just so that we can stare at them and write assertions. For instance:
+          // ```
+          // var res2 := InterpExpr(body, ctx2);
+          // if res2.Success? {
+          //   var (bodyv, ctx3) := res2.value;
+          //   ...
+          // }
+          // else {}
+          // ```
+        }
+        else {}
+
+      case Assign(avar, aval) =>
+        InterpExpr_Pure(aval, ctx, locals); // Recursive call
+
+      case If(cond, thn, els) =>
+        var res1 := InterpExpr(cond, ctx); // Manual introduction
+        InterpExpr_Pure(cond, ctx, locals); // Recursive call
+
+        if res1.Success? { // Manual introduction
+          var (condv, ctx1) := res1.value; // Manual introduction
+
+          InterpExpr_Pure(thn, ctx1, locals); // Recursive call
+          InterpExpr_Pure(els, ctx1, locals); // Recursive call
+        }
+        else {}
+
+      case Op(op, oe1, oe2) =>
+        var res1 := InterpExpr(oe1, ctx); // Manual introduction
+        InterpExpr_Pure(oe1, ctx, locals); // Recursive call
+
+        if res1.Success? {
+          var (v1, ctx1) := res1.value;
+          InterpExpr_Pure(oe2, ctx1, locals); // Recursive call
+        }
+        else {}
+
+      case Seq(e1, e2) =>
+        var res1 := InterpExpr(e1, ctx); // Manual introduction
+        InterpExpr_Pure(e1, ctx, locals); // Recursive call
+
+        if res1.Success? {
+          var (v1, ctx1) := res1.value;
+          InterpExpr_Pure(e2, ctx1, locals); // Recursive call
+        }
+        else {}
+  }
+}
