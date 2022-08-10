@@ -15,7 +15,7 @@ module AST {
     | Assign(avar: string, aval: Expr)
     | If(cond: Expr, thn: Expr, els: Expr)
     | Op(op: BinOp, oe1: Expr, oe2: Expr)
-    | Seq(e1: Expr, e2: Expr)
+    | Seq(es: seq<Expr>)
   {
     function method Depth() : nat
     {
@@ -32,8 +32,8 @@ module AST {
           Max(cond.Depth(), Max(thn.Depth(), els.Depth()))
         case Op(op, e1, e2) =>
           Max(e1.Depth(), e2.Depth())
-        case Seq(e1, e2) =>
-          Max(e1.Depth(), e2.Depth())
+        case Seq(es: seq<Expr>) =>
+          MaxF(var f := (e: Expr) requires e in es => e.Depth(); f, es, 0)
       }
     }
   }

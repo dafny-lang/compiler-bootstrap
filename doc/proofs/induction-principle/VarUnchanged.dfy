@@ -14,6 +14,7 @@ module VarUnchanged refines Induction {
   predicate method VarUnchanged(x: string, e: Expr)
     // Returns true if no assignments of `x` (not shadowed by a let-binding) appears
     // in `e`.
+    decreases e
   {
     match e
       case Var(name) => false
@@ -29,14 +30,25 @@ module VarUnchanged refines Induction {
         VarUnchanged(x, cond) && VarUnchanged(x, thn) && VarUnchanged(x, els)
       case Op(op, oe1, oe2) =>
         VarUnchanged(x, oe1) && VarUnchanged(x, oe2)
-      case Seq(e1, e2) =>
-        VarUnchanged(x, e1) && VarUnchanged(x, e2)
+      case Seq(es) =>
+        forall e | e in es :: VarUnchanged(x, e)
   }
 
   predicate ResultSameX(st: S, res: InterpResult)
   {
     match res
       case Success((v, ctx)) =>
+        st.x.Some? ==>
+        && st.x.value in ctx.Keys
+        && st.ctx[st.x.value] == ctx[st.x.value]
+      case Failure =>
+        true
+  }
+
+  predicate ResultSeqSameX(st: S, res: InterpResultSeq)
+  {
+    match res
+      case Success((_, ctx)) =>
         st.x.Some? ==>
         && st.x.value in ctx.Keys
         && st.ctx[st.x.value] == ctx[st.x.value]
@@ -59,12 +71,18 @@ module VarUnchanged refines Induction {
   type S = st:MState | st.x.Some? ==> st.x.value in st.ctx.Keys
     witness MState(None, map [])
   type V = int
+  type VS = seq<int>
 
   ghost const Zero: V := 0
 
   predicate Pre(st: S, e: Expr)
   {
     st.x.Some? ==> VarUnchanged(st.x.value, e)
+  }
+
+  predicate PreEs(st: S, es: seq<Expr>)
+  {
+    forall e | e in es :: Pre(st, e)
   }
 
   predicate P ...
@@ -86,6 +104,39 @@ module VarUnchanged refines Induction {
   {
     var res := InterpExpr(e, st.ctx);
     Pre(st, e) ==> res.Failure?
+  }
+
+  predicate Pes ...
+  {
+    var res := InterpExprs(es, st.ctx);
+    PreEs(st, es) ==> ResultSeqSameX(st, res)
+  }
+
+  predicate Pes_Succ ...
+  {
+    var res := InterpExprs(es, st.ctx);
+    && PreEs(st, es)
+    && ResultSeqSameX(st, res)
+    && res == Success((vs, st'.ctx))
+    && st'.x == st.x
+  }
+
+  predicate Pes_Fail ...
+  {
+    var res := InterpExprs(es, st.ctx);
+    PreEs(st, es) ==> res.Failure?
+  }
+
+  function AppendValue ...
+  {
+    [v] + vs
+  }
+
+  ghost const NilVS: VS := []
+
+  function VS_Last ...
+  {
+    vs[|vs| - 1]
   }
 
   function AssignState ...
@@ -120,6 +171,12 @@ module VarUnchanged refines Induction {
     (MState(st.x, ctx1), v)
   }
 
+  function Pes_Step ...
+  {
+    var Success((vs, ctx1)) := InterpExprs(es, st.ctx);
+    (MState(st.x, ctx1), vs)
+  }
+
   lemma P_Fail_Sound ... {}
   lemma P_Succ_Sound ... {}
   lemma InductVar ... {}
@@ -134,5 +191,11 @@ module VarUnchanged refines Induction {
   lemma InductAssign_Succ ... {}
   lemma InductBind_Fail ... {}
   lemma InductBind_Succ ... {}
+  lemma InductExprs_Nil ... {}
+  lemma InductExprs_Cons ...
+  {
+    // This helps the SMT solver
+    assert forall e' :: e' in ([e] + es) <==> e' == e || e' in es;
+  }
 }
 

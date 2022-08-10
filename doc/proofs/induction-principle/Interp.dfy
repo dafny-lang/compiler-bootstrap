@@ -8,6 +8,7 @@ module Interp {
   type Context = map<string, int>
 
   type InterpResult = Result<(int, Context)>
+  type InterpResultSeq = Result<(seq<int>, Context)>
 
   function method InterpBinOp(op: BinOp, x: int, y: int): int
   {
@@ -17,7 +18,9 @@ module Interp {
       case Mul => x * y
   }
 
-  function method InterpExpr(e: Expr, ctx: Context): Result<(int, Context)> {
+  function method InterpExpr(e: Expr, ctx: Context): Result<(int, Context)>
+    decreases e, 1
+  {
     match e {
       case Var(name) =>
         if name in ctx.Keys then Success((ctx[name], ctx)) else Failure
@@ -51,9 +54,21 @@ module Interp {
         var (v2, ctx2) :- InterpExpr(e2, ctx1);
         Success((InterpBinOp(op, v1, v2), ctx2))
 
-      case Seq(e1, e2) =>
-        var (_, ctx1) :- InterpExpr(e1, ctx);
-        InterpExpr(e2, ctx1)
+      case Seq(es) =>
+        var (vs, ctx1) :- InterpExprs(es, ctx);
+        if vs == [] then Success((0, ctx1))
+        else Success((vs[|vs|-1], ctx1))
     }
+  }
+
+  function method InterpExprs(es: seq<Expr>, ctx: Context): (r:Result<(seq<int>, Context)>)
+    ensures r.Success? ==> |r.value.0| == |es|
+    decreases es, 0
+  {
+    if es == [] then Success(([], ctx))
+    else
+      var (v, ctx1) :- InterpExpr(es[0], ctx);
+      var (vs, ctx2) :- InterpExprs(es[1..], ctx1);
+      Success(([v] + vs, ctx2))
   }
 }
