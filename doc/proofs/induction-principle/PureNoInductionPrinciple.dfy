@@ -13,12 +13,17 @@ module PureNoInductionPrinciple {
   import Pure
 
   const IsPure_WithLocals: (set<string>, Expr) -> bool := Pure.IsPure_WithLocals
-  ghost const ResultSameCtx: (set<string>, Context, InterpResult) -> bool := Pure.ResultSameCtx
+
+  predicate ResultSameCtx<V>(locals: set<string>, ctx: Context, res: Result<(V,Context)>)
+  {
+    Pure.ResultSameCtx(locals, ctx, res)
+  }
 
   lemma InterpExpr_Pure_WithLocals(e: Expr, locals: set<string>, ctx: Context)
     requires IsPure_WithLocals(locals, e)
     requires ctx.Keys >= locals
     ensures ResultSameCtx(locals, ctx, InterpExpr(e, ctx))
+    decreases e, 1
   {
     match e
       case Var(name) =>
@@ -75,15 +80,28 @@ module PureNoInductionPrinciple {
         }
         else {}
 
-      case Seq(e1, e2) =>
-        var res1 := InterpExpr(e1, ctx); // Manual introduction
-        InterpExpr_Pure_WithLocals(e1, locals, ctx); // Recursive call
+      case Seq(es) =>
+        InterpExprs_Pure_WithLocals(es, locals, ctx); // Recursive call
+  }
 
-        if res1.Success? {
-          var (v1, ctx1) := res1.value;
-          InterpExpr_Pure_WithLocals(e2, locals, ctx1); // Recursive call
-        }
-        else {}
+  lemma InterpExprs_Pure_WithLocals(es: seq<Expr>, locals: set<string>, ctx: Context)
+    requires Pure.IsPure_Es_WithLocals(locals, es)
+    requires ctx.Keys >= locals
+    ensures ResultSameCtx(locals, ctx, InterpExprs(es, ctx))
+    decreases es, 0
+  {
+    if es == [] {} // Manual test
+    else {
+      var res1 := InterpExpr(es[0], ctx); // Manual introduction
+      InterpExpr_Pure_WithLocals(es[0], locals, ctx); // Recursive call
+      
+      if res1.Success? {
+        var (v, ctx1) := res1.value; // Manual introduction
+
+        InterpExprs_Pure_WithLocals(es[1..], locals, ctx1);
+      }
+      else {}
+    }
   }
 
   lemma InterpExpr_Pure(e: Expr, ctx: Context)

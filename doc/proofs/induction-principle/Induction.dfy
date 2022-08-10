@@ -12,6 +12,9 @@ abstract module Induction {
   // A value
   type V(!new)
 
+  // A sequence of values
+  type VS(!new)
+
   ghost const Zero: V
 
   // ``P`` is the property of interest that we want to prove about the interpreter. It is often
@@ -29,6 +32,19 @@ abstract module Induction {
   predicate P_Succ(st: S, e: Expr, st': S, v: V) // Success
   predicate P_Fail(st: S, e: Expr) // Failure
 
+  // ``Pes`` is the property of interest over sequences of expressions.
+  predicate Pes(st: S, es: seq<Expr>)
+  predicate Pes_Succ(st: S, es: seq<Expr>, st': S, vs: VS) // Success
+  predicate Pes_Fail(st: S, es: seq<Expr>) // Failure
+
+  function AppendValue(v: V, vs: VS): VS // Returns: [v] + vs
+
+  // Empty sequence of values
+  ghost const NilVS: VS
+
+  function VS_Last(vs: VS): V
+    requires vs != NilVS
+
   // For the ``Assign`` case
   function AssignState(st: S, v: string, val: V): (st':S)
 
@@ -45,6 +61,11 @@ abstract module Induction {
     requires !P_Fail(st, e)
     ensures P_Succ(st, e, res.0, res.1)
 
+  function Pes_Step(st: S, es: seq<Expr>): (res: (S, VS))
+    requires Pes(st, es)
+    requires !Pes_Fail(st, es)
+    ensures Pes_Succ(st, es, res.0, res.1)
+
   lemma P_Fail_Sound(st: S, e: Expr)
     requires P_Fail(st, e)
     ensures P(st, e)
@@ -52,6 +73,14 @@ abstract module Induction {
   lemma P_Succ_Sound(st: S, e: Expr, st': S, v: V)
     requires P_Succ(st, e, st', v)
     ensures P(st, e)
+
+  lemma Pes_Fail_Sound(st: S, es: seq<Expr>)
+    requires Pes_Fail(st, es)
+    ensures Pes(st, es)
+
+  lemma Pes_Succ_Sound(st: S, es: seq<Expr>, st': S, vs: VS)
+    requires Pes_Succ(st, es, st', vs)
+    ensures Pes(st, es)
 
   lemma InductVar(st: S, e: Expr)
     requires e.Var?
@@ -90,17 +119,15 @@ abstract module Induction {
     requires P(st1, e2)
     ensures P(st, e)
 
-  lemma InductSeq_Fail(st: S, e: Expr, e1: Expr, e2: Expr)
-    requires e.Seq? && e.e1 == e1 && e.e2 == e2
+  lemma InductSeq_Fail(st: S, e: Expr, es: seq<Expr>)
+    requires e.Seq? && e.es == es
     requires !P_Fail(st, e)
-    ensures !P_Fail(st, e1)
-    ensures forall st1, v1 | P_Succ(st, e1, st1, v1) :: !P_Fail(st1, e2)
+    ensures !Pes_Fail(st, es)
 
-  lemma InductSeq_Succ(st: S, e: Expr, e1: Expr, e2: Expr, st1: S, v1: V)
-    requires e.Seq? && e.e1 == e1 && e.e2 == e2
+  lemma InductSeq_Succ(st: S, e: Expr, es: seq<Expr>, st1: S, vs: VS)
+    requires e.Seq? && e.es == es
     requires !P_Fail(st, e)
-    requires P_Succ(st, e1, st1, v1)
-    requires P(st1, e2)
+    requires Pes_Succ(st, es, st1, vs)
     ensures P(st, e)
 
   lemma InductAssign_Fail(st: S, e: Expr, avar: string, aval: Expr)
@@ -140,13 +167,21 @@ abstract module Induction {
     requires st4 == BindEndScope(st1, st3, bvar) // ``StateBindEndScope`` may have a postcondition, so it's good to have it
     ensures P_Succ(st, e, st4, v)
 
+  lemma InductExprs_Nil(st: S)
+    ensures !Pes_Fail(st, []) ==> Pes_Succ(st, [], st, NilVS)
+
+  lemma InductExprs_Cons(st: S, e: Expr, es: seq<Expr>)
+    ensures P_Fail(st, e) ==> Pes_Fail(st, [e] + es)
+    ensures !P_Fail(st, e) ==> forall st1, v :: P_Succ(st, e, st1, v) && Pes_Fail(st1, es) ==> Pes_Fail(st, [e] + es)
+    ensures forall st1, v, st2, vs :: P_Succ(st, e, st1, v) && Pes_Succ(st1, es, st2, vs) ==> Pes_Succ(st, [e] + es, st2, AppendValue(v, vs))
+
   //
   // Lemmas
   //
 
   lemma P_Satisfied(st: S, e: Expr)
     ensures P(st, e)
-    decreases e, 1
+    decreases e, 3
   {
     if P_Fail(st, e) {
       P_Fail_Sound(st, e);
@@ -159,7 +194,7 @@ abstract module Induction {
   lemma P_Satisfied_Succ(st: S, e: Expr)
     requires !P_Fail(st, e)
     ensures P(st, e)
-    decreases e, 0
+    decreases e, 2
   {
     match e {
       case Var(_) =>
@@ -183,20 +218,14 @@ abstract module Induction {
 
         InductOp_Succ(st, e, op, e1, e2, st1, v1);
 
-      case Seq(e1, e2) =>
+      case Seq(es) =>
         // Recursion
-        P_Satisfied(st, e1);
+        Pes_Satisfied(st, es);
 
-        assert !P_Fail(st, e1) by { InductSeq_Fail(st, e, e1, e2); }
-        var (st1, v1) := P_Step(st, e1);
-
-        // Recursion
-        P_Satisfied(st1, e2);
-
-        assert !P_Fail(st1, e2) by { InductSeq_Fail(st, e, e1, e2); }
-        var (st2, v2) := P_Step(st1, e2);
-
-        InductSeq_Succ(st, e, e1, e2, st1, v1);
+        assert !Pes_Fail(st, es) by { InductSeq_Fail(st, e, es); }
+        var (st1, vs) := Pes_Step(st, es);
+        
+        InductSeq_Succ(st, e, es, st1, vs);
 
       case If(cond, thn, els) =>
         // Recursion
@@ -237,6 +266,59 @@ abstract module Induction {
 
         InductBind_Succ(st, e, bvar, bval, body, st1, bvarv, st2, st3, v, st4);
         P_Succ_Sound(st, e, st4, v);
+    }
+  }
+
+  lemma Pes_Satisfied(st: S, es: seq<Expr>)
+    ensures Pes(st, es)
+    decreases es, 1
+  {
+    if Pes_Fail(st, es) {
+      Pes_Fail_Sound(st, es);
+    }
+    else {
+      Pes_Satisfied_Succ(st, es);
+    }
+  }
+
+  lemma Pes_Satisfied_Succ(st: S, es: seq<Expr>)
+    requires !Pes_Fail(st, es)
+    ensures Pes(st, es)
+    decreases es, 0
+  {
+    if es == [] {
+      InductExprs_Nil(st);
+      assert Pes_Succ(st, [], st, NilVS);
+      Pes_Succ_Sound(st, [], st, NilVS);
+    }
+    else {
+      var e := es[0];
+      var es' := es[1..];
+      assert [e] + es' == es;
+
+      P_Satisfied(st, e); // Recursion
+
+      if P_Fail(st, e) {
+        InductExprs_Cons(st, e, es');
+        assert Pes_Fail(st, [e] + es');
+        Pes_Fail_Sound(st, [e] + es');
+      }
+      else {
+        var (st1, v) := P_Step(st, e);
+        Pes_Satisfied(st1, es'); // Recursion
+
+        if Pes_Fail(st1, es') {
+          InductExprs_Cons(st, e, es');
+          assert Pes_Fail(st, [e] + es');
+          Pes_Fail_Sound(st, [e] + es');
+        }
+        else {
+          var (st2, vs) := Pes_Step(st1, es');
+          InductExprs_Cons(st, e, es');
+          assert Pes_Succ(st, [e] + es', st2, AppendValue(v, vs));
+          Pes_Succ_Sound(st, [e] + es', st2, AppendValue(v, vs));
+        }
+      }
     }
   }
 }

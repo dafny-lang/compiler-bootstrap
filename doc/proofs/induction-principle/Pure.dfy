@@ -31,11 +31,20 @@ module Pure refines Induction {
         && IsPure(els, locals)
       case Op(op, oe1, oe2) =>
         IsPure(oe1, locals) && IsPure(oe2, locals)
-      case Seq(e1, e2) =>
-        IsPure(e1, locals) && IsPure(e2, locals)
+      case Seq(es) =>
+        IsPure_Es(es, locals)
   }
 
-  predicate ResultSameCtx(locals: set<string>, ctx: Context, res: InterpResult)
+  predicate method IsPure_Es(es: seq<Expr>, locals: set<string> := {})
+    decreases es, 0
+  {
+    if es == [] then true
+    else
+      && IsPure(es[0], locals)
+      && IsPure_Es(es[1..], locals)
+  }
+
+  predicate ResultSameCtx<V>(locals: set<string>, ctx: Context, res: Result<(V,Context)>)
   {
     match res
       case Success((_, ctx')) =>
@@ -49,7 +58,7 @@ module Pure refines Induction {
         true
   }
 
-  predicate ResultSameState(st: S, res: InterpResult)
+  predicate ResultSameState<V>(st: S, res: Result<(V,Context)>)
   {
     ResultSameCtx(st.locals, st.ctx, res)
   }
@@ -68,12 +77,19 @@ module Pure refines Induction {
 
   type S = MState
   type V = int
+  type VS = seq<int>
 
   ghost const Zero: V := 0
 
   predicate Pre(st: S, e: Expr)
   {
     && IsPure(e, st.locals)
+    && st.ctx.Keys >= st.locals
+  }
+
+  predicate PreEs(st: S, es: seq<Expr>)
+  {
+    && IsPure_Es(es, st.locals)
     && st.ctx.Keys >= st.locals
   }
 
@@ -96,6 +112,39 @@ module Pure refines Induction {
   {
     var res := InterpExpr(e, st.ctx);
     Pre(st, e) ==> res.Failure?
+  }
+
+  predicate Pes ...
+  {
+    var res := InterpExprs(es, st.ctx);
+    PreEs(st, es) ==> ResultSameState(st, res)
+  }
+
+  predicate Pes_Succ ...
+  {
+    var res := InterpExprs(es, st.ctx);
+    && PreEs(st, es)
+    && ResultSameState(st, res)
+    && res == Success((vs, st'.ctx))
+    && st'.locals == st.locals
+  }
+
+  predicate Pes_Fail ...
+  {
+    var res := InterpExprs(es, st.ctx);
+    PreEs(st, es) ==> res.Failure?
+  }
+
+  function AppendValue ...
+  {
+    [v] + vs
+  }
+
+  ghost const NilVS: VS := []
+
+  function VS_Last ...
+  {
+    vs[|vs| - 1]
   }
 
   function AssignState ...
@@ -146,6 +195,9 @@ module Pure refines Induction {
 
   lemma InductBind_Fail ... {}
   lemma InductBind_Succ ... {}
+
+  lemma InductExprs_Nil ... {}
+  lemma InductExprs_Cons ... {}
 
   lemma InterpExpr_Pure(e: Expr, ctx: Context)
     requires IsPure(e)

@@ -27,7 +27,7 @@ module EliminateMulZero refines Induction {
   }
 
   function method Eliminate(e: Expr): Expr
-    decreases e
+    decreases e, 1
   {
     match e
       case Var(name) => e
@@ -51,13 +51,22 @@ module EliminateMulZero refines Induction {
           ZeroExpr
         else
           Op(op, oe1', oe2')
-      case Seq(e1, e2) =>
-        var e1' := Eliminate(e1);
-        var e2' := Eliminate(e2);
-        Seq(e1', e2')
+      case Seq(es) =>
+        Seq(Eliminate_Es(es))
   }
 
-  predicate EqResult(res: InterpResult, res': InterpResult)
+  function method Eliminate_Es(es: seq<Expr>): (es':seq<Expr>)
+    ensures |es'| == |es|
+    decreases es, 0
+  {
+    if es == [] then []
+    else
+      var e' := Eliminate(es[0]);
+      var es' := Eliminate_Es(es[1..]);
+      [e'] + es'
+  }
+
+  predicate EqResult<V>(res: Result<(V,Context)>, res': Result<(V,Context)>)
   {
     match (res, res')
       case (Success((v, ctx1)), Success((v', ctx1'))) =>
@@ -82,8 +91,21 @@ module EliminateMulZero refines Induction {
 
   type S = Context
   type V = int
+  type VS = seq<int>
 
   ghost const Zero: V := 0
+
+  function AppendValue ...
+  {
+    [v] + vs
+  }
+
+  ghost const NilVS: VS := []
+
+  function VS_Last ...
+  {
+    vs[|vs| - 1]
+  }
 
   predicate P ...
   {
@@ -107,6 +129,32 @@ module EliminateMulZero refines Induction {
     var e' := Eliminate(e);
     var res := InterpExpr(e, st);
     var res' := InterpExpr(e', st);
+    && EqResult(res, res')
+    && res.Failure?
+  }
+
+  predicate Pes ...
+  {
+    var es' := Eliminate_Es(es);
+    var res := InterpExprs(es, st);
+    var res' := InterpExprs(es', st);
+    EqResult(res, res')
+  }
+
+  predicate Pes_Succ ...
+  {
+    var es' := Eliminate_Es(es);
+    var res := InterpExprs(es, st);
+    var res' := InterpExprs(es', st);
+    && EqResult(res, res')
+    && res == Success((vs, st'))
+  }
+
+  predicate Pes_Fail ...
+  {
+    var es' := Eliminate_Es(es);
+    var res := InterpExprs(es, st);
+    var res' := InterpExprs(es', st);
     && EqResult(res, res')
     && res.Failure?
   }
@@ -184,6 +232,9 @@ module EliminateMulZero refines Induction {
 
   lemma InductBind_Fail ... {}
   lemma InductBind_Succ ... {}
+
+  lemma InductExprs_Nil ... {}
+  lemma InductExprs_Cons ... {}
 
   lemma Eliminate_Eq(e: Expr, ctx: Context)
     ensures

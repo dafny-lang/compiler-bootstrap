@@ -15,6 +15,12 @@ module Equiv refines Induction {
     x == y
   }
 
+  predicate EqSeqValue(x: seq<int>, y: seq<int>)
+  {
+    && |x| == |y|
+    && forall i | 0 <= i < |x| :: EqValue(x[i], y[i])
+  }
+
   predicate {:opaque} EqCtx(ctx: Context, ctx': Context)
   {
     && ctx.Keys == ctx'.Keys
@@ -33,6 +39,18 @@ module Equiv refines Induction {
         false
   }
 
+  predicate EqResultSeq(res: InterpResultSeq, res': InterpResultSeq)
+  {
+    match (res, res')
+      case (Success((vs, ctx)), Success((vs', ctx'))) =>
+        && EqSeqValue(vs, vs')
+        && EqCtx(ctx, ctx')
+      case (Failure, _) =>
+        true
+      case _ =>
+        false
+  }
+
   //
   // Below, we prove that if we evaluate an expression starting from equivalent contexts,
   // then we evaluate to equivalent results.
@@ -40,9 +58,11 @@ module Equiv refines Induction {
 
   datatype MState = MState(ctx: Context, ctx': Context)
   datatype MValue = MValue(v: int, v': int)
+  datatype MSeqValue = MSeqValue(vs: seq<int>, vs': seq<int>)
 
   type S = MState
   type V = MValue
+  type VS = vs:MSeqValue | |vs.vs| == |vs.vs'| witness MSeqValue([], [])
 
   ghost const Zero: V := MValue(0, 0)
 
@@ -72,6 +92,43 @@ module Equiv refines Induction {
   predicate P_Fail ...
   {
     Inv(st) ==> InterpExpr(e, st.ctx).Failure?
+  }
+
+  predicate Pes ...
+  {
+    var res := InterpExprs(es, st.ctx);
+    var res' := InterpExprs(es, st.ctx');
+    Inv(st) ==>
+    EqResultSeq(res, res')
+  }
+
+  predicate Pes_Succ ...
+  {
+    var res := InterpExprs(es, st.ctx);
+    var res' := InterpExprs(es, st.ctx');
+    && Inv(st)
+    && EqResultSeq(res, res')
+    && res == Success((vs.vs, st'.ctx))
+    && res' == Success((vs.vs', st'.ctx'))
+  }
+
+  predicate Pes_Fail ...
+  {
+    Inv(st) ==> InterpExprs(es, st.ctx).Failure?
+  }
+
+  function AppendValue ...
+  {
+    MSeqValue([v.v] + vs.vs, [v.v'] + vs.vs')
+  }
+
+  ghost const NilVS: VS := MSeqValue([], [])
+
+  function VS_Last ...
+  {
+    var v := vs.vs[|vs.vs| - 1];
+    var v' := vs.vs'[|vs.vs| - 1];
+    MValue(v, v')
   }
 
   function AssignState ...
@@ -124,6 +181,13 @@ module Equiv refines Induction {
     (MState(ctx1, ctx1'), MValue(v, v'))
   }
 
+  function Pes_Step ...
+  {
+    var Success((vs, ctx1)) := InterpExprs(es, st.ctx);
+    var Success((vs', ctx1')) := InterpExprs(es, st.ctx');
+    (MState(ctx1, ctx1'), MSeqValue(vs, vs'))
+  }
+
   lemma P_Fail_Sound ... {}
   lemma P_Succ_Sound ... {}
   lemma InductVar ... { reveal EqCtx(); }
@@ -136,7 +200,8 @@ module Equiv refines Induction {
   lemma InductSeq_Succ ... {}
   lemma InductAssign_Fail ... {}
   lemma InductAssign_Succ ... { reveal EqCtx(); }
-
   lemma InductBind_Fail ...  {}
   lemma InductBind_Succ ... { reveal EqCtx(); }
+  lemma InductExprs_Nil ... {}
+  lemma InductExprs_Cons ... {}
 }
