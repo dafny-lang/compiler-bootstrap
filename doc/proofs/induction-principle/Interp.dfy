@@ -28,19 +28,21 @@ module Interp {
       case Literal(n) =>
         Success((n, ctx))
 
-      case Bind(bvar, bval, body) =>
-        var (bvalv, ctx1) :- InterpExpr(bval, ctx);
-        var ctx2 := ctx1[bvar := bvalv];
+      case Bind(bvars, bvals, body) =>
+        var (vs, ctx1) :- InterpExprs(bvals, ctx);
+        var bindings := VarsAndValuesToContext(bvars, vs);
+        var ctx2 := ctx1 + bindings;
         var (bodyv, ctx3) :- InterpExpr(body, ctx2);
-        var ctx4 := ctx1 + (ctx3 - {bvar});
+        var ctx4 := ctx1 + (ctx3 - (set x | x in bvars));
         Success((bodyv, ctx4))
 
-      case Assign(avar, aval) =>
-        var (v, ctx1) :- InterpExpr(aval, ctx);
-        // We could check that `avar in ctx1.Keys`, but if we do so the assignment we
+      case Assign(avars, avals) =>
+        var (vs, ctx1) :- InterpExprs(avals, ctx);
+        // We could check that `avars <= ctx1.Keys`, but if we do so the assignment we
         // do here is not the same as for ``Bind`` (and may fail) which is annoying
         // for the proofs.
-        Success((0, ctx1[avar := v]))
+        var bindings := VarsAndValuesToContext(avars, vs);
+        Success((0, ctx1 + bindings))
 
       case If(cond, thn, els) =>
         var (condv, ctx_cond) :- InterpExpr(cond, ctx);
@@ -70,5 +72,14 @@ module Interp {
       var (v, ctx1) :- InterpExpr(es[0], ctx);
       var (vs, ctx2) :- InterpExprs(es[1..], ctx1);
       Success(([v] + vs, ctx2))
+  }
+
+  function method VarsAndValuesToContext(vars: seq<string>, values: seq<int>): (ctx:Context)
+    requires |vars| == |values|
+    ensures ctx.Keys == set x | x in vars
+  {
+    if vars == [] then map []
+    else
+      map [vars[0] := values[0]] + VarsAndValuesToContext(vars[1..], values[1..])
   }
 }

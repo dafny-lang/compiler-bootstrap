@@ -27,15 +27,16 @@ module PureNoInductionPrinciple {
       case Var(name) =>
       case Literal(n) =>
 
-      case Bind(bvar, bval, body) =>
-        var res1 := InterpExpr(bval, ctx); // Manual introduction
-        InterpExpr_Pure(bval, ctx, locals); // Recursive call
+      case Bind(bvars, bvals, body) =>
+        var res1 := InterpExprs(bvals, ctx); // Manual introduction
+
+        InterpExprs_Pure(bvals, ctx, locals); // Recursive call
 
         if res1.Success? { // Manual introduction
-          var (bvalv, ctx1) := res1.value; // Manual introduction
-
-          var ctx2 := ctx1[bvar := bvalv]; // Manual introduction
-          var locals' := {bvar} + locals; // Manual introduction
+          var (vs, ctx1) := res1.value; // Manual introduction
+          var bindings := VarsAndValuesToContext(bvars, vs); // Manual introduction
+          var ctx2 := ctx1 + bindings; // Manual introduction
+          var locals' := (set x | x in bvars) + locals;
 
           // Below: pay attention to the arguments (`locals'`, `ctx2` for instance)!
           InterpExpr_Pure(body, ctx2, locals'); // Recursive call
@@ -53,8 +54,8 @@ module PureNoInductionPrinciple {
         }
         else {}
 
-      case Assign(avar, aval) =>
-        InterpExpr_Pure(aval, ctx, locals); // Recursive call
+      case Assign(avars, avals) =>
+        InterpExprs_Pure(avals, ctx, locals); // Recursive call
 
       case If(cond, thn, els) =>
         var res1 := InterpExpr(cond, ctx); // Manual introduction

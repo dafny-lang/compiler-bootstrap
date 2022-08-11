@@ -18,13 +18,11 @@ module Pure refines Induction {
     match e
       case Var(name) => true
       case Literal(n) => true
-      case Bind(bvar, bval, body) =>
-        IsPure(bval, locals)
-        // Fun fact: depending on whether we write `{bvar} + locals` or
-        // `locals + {bvar}`, we change which proof obligations need help.
-        && IsPure(body, {bvar} + locals)
-      case Assign(avar, aval) =>
-        avar in locals && IsPure(aval, locals)
+      case Bind(bvars, bvals, body) =>
+        IsPure_Es(bvals, locals)
+        && IsPure(body, (set x | x in bvars) + locals)
+      case Assign(avars, avals) =>
+        (forall x | x in avars :: x in locals) && IsPure_Es(avals, locals)
       case If(cond, thn, els) =>
         && IsPure(cond, locals)
         && IsPure(thn, locals)
@@ -147,10 +145,16 @@ module Pure refines Induction {
     vs[|vs| - 1]
   }
 
+  predicate UpdateState_Pre ...
+  {
+    && |vars| == |argvs|
+  }
+
   function AssignState ...
   {
     var MState(x, ctx) := st;
-    var ctx1 := ctx[v := val];
+    var bindings := VarsAndValuesToContext(vars, vals);
+    var ctx1 := ctx + bindings;
     var st' := MState(x, ctx1);
     st'
   }
@@ -158,8 +162,9 @@ module Pure refines Induction {
   function BindStartScope ...
   {
     var MState(locals, ctx) := st;
-    var locals' := {v} + locals;
-    var ctx1 := ctx[v := val];
+    var locals' := (set x | x in vars) + locals;
+    var bindings := VarsAndValuesToContext(vars, vals);
+    var ctx1 := ctx + bindings;
     var st' := MState(locals', ctx1);
     st'
   }
@@ -168,7 +173,7 @@ module Pure refines Induction {
   {
     var MState(x0, ctx0) := st0;
     var MState(x, ctx) := st;
-    var ctx1 := ctx0 + (ctx - {v});
+    var ctx1 := ctx0 + (ctx - (set x | x in vars));
     var st' := MState(x0, ctx1);
     st'
   }

@@ -31,19 +31,24 @@ module EliminateMulZero refines Induction {
   {
     match e
       case Var(name) => e
+
       case Literal(n) => e
-      case Bind(bvar, bval, body) =>
-        var bval' := Eliminate(bval);
+
+      case Bind(bvars, bvals, body) =>
+        var bvals' := Eliminate_Es(bvals);
         var body' := Eliminate(body);
-        Bind(bvar, bval', body')
-      case Assign(avar, aval) =>
-        var aval' := Eliminate(aval);
-        Assign(avar, aval')
+        Bind(bvars, bvals', body')
+
+      case Assign(avars, avals) =>
+        var avals' := Eliminate_Es(avals);
+        Assign(avars, avals')
+
       case If(cond, thn, els) =>
         var cond' := Eliminate(cond);
         var thn' := Eliminate(thn);
         var els' := Eliminate(els);
         If(cond', thn', els')
+
       case Op(op, oe1, oe2) =>
         var oe1' := Eliminate(oe1);
         var oe2' := Eliminate(oe2);
@@ -51,8 +56,10 @@ module EliminateMulZero refines Induction {
           ZeroExpr
         else
           Op(op, oe1', oe2')
+
       case Seq(es) =>
-        Seq(Eliminate_Es(es))
+        var es' := Eliminate_Es(es);
+        Seq(es')
   }
 
   function method Eliminate_Es(es: seq<Expr>): (es':seq<Expr>)
@@ -159,10 +166,16 @@ module EliminateMulZero refines Induction {
     && res.Failure?
   }
 
+  predicate UpdateState_Pre ...
+  {
+    && |vars| == |argvs|
+  }
+
   function AssignState ...
   {
     var ctx := st;
-    var ctx1 := ctx[v := val];
+    var bindings := VarsAndValuesToContext(vars, vals);
+    var ctx1 := ctx + bindings;
     var st' := ctx1;
     st'
   }
@@ -170,7 +183,8 @@ module EliminateMulZero refines Induction {
   function BindStartScope ...
   {
     var ctx := st;
-    var ctx1 := ctx[v := val];
+    var bindings := VarsAndValuesToContext(vars, vals);
+    var ctx1 := ctx + bindings;
     var st' := ctx1;
     st'
   }
@@ -179,7 +193,7 @@ module EliminateMulZero refines Induction {
   {
     var ctx0 := st0;
     var ctx := st;
-    var ctx1 := ctx0 + (ctx - {v});
+    var ctx1 := ctx0 + (ctx - (set x | x in vars));
     var st' := ctx1;
     st'
   }
@@ -208,11 +222,11 @@ module EliminateMulZero refines Induction {
 
   lemma IsZeroMulPure_Implies_EvalsToZero_Forall()
     ensures
-      forall e1, e2, ctx | IsZeroMulPure(e1, e2) ::
+      forall e1:Expr, e2:Expr, ctx | IsZeroMulPure(e1, e2) ::
       var res := InterpExpr(Op(Mul, e1, e2), ctx);
       res.Success? ==> res.value == (Zero, ctx)
   {
-    forall e1, e2, ctx | IsZeroMulPure(e1, e2)
+    forall e1:Expr, e2:Expr, ctx | IsZeroMulPure(e1, e2)
       ensures
       var res := InterpExpr(Op(Mul, e1, e2), ctx);
       res.Success? ==> res.value == (Zero, ctx)

@@ -131,28 +131,52 @@ module Equiv refines Induction {
     MValue(v, v')
   }
 
+  predicate UpdateState_Pre ...
+  {
+    && Inv(st)
+    && |vars| == |argvs.vs| == |argvs.vs'|
+    && EqSeqValue(argvs.vs, argvs.vs')
+  }
+
+  lemma VarsAndValuesToContext_Eq(vars: seq<string>, vs: seq<int>, vs': seq<int>)
+    requires |vars| == |vs| == |vs'|
+    requires EqSeqValue(vs, vs')
+    ensures
+      var bindings := VarsAndValuesToContext(vars, vs);
+      var bindings' := VarsAndValuesToContext(vars, vs');
+      EqCtx(bindings, bindings')
+  {
+    reveal EqCtx();
+
+    if vars == [] {}
+    else {
+      VarsAndValuesToContext_Eq(vars[1..], vs[1..], vs'[1..]);
+    }
+  }
+
   function AssignState ...
-    ensures Inv(st) && EqValue(val.v, val.v') ==> Inv(st')
+    ensures Inv(st')
   {
     var MState(ctx, ctx') := st;
-    var ctx1 := ctx[v := val.v];
-    var ctx1' := ctx'[v := val.v'];
+    var bindings := VarsAndValuesToContext(vars, vals.vs);
+    var bindings' := VarsAndValuesToContext(vars, vals.vs');
+    var ctx1 := ctx + bindings;
+    var ctx1' := ctx' + bindings';
     var st' := MState(ctx1, ctx1');
 
-    var b := Inv(st) && EqValue(val.v, val.v');
-    assert b ==> Inv(st') by {
-      if b {
-        reveal EqCtx();
-      }
+    assert Inv(st') by {
+      VarsAndValuesToContext_Eq(vars, vals.vs, vals.vs');
+      assert EqCtx(bindings, bindings');
+      reveal EqCtx();
     }
 
     st'
   }
 
   function BindStartScope ...
-    ensures Inv(st) && EqValue(val.v, val.v') ==> Inv(st')
+    ensures Inv(st')
   {
-    AssignState(st, v, val)
+    AssignState(st, vars, vals)
   }
 
   function BindEndScope ...
@@ -160,8 +184,8 @@ module Equiv refines Induction {
   {
     var MState(ctx0, ctx0') := st0;
     var MState(ctx, ctx') := st;
-    var ctx1 := ctx0 + (ctx - {v});
-    var ctx1' := ctx0' + (ctx' - {v});
+    var ctx1 := ctx0 + (ctx - (set x | x in vars));
+    var ctx1' := ctx0' + (ctx' - (set x | x in vars));
     var st' := MState(ctx1, ctx1');
 
     var b := Inv(st0) && Inv(st);
