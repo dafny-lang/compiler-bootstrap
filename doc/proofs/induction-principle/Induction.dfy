@@ -45,16 +45,20 @@ abstract module Induction {
   function VS_Last(vs: VS): V
     requires vs != NilVS
 
+  predicate UpdateState_Pre(st: S, vars: seq<string>, argvs: VS)
+
   // For the ``Assign`` case
-  function AssignState(st: S, v: string, val: V): (st':S)
+  function AssignState(st: S, vars: seq<string>, vals: VS): (st':S)
+    requires UpdateState_Pre(st, vars, vals)
 
   // For the ``Bind`` case
-  function BindStartScope(st: S, v: string, val: V): (st':S)
+  function BindStartScope(st: S, vars: seq<string>, vals: VS): (st':S)
+    requires UpdateState_Pre(st, vars, vals)
 
   // For ``Bind``: used to remove from the context the variables introduced by the bind, while
   // preserving the mutation. `st0` is the state just before we introduce the let-bounded variables,
   // `st1 is the state resulting from evaluating the body.
-  function BindEndScope(st0: S, st: S, v: string): (st':S)
+  function BindEndScope(st0: S, st: S, vars: seq<string>): (st':S)
 
   function P_Step(st: S, e: Expr): (res: (S, V))
     requires P(st, e)
@@ -130,41 +134,45 @@ abstract module Induction {
     requires Pes_Succ(st, es, st1, vs)
     ensures P(st, e)
 
-  lemma InductAssign_Fail(st: S, e: Expr, avar: string, aval: Expr)
-    requires e.Assign? && e.avar == avar && e.aval == aval
+  lemma InductAssign_Fail(st: S, e: Expr, avars: seq<string>, avals: seq<Expr>)
+    requires e.Assign? && e.avars == avars && e.avals == avals
     requires !P_Fail(st, e)
-    requires P(st, aval)
-    ensures !P_Fail(st, aval)
+    requires Pes(st, avals)
+    ensures !Pes_Fail(st, avals)
+    ensures forall st1, vs | Pes_Succ(st, avals, st1, vs) :: UpdateState_Pre(st1, avars, vs)
 
   lemma InductAssign_Succ(
-    st: S, e: Expr, avar: string, aval: Expr, st1: S, value: V, st2: S)
-    requires e.Assign? && e.avar == avar && e.aval == aval
+    st: S, e: Expr, avars: seq<string>, avals: seq<Expr>, st1: S, vs: VS, st2: S)
+    requires e.Assign? && e.avars == avars && e.avals == avals
     requires !P_Fail(st, e)
-    requires P_Succ(st, aval, st1, value)
-    requires st2 == AssignState(st1, avar, value)
+    requires Pes_Succ(st, avals, st1, vs)
+    requires UpdateState_Pre(st1, avars, vs)
+    requires st2 == AssignState(st1, avars, vs)
     // This post is not necessary: what matters is that ``AssignState`` appears somewhere,
     // but it may help Z3.
     ensures P_Succ(st, e, st2, Zero)
     ensures P(st, e)
 
-  lemma InductBind_Fail(st: S, e: Expr, bvar: string, bval: Expr, body: Expr)
-    requires e.Bind? && e.bvar == bvar && e.bval == bval && e.body == body
+  lemma InductBind_Fail(st: S, e: Expr, bvars: seq<string>, bvals: seq<Expr>, body: Expr)
+    requires e.Bind? && e.bvars == bvars && e.bvals == bvals && e.body == body
     requires !P_Fail(st, e)
-    requires P(st, bval)
-    ensures !P_Fail(st, bval)
+    requires Pes(st, bvals)
+    ensures !Pes_Fail(st, bvals)
     ensures
-      forall st1, val | P_Succ(st, bval, st1, val) ::
-      && !P_Fail(BindStartScope(st1, bvar, val), body)
+      forall st1, vs | Pes_Succ(st, bvals, st1, vs) ::
+      && UpdateState_Pre(st1, bvars, vs)
+      && !P_Fail(BindStartScope(st1, bvars, vs), body)
 
   lemma InductBind_Succ(
-    st: S, e: Expr, bvar: string, bval: Expr, body: Expr,
-    st1: S, bvarv: V, st2: S, st3: S, v: V, st4: S)
-    requires e.Bind? && e.bvar == bvar && e.bval == bval && e.body == body
+    st: S, e: Expr, bvars: seq<string>, bvals: seq<Expr>, body: Expr,
+    st1: S, bvarvs: VS, st2: S, st3: S, v: V, st4: S)
+    requires e.Bind? && e.bvars == bvars && e.bvals == bvals && e.body == body
     requires !P_Fail(st, e)
-    requires P_Succ(st, bval, st1, bvarv)
-    requires st2 == BindStartScope(st1, bvar, bvarv)
+    requires Pes_Succ(st, bvals, st1, bvarvs)
+    requires UpdateState_Pre(st1, bvars, bvarvs)
+    requires st2 == BindStartScope(st1, bvars, bvarvs)
     requires P_Succ(st2, body, st3, v)
-    requires st4 == BindEndScope(st1, st3, bvar) // ``StateBindEndScope`` may have a postcondition, so it's good to have it
+    requires st4 == BindEndScope(st1, st3, bvars) // ``StateBindEndScope`` may have a postcondition, so it's good to have it
     ensures P_Succ(st, e, st4, v)
 
   lemma InductExprs_Nil(st: S)
@@ -241,30 +249,31 @@ abstract module Induction {
 
         InductIf_Succ(st, e, cond, thn, els, st_cond, condv);
 
-      case Assign(avar, aval) =>
+      case Assign(avars, avals) =>
         // Recursion
-        P_Satisfied(st, aval);
+        Pes_Satisfied(st, avals);
 
-        assert !P_Fail(st, aval) by { InductAssign_Fail(st, e, avar, aval); }
-        var (st1, value) := P_Step(st, aval);
+        assert !Pes_Fail(st, avals) by { InductAssign_Fail(st, e, avars, avals); }
+        var (st1, vs) := Pes_Step(st, avals);
 
-        var st2 := AssignState(st1, avar, value);
-        InductAssign_Succ(st, e, avar, aval, st1, value, st2);
+        assert UpdateState_Pre(st1, avars, vs) by { InductAssign_Fail(st, e, avars, avals); }
+        var st2 := AssignState(st1, avars, vs);
+        InductAssign_Succ(st, e, avars, avals, st1, vs, st2);
 
-      case Bind(bvar, bval, body) =>
+      case Bind(bvars, bvals, body) =>
+        Pes_Satisfied(st, bvals); // Recursion
+        assert !Pes_Fail(st, bvals) by { InductBind_Fail(st, e, bvars, bvals, body); }
+        var (st1, bvarvs) := Pes_Step(st, bvals);
 
-        P_Satisfied(st, bval); // Recursion
-        assert !P_Fail(st, bval) by { InductBind_Fail(st, e, bvar, bval, body); }
-        var (st1, bvarv) := P_Step(st, bval);
-
-        var st2 := BindStartScope(st1, bvar, bvarv);
+        assert UpdateState_Pre(st1, bvars, bvarvs) by { InductBind_Fail(st, e, bvars, bvals, body); }
+        var st2 := BindStartScope(st1, bvars, bvarvs);
         P_Satisfied(st2, body); // Recursion
-        assert !P_Fail(st2, body) by { InductBind_Fail(st, e, bvar, bval, body); }
+        assert !P_Fail(st2, body) by { InductBind_Fail(st, e, bvars, bvals, body); }
 
         var (st3, v) := P_Step(st2, body);
-        var st4 := BindEndScope(st1, st3, bvar);
+        var st4 := BindEndScope(st1, st3, bvars);
 
-        InductBind_Succ(st, e, bvar, bval, body, st1, bvarv, st2, st3, v, st4);
+        InductBind_Succ(st, e, bvars, bvals, body, st1, bvarvs, st2, st3, v, st4);
         P_Succ_Sound(st, e, st4, v);
     }
   }

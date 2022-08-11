@@ -12,15 +12,13 @@ module PureNoInductionPrinciple {
   import opened Interp
   import Pure
 
-  const IsPure_WithLocals: (set<string>, Expr) -> bool := Pure.IsPure_WithLocals
-
   predicate ResultSameCtx<V>(locals: set<string>, ctx: Context, res: Result<(V,Context)>)
   {
     Pure.ResultSameCtx(locals, ctx, res)
   }
 
   lemma InterpExpr_Pure_WithLocals(e: Expr, locals: set<string>, ctx: Context)
-    requires IsPure_WithLocals(locals, e)
+    requires Pure.IsPure_WithLocals(locals, e)
     requires ctx.Keys >= locals
     ensures ResultSameCtx(locals, ctx, InterpExpr(e, ctx))
     decreases e, 1
@@ -29,15 +27,16 @@ module PureNoInductionPrinciple {
       case Var(name) =>
       case Literal(n) =>
 
-      case Bind(bvar, bval, body) =>
-        var res1 := InterpExpr(bval, ctx); // Manual introduction
-        InterpExpr_Pure_WithLocals(bval, locals, ctx); // Recursive call
+      case Bind(bvars, bvals, body) =>
+        var res1 := InterpExprs(bvals, ctx); // Manual introduction
+
+        InterpExprs_Pure_WithLocals(bvals, locals, ctx); // Recursive call
 
         if res1.Success? { // Manual introduction
-          var (bvalv, ctx1) := res1.value; // Manual introduction
-
-          var ctx2 := ctx1[bvar := bvalv]; // Manual introduction
-          var locals' := {bvar} + locals; // Manual introduction
+          var (vs, ctx1) := res1.value; // Manual introduction
+          var bindings := VarsAndValuesToContext(bvars, vs); // Manual introduction
+          var ctx2 := ctx1 + bindings; // Manual introduction
+          var locals' := (set x | x in bvars) + locals;
 
           // Below: pay attention to the arguments (`locals'`, `ctx2` for instance)!
           InterpExpr_Pure_WithLocals(body, locals', ctx2); // Recursive call
@@ -55,8 +54,8 @@ module PureNoInductionPrinciple {
         }
         else {}
 
-      case Assign(avar, aval) =>
-        InterpExpr_Pure_WithLocals(aval, locals, ctx); // Recursive call
+      case Assign(avars, avals) =>
+        InterpExprs_Pure_WithLocals(avals, locals, ctx); // Recursive call
 
       case If(cond, thn, els) =>
         var res1 := InterpExpr(cond, ctx); // Manual introduction

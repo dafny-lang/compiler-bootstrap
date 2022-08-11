@@ -19,19 +19,20 @@ module VarUnchanged refines Induction {
     match e
       case Var(name) => false
       case Literal(n) => false
-      case Bind(bvar, bval, body) =>
+
+      case Bind(bvars, bvals, body) =>
         // The rhs doesn't update x
-        VarUnchanged(x, bval) &&
+        (forall e:Expr_Raw | e in bvals :: VarUnchanged(x, e)) &&
         // If the binding doesn't shadow x, the body of the let-binding doesn't update x
-        (bvar == x || VarUnchanged(x, body))
-      case Assign(avar, aval) =>
-        avar != x && VarUnchanged(x, aval)
+        (x in bvars || VarUnchanged(x, body))
+      case Assign(avars, avals) =>
+        x !in avars && (forall e:Expr_Raw | e in avals :: VarUnchanged(x, e))
       case If(cond, thn, els) =>
         VarUnchanged(x, cond) && VarUnchanged(x, thn) && VarUnchanged(x, els)
       case Op(op, oe1, oe2) =>
         VarUnchanged(x, oe1) && VarUnchanged(x, oe2)
       case Seq(es) =>
-        forall e | e in es :: VarUnchanged(x, e)
+        forall e:Expr_Raw | e in es :: VarUnchanged(x, e)
   }
 
   predicate ResultSameX(st: S, res: InterpResult)
@@ -139,10 +140,16 @@ module VarUnchanged refines Induction {
     vs[|vs| - 1]
   }
 
+  predicate UpdateState_Pre ...
+  {
+    && |vars| == |argvs|
+  }
+
   function AssignState ...
   {
     var MState(x, ctx) := st;
-    var ctx1 := ctx[v := val];
+    var bindings := VarsAndValuesToContext(vars, vals);
+    var ctx1 := ctx + bindings;
     var st' := MState(x, ctx1);
     st'
   }
@@ -150,8 +157,9 @@ module VarUnchanged refines Induction {
   function BindStartScope ...
   {
     var MState(x, ctx) := st;
-    var x' := if x.Some? && x.value == v then None else x;
-    var ctx1 := ctx[v := val];
+    var x' := if x.Some? && x.value in vars then None else x;
+    var bindings := VarsAndValuesToContext(vars, vals);
+    var ctx1 := ctx + bindings;
     var st' := MState(x', ctx1);
     st'
   }
@@ -160,7 +168,7 @@ module VarUnchanged refines Induction {
   {
     var MState(x0, ctx0) := st0;
     var MState(x, ctx) := st;
-    var ctx1 := ctx0 + (ctx - {v});
+    var ctx1 := ctx0 + (ctx - (set x | x in vars));
     var st' := MState(x0, ctx1);
     st'
   }
