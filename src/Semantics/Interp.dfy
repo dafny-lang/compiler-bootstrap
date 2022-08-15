@@ -86,12 +86,10 @@ module Bootstrap.Semantics.Interp {
         && ValueHasEq(v)
         && (forall x | x in st :: WellFormedEqValue(x))
       case Closure(ctx, vars, body) =>
-        // TODO(SMH): is that enough?
         && (forall x | x in ctx.Values :: WellFormedEqValue(x))
     }
   }
 
-  // TODO(SMH): rename to ValueHasEq
   predicate method ValueHasEq(v: V.T)
   // Return true if the value supports a decidale equality.
   //
@@ -172,7 +170,6 @@ module Bootstrap.Semantics.Interp {
     }
   }
 
-  // TODO(SMH): `locals` may not be an appropriate name.
   datatype State =
     State(locals: Context := map[], rollback: Context := map[])
   {
