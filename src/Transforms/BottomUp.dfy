@@ -204,7 +204,8 @@ module Bootstrap.Transforms.BottomUp {
         assert Exprs.ConstructorsMatch(e, e');
         e'
       case Block(exprs) =>
-        var exprs' := Seq.Map(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
         Map_All_IsMap(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
         var e' := Expr.Block(exprs');
         assert Exprs.ConstructorsMatch(e, e');
@@ -213,14 +214,16 @@ module Bootstrap.Transforms.BottomUp {
         var ovals' :=
           match ovals {
             case Some(vals) =>
+              Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
               Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
-              Exprs.Some(Seq.Map(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals))
+              Exprs.Some(Seq.Map(e requires e in vals => Map_Expr(e, tr), vals))
             case None => Exprs.None
           };
         var e' := Expr.VarDecl(vdecls, ovals');
         e'
       case Update(vars, vals) =>
-        var vals' := Seq.Map(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
+        var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
+        Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
         var e' := Expr.Update(vars, vals');
         e'
