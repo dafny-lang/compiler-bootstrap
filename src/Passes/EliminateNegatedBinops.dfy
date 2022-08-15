@@ -122,8 +122,8 @@ module Bootstrap.Passes.EliminateNegatedBinops {
           false)
   {
     reveal InterpBinaryOp();
-    EqValue_HasEqValue_Eq(v0, v0');
-    EqValue_HasEqValue_Eq(v1, v1');
+    EqValue_ValueHasEq_Eq(v0, v0');
+    EqValue_ValueHasEq_Eq(v1, v1');
   }
 
   lemma FlipNegatedBinop_Single_Rel(op: BinaryOp, args: seq<Expr>)

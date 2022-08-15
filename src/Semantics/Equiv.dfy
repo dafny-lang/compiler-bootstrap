@@ -311,8 +311,8 @@ module Bootstrap.Semantics.Equiv {
 
   lemma EqValueHasEq(v: WV, v': WV)
     requires EqValue(v,v')
-    requires HasEqValue(v)
-    requires HasEqValue(v')
+    requires ValueHasEq(v)
+    requires ValueHasEq(v')
     ensures v == v'
     // If values are equivalent and have a decidable equality, they are necessarily equal.
   {
@@ -320,9 +320,9 @@ module Bootstrap.Semantics.Equiv {
   }
 
   lemma EqValueHasEq_Forall()
-    ensures forall v: WV, v': WV | EqValue(v,v') && HasEqValue(v) && HasEqValue(v') :: v == v'
+    ensures forall v: WV, v': WV | EqValue(v,v') && ValueHasEq(v) && ValueHasEq(v') :: v == v'
   {
-    forall v: WV, v': WV | EqValue(v,v') && HasEqValue(v) && HasEqValue(v') ensures v == v' {
+    forall v: WV, v': WV | EqValue(v,v') && ValueHasEq(v) && ValueHasEq(v') ensures v == v' {
       EqValueHasEq(v, v');
     }
   }
@@ -533,34 +533,34 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
-  lemma {:induction v, v'} EqValue_HasEqValue(v: WV, v': WV)
+  lemma {:induction v, v'} EqValue_ValueHasEq(v: WV, v': WV)
     requires EqValue(v, v')
-    ensures HasEqValue(v) == HasEqValue(v')
+    ensures ValueHasEq(v) == ValueHasEq(v')
   {}
 
-  lemma EqValue_HasEqValue_Forall()
-    ensures forall v: WV, v': WV | EqValue(v, v') :: HasEqValue(v) == HasEqValue(v')
+  lemma EqValue_ValueHasEq_Forall()
+    ensures forall v: WV, v': WV | EqValue(v, v') :: ValueHasEq(v) == ValueHasEq(v')
   {
-    forall v: WV, v': WV | EqValue(v, v') ensures HasEqValue(v) == HasEqValue(v') {
-      EqValue_HasEqValue(v, v');
+    forall v: WV, v': WV | EqValue(v, v') ensures ValueHasEq(v) == ValueHasEq(v') {
+      EqValue_ValueHasEq(v, v');
     }
   }
 
-  lemma EqValue_HasEqValue_Eq(v: WV, v': WV)
+  lemma EqValue_ValueHasEq_Eq(v: WV, v': WV)
     requires EqValue(v, v')
-    ensures HasEqValue(v) == HasEqValue(v')
-    ensures HasEqValue(v) ==> v == v'
+    ensures ValueHasEq(v) == ValueHasEq(v')
+    ensures ValueHasEq(v) ==> v == v'
   {
-    EqValue_HasEqValue(v, v');
-    if HasEqValue(v) || HasEqValue(v') {
+    EqValue_ValueHasEq(v, v');
+    if ValueHasEq(v) || ValueHasEq(v') {
       EqValueHasEq(v, v');
     }
   }
 
-  lemma EqValue_HasEqValue_Eq_Forall()
+  lemma EqValue_ValueHasEq_Eq_Forall()
     ensures forall v:WV, v':WV | EqValue(v, v') ::
-      && (HasEqValue(v) == HasEqValue(v'))
-      && (HasEqValue(v) ==> v == v')
+      && (ValueHasEq(v) == ValueHasEq(v'))
+      && (ValueHasEq(v) ==> v == v')
     // This is one of the important lemmas for the proofs of equivalence.
     // The reason is that the interpreter often checks that some values
     // have a decidable equality (for instance, before inserting a value in
@@ -572,9 +572,9 @@ module Bootstrap.Semantics.Equiv {
   {
     forall v:WV, v':WV | EqValue(v, v')
       ensures
-      && (HasEqValue(v) == HasEqValue(v'))
-      && (HasEqValue(v) ==> v == v') {
-        EqValue_HasEqValue_Eq(v, v');
+      && (ValueHasEq(v) == ValueHasEq(v'))
+      && (ValueHasEq(v) ==> v == v') {
+        EqValue_ValueHasEq_Eq(v, v');
     }
   }
 
@@ -936,7 +936,7 @@ module Bootstrap.Semantics.Equiv {
       var res0 := PairOfMapDisplaySeq(e, argv);
       var res0' := PairOfMapDisplaySeq(e', argv');
 
-      EqValue_HasEqValue_Eq_Forall();
+      EqValue_ValueHasEq_Eq_Forall();
       if res0.Success? {
         assert res0'.Success?;
         assert EqPureInterpResult(EqPairEqValueValue, res0, res0');
@@ -969,7 +969,7 @@ module Bootstrap.Semantics.Equiv {
     var res0' := Seq.MapResult(argvs', argv => PairOfMapDisplaySeq(e', argv));
 
     Map_PairOfMapDisplaySeq(e, e', argvs, argvs');
-    EqValue_HasEqValue_Eq_Forall();
+    EqValue_ValueHasEq_Eq_Forall();
 
     match res0 {
       case Success(pairs) => {
@@ -1104,8 +1104,8 @@ module Bootstrap.Semantics.Equiv {
       case Logical(op) =>
       case Eq(op) => {
         // The proof strategy is similar to the Set case.
-        EqValue_HasEqValue_Eq(v0, v0');
-        EqValue_HasEqValue_Eq(v1, v1');
+        EqValue_ValueHasEq_Eq(v0, v0');
+        EqValue_ValueHasEq_Eq(v1, v1');
       }
       case Char(op) =>
       case Sets(op) => {
@@ -1122,14 +1122,14 @@ module Bootstrap.Semantics.Equiv {
           // - or they don't, in which case the evaluation fails.
           // Of course, we need to prove that v0 has a decidable equality
           // iff v0' has one. The important results are given by the lemma below.
-          EqValue_HasEqValue_Eq(v0, v0');
+          EqValue_ValueHasEq_Eq(v0, v0');
           var retv' := res'.value;
 
           // As we assume the evaluation succeeded in the precondition, necessarily the
           // calls to ``Need`` succeeded, from which we can derive information, in particular
           // information about the equality between values, which allows us to prove the goal.
-          assert HasEqValue(v0);
-          assert HasEqValue(v0');
+          assert ValueHasEq(v0);
+          assert ValueHasEq(v0');
           assert v0 == v0';
 
           assert v1.Set?;
@@ -1157,11 +1157,11 @@ module Bootstrap.Semantics.Equiv {
       case Multisets(op) => {
         // Rem.: this proof is similar to the one for Sets
         if op.InMultiset? || op.NotInMultiset? {
-          EqValue_HasEqValue_Eq(v0, v0');
+          EqValue_ValueHasEq_Eq(v0, v0');
         }
         else if op.MultisetSelect? {
           // Rem.: this proof is similar to the one for Sets
-          EqValue_HasEqValue_Eq(v1, v1');
+          EqValue_ValueHasEq_Eq(v1, v1');
         }
         else {
           // All the remaining operations are performed between multisets.
@@ -1180,8 +1180,8 @@ module Bootstrap.Semantics.Equiv {
       }
       case Sequences(op) => {
         // Rem.: the proof strategy is given by the Sets case
-        EqValue_HasEqValue_Eq(v0, v0');
-        EqValue_HasEqValue_Eq(v1, v1');
+        EqValue_ValueHasEq_Eq(v0, v0');
+        EqValue_ValueHasEq_Eq(v1, v1');
         var retv' := res'.value;
 
         if op.SeqDrop? || op.SeqTake? {
@@ -1199,8 +1199,8 @@ module Bootstrap.Semantics.Equiv {
       }
       case Maps(op) => {
         // Rem.: the proof strategy is given by the Sets case
-        EqValue_HasEqValue_Eq(v0, v0');
-        EqValue_HasEqValue_Eq(v1, v1');
+        EqValue_ValueHasEq_Eq(v0, v0');
+        EqValue_ValueHasEq_Eq(v1, v1');
 
         var retv' := res'.value;
 
@@ -1243,10 +1243,10 @@ module Bootstrap.Semantics.Equiv {
     match top {
       case Sequences(op) => {}
       case Multisets(op) => {
-        EqValue_HasEqValue_Eq(v1, v1');
+        EqValue_ValueHasEq_Eq(v1, v1');
       }
       case Maps(op) => {
-        EqValue_HasEqValue_Eq(v1, v1');
+        EqValue_ValueHasEq_Eq(v1, v1');
       }
     }
   }
@@ -1269,9 +1269,9 @@ module Bootstrap.Semantics.Equiv {
         assert EqPureInterpResultValue(res, res');
       }
       case Multiset => {
-        EqValue_HasEqValue_Eq_Forall();
-        assert (forall i | 0 <= i < |vs| :: HasEqValue(vs[i]));
-        assert (forall i | 0 <= i < |vs| :: HasEqValue(vs'[i]));
+        EqValue_ValueHasEq_Eq_Forall();
+        assert (forall i | 0 <= i < |vs| :: ValueHasEq(vs[i]));
+        assert (forall i | 0 <= i < |vs| :: ValueHasEq(vs'[i]));
         assert (forall i | 0 <= i < |vs| :: EqValue(vs[i], vs'[i]));
         assert vs == vs';
         assert EqPureInterpResultValue(res, res');
@@ -1280,7 +1280,7 @@ module Bootstrap.Semantics.Equiv {
         assert EqPureInterpResultValue(res, res');
       }
       case Set => {
-        EqValue_HasEqValue_Eq_Forall();
+        EqValue_ValueHasEq_Eq_Forall();
         assert EqPureInterpResultValue(res, res');
       }
     }

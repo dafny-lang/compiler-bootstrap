@@ -75,15 +75,15 @@ module Bootstrap.Semantics.Interp {
       case BitVector(width, val) =>
         0 <= val < Math.IntPow(2, width)
       case Map(m) =>
-        && (forall x | x in m :: HasEqValue(x))
+        && (forall x | x in m :: ValueHasEq(x))
         && (forall x | x in m :: WellFormedEqValue(x) && WellFormedEqValue(m[x]))
       case Multiset(ms) =>
-        && HasEqValue(v)
+        && ValueHasEq(v)
         && (forall x | x in ms :: WellFormedEqValue(x))
       case Seq(sq) =>
         && (forall x | x in sq :: WellFormedEqValue(x))
       case Set(st) =>
-        && HasEqValue(v)
+        && ValueHasEq(v)
         && (forall x | x in st :: WellFormedEqValue(x))
       case Closure(ctx, vars, body) =>
         // TODO(SMH): is that enough?
@@ -92,7 +92,7 @@ module Bootstrap.Semantics.Interp {
   }
 
   // TODO(SMH): rename to ValueHasEq
-  predicate method HasEqValue(v: V.T)
+  predicate method ValueHasEq(v: V.T)
   // Return true if the value supports a decidale equality.
   //
   // Note that this is a bit subtle for collections: any empty collection supports a decidable
@@ -108,13 +108,13 @@ module Bootstrap.Semantics.Interp {
       case BigOrdinal(o) => true
       case BitVector(width, val) => true
       case Map(m) =>
-        forall x | x in m :: HasEqValue(x) && HasEqValue(m[x])
+        forall x | x in m :: ValueHasEq(x) && ValueHasEq(m[x])
       case Multiset(ms) =>
-        forall x | x in ms :: HasEqValue(x)
+        forall x | x in ms :: ValueHasEq(x)
       case Seq(sq) =>
-        forall x | x in sq :: HasEqValue(x)
+        forall x | x in sq :: ValueHasEq(x)
       case Set(st) =>
-        forall x | x in st :: HasEqValue(x)
+        forall x | x in st :: ValueHasEq(x)
       case Closure(ctx, vars, body) => false
     }
   }
@@ -142,7 +142,7 @@ module Bootstrap.Semantics.Interp {
   type Expr = e: Exprs.T | SupportsInterp(e) witness (reveal SupportsInterp(); Exprs.Literal(Exprs.LitInt(0)))
 
   // The type of well-formed values with a decidable equality
-  type EqWV = v: V.T | WellFormedValue(v) && HasEqValue(v) witness V.Bool(false)
+  type EqWV = v: V.T | WellFormedValue(v) && ValueHasEq(v) witness V.Bool(false)
 
   // DISCUSS: If we don't use this, sometimes Z3 fails to see that `V.Unit` is well-formed. It seems
   // to happen when we use nested subset types, for instance: `Success(Return(V.Unit, ctx))`.
@@ -457,7 +457,7 @@ module Bootstrap.Semantics.Interp {
   }
 
   function method {:opaque} InterpLiteral(a: Exprs.Literal) : (v: Value)
-    ensures HasEqValue(v)
+    ensures ValueHasEq(v)
   {
     match a
       case LitUnit => V.Unit
@@ -468,7 +468,7 @@ module Bootstrap.Semantics.Interp {
       case LitString(s: string, verbatim: bool) =>
         var chars := seq(|s|, i requires 0 <= i < |s| => V.Char(s[i]));
         assert forall c | c in chars :: WellFormedValue(c);
-        assert forall c | c in chars :: HasEqValue(c);
+        assert forall c | c in chars :: ValueHasEq(c);
         V.Seq(chars)
   }
 
@@ -590,8 +590,8 @@ module Bootstrap.Semantics.Interp {
       case Numeric(op) => InterpBinaryNumeric(expr, op, v0, v1)
       case Logical(op) => InterpBinaryLogical(expr, op, v0, v1)
       case Eq(op) => // FIXME which types is this Eq applicable to (vs. the type-specific ones?)
-        :- Need(HasEqValue(v0), Invalid(expr));
-        :- Need(HasEqValue(v1), Invalid(expr));
+        :- Need(ValueHasEq(v0), Invalid(expr));
+        :- Need(ValueHasEq(v1), Invalid(expr));
         match op {
           case EqCommon() => Success(V.Bool(v0 == v1))
           case NeqCommon() => Success(V.Bool(v0 != v1))
@@ -725,11 +725,11 @@ module Bootstrap.Semantics.Interp {
       case SetDifference() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
         Success(V.Set(v0.st - v1.st))
       case InSet() =>
-        :- Need(HasEqValue(v0), Invalid(expr));
+        :- Need(ValueHasEq(v0), Invalid(expr));
         :- Need(v1.Set?, Invalid(expr));
         Success(V.Bool(v0 in v1.st))
       case NotInSet() =>
-        :- Need(HasEqValue(v0), Invalid(expr));
+        :- Need(ValueHasEq(v0), Invalid(expr));
         :- Need(v1.Set?, Invalid(expr));
         Success(V.Bool(v0 !in v1.st))
   }
@@ -761,15 +761,15 @@ module Bootstrap.Semantics.Interp {
       case MultisetDifference() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
         Success(V.Multiset(v0.ms - v1.ms))
       case InMultiset() =>
-        :- Need(HasEqValue(v0), Invalid(expr));
+        :- Need(ValueHasEq(v0), Invalid(expr));
         :- Need(v1.Multiset?, Invalid(expr));
         Success(V.Bool(v0 in v1.ms))
       case NotInMultiset() =>
-        :- Need(HasEqValue(v0), Invalid(expr));
+        :- Need(ValueHasEq(v0), Invalid(expr));
         :- Need(v1.Multiset?, Invalid(expr));
         Success(V.Bool(v0 !in v1.ms))
       case MultisetSelect() =>
-        :- Need(HasEqValue(v1), Invalid(expr));
+        :- Need(ValueHasEq(v1), Invalid(expr));
         :- Need(v0.Multiset?, Invalid(expr));
         Success(V.Int(v0.ms[v1]))
   }
@@ -785,35 +785,35 @@ module Bootstrap.Semantics.Interp {
     match op
       case SeqEq() =>
         :- Need(v0.Seq? && v1.Seq?, Invalid(expr));
-        :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-        :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v0), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v1), Invalid(expr)); // We need decidable equality
         Success(V.Bool(v0.sq == v1.sq))
       case SeqNeq() =>
         :- Need(v0.Seq? && v1.Seq?, Invalid(expr));
-        :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-        :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v0), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v1), Invalid(expr)); // We need decidable equality
         Success(V.Bool(v0.sq != v1.sq))
       case Prefix() =>
         :- Need(v0.Seq? && v1.Seq?, Invalid(expr));
-        :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-        :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v0), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v1), Invalid(expr)); // We need decidable equality
         Success(V.Bool(v0.sq <= v1.sq))
       case ProperPrefix() =>
         :- Need(v0.Seq? && v1.Seq?, Invalid(expr));
-        :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-        :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v0), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v1), Invalid(expr)); // We need decidable equality
         Success(V.Bool(v0.sq < v1.sq))
       case Concat() => :- Need(v0.Seq? && v1.Seq?, Invalid(expr));
         Success(V.Seq(v0.sq + v1.sq))
       case InSeq() =>
         :- Need(v1.Seq?, Invalid(expr));
-        :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-        :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v0), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v1), Invalid(expr)); // We need decidable equality
         Success(V.Bool(v0 in v1.sq))
       case NotInSeq() =>
         :- Need(v1.Seq?, Invalid(expr));
-        :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-        :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v0), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v1), Invalid(expr)); // We need decidable equality
         Success(V.Bool(v0 !in v1.sq))
       case SeqDrop() =>
         :- NeedValidEndpoint(expr, v0, v1);
@@ -834,13 +834,13 @@ module Bootstrap.Semantics.Interp {
     match op
       case MapEq() =>
         :- Need(v0.Map? && v1.Map?, Invalid(expr));
-        :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-        :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v0), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v1), Invalid(expr)); // We need decidable equality
         Success(V.Bool(v0.m == v1.m))
       case MapNeq() =>
         :- Need(v0.Map? && v1.Map?, Invalid(expr));
-        :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-        :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v0), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v1), Invalid(expr)); // We need decidable equality
         Success(V.Bool(v0.m != v1.m))
       case MapMerge() =>
         :- Need(v0.Map? && v1.Map?, Invalid(expr));
@@ -850,15 +850,15 @@ module Bootstrap.Semantics.Interp {
         Success(V.Map(v0.m - v1.st))
       case InMap() =>
         :- Need(v1.Map?, Invalid(expr));
-        :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v0), Invalid(expr)); // We need decidable equality
         Success(V.Bool(v0 in v1.m))
       case NotInMap() =>
         :- Need(v1.Map?, Invalid(expr));
-        :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v0), Invalid(expr)); // We need decidable equality
         Success(V.Bool(v0 !in v1.m))
       case MapSelect() =>
         :- Need(v0.Map?, Invalid(expr));
-        :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v1), Invalid(expr)); // We need decidable equality
         :- Need(v1 in v0.m, OutOfMapDomain(v0, v1));
         Success(v0.m[v1])
   }
@@ -912,7 +912,7 @@ module Bootstrap.Semantics.Interp {
       case MultisetUpdate() =>
         :- Need(v0.Multiset?, Invalid(expr));
         :- Need(v2.Int? && v2.i >= 0, Invalid(expr));
-        :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v1), Invalid(expr)); // We need decidable equality
         Success(V.Multiset(v0.ms[v1 := v2.i]))
   }
 
@@ -922,7 +922,7 @@ module Bootstrap.Semantics.Interp {
     match op
       case MapUpdate() =>
         :- Need(v0.Map?, Invalid(expr));
-        :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+        :- Need(ValueHasEq(v1), Invalid(expr)); // We need decidable equality
         Success(V.Map(v0.m[v1 := v2]))
   }
 
@@ -934,14 +934,14 @@ module Bootstrap.Semantics.Interp {
         var m :- InterpMapDisplay(e, argvs);
         Success(V.Map(m))
       case Multiset() =>
-        :- Need(forall i | 0 <= i < |argvs| :: HasEqValue(argvs[i]), Invalid(e)); // The elements must have a decidable equality
+        :- Need(forall i | 0 <= i < |argvs| :: ValueHasEq(argvs[i]), Invalid(e)); // The elements must have a decidable equality
         var v := V.Multiset(multiset(argvs));
         assert WellFormedEqValue(v); // Doesn't work without this assert
         Success(v)
       case Seq() =>
         Success(V.Seq(argvs))
       case Set() =>
-        :- Need(forall x | x in argvs :: HasEqValue(x), Invalid(e)); // The elements must have a decidable equality
+        :- Need(forall x | x in argvs :: ValueHasEq(x), Invalid(e)); // The elements must have a decidable equality
         Success(V.Set(set s | s in argvs))
   }
 
@@ -956,7 +956,7 @@ module Bootstrap.Semantics.Interp {
     : PureInterpResult<(EqWV, Value)>
   {
     :- Need(argv.Seq? && |argv.sq| == 2, Invalid(e));
-    :- Need(HasEqValue(argv.sq[0]), Invalid(e));
+    :- Need(ValueHasEq(argv.sq[0]), Invalid(e));
     Success((argv.sq[0], argv.sq[1]))
   }
 
