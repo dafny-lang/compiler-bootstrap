@@ -294,6 +294,15 @@ module Bootstrap.Semantics.Equiv {
     GEqCtx(EqValue, ctx, ctx')
   }
 
+  predicate {:opaque} EqSubCtx(keys: set<string>, ctx: Context, ctx': Context)
+    requires WellFormedContext(ctx)
+    requires WellFormedContext(ctx')
+  {
+    && keys <= ctx.Keys
+    && keys <= ctx'.Keys
+    && forall x | x in keys :: EqValue(ctx[x], ctx'[x])
+  }
+
   predicate EqInterpResult<T(0)>(
     eq_value: (T,T) -> bool, res: InterpResult<T>, res': InterpResult<T>)
   {

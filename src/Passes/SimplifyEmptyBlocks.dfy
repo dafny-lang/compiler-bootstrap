@@ -215,7 +215,7 @@ module FilterEmptyBlocks {
     if es == [] {
       // Trivial
       reveal GEqCtx();
-      reveal EqScopes.Base.EqSubCtx();
+      reveal EqSubCtx();
     }
     else if |es| == 1 {
       assert es == [es[0]];
@@ -236,7 +236,7 @@ module FilterEmptyBlocks {
         }
 
         reveal GEqCtx();
-        reveal EqScopes.Base.EqSubCtx();
+        reveal EqSubCtx();
       }
       else {
         assert es' == es;
@@ -244,7 +244,7 @@ module FilterEmptyBlocks {
         InterpExpr_StateSmaller(es[0], env, ctx);
         InterpExpr_StateSmaller(es[0], env, ctx');
         reveal GEqCtx();
-        reveal EqScopes.Base.EqSubCtx();
+        reveal EqSubCtx();
       }
     }
     else {
@@ -323,7 +323,7 @@ module FilterEmptyBlocks {
 
             var ctx3 := EndScope(ctx, ctx2);
             var ctx3' := EndScope(ctx', ctx2');
-            assert EqState(ctx3, ctx3') by { reveal GEqCtx(); reveal EqScopes.Base.EqSubCtx(); }
+            assert EqState(ctx3, ctx3') by { reveal GEqCtx(); reveal EqSubCtx(); }
             reveal GEqCtx();
           }
           else {}
@@ -415,7 +415,7 @@ module InlineLastBlock {
 
     if es == [] {
       // Trivial
-      assert EqScopes.EqResultRolledValue(keys, res, res') by { reveal GEqCtx(); reveal EqScopes.Base.EqSubCtx(); }
+      assert EqScopes.EqResultRolledValue(keys, res, res') by { reveal GEqCtx(); reveal EqSubCtx(); }
     }
     else if |es| == 1 {
       if es[0].Block? {
@@ -477,7 +477,7 @@ module InlineLastBlock {
               reveal GEqCtx();
             }
 
-            reveal EqScopes.Base.EqSubCtx();
+            reveal EqSubCtx();
           }
 
           assert EqScopes.EqResultRolledValue(keys, res, res');
@@ -491,7 +491,7 @@ module InlineLastBlock {
         InterpBlock_Exprs_StateSmaller(es, env, ctx);
         InterpBlock_Exprs_StateSmaller(es, env, ctx');
         assert EqInterpResultValue(res, res');
-        assert EqScopes.EqResultRolledValue(keys, res, res') by { reveal GEqCtx(); reveal EqScopes.Base.EqSubCtx(); }
+        assert EqScopes.EqResultRolledValue(keys, res, res') by { reveal GEqCtx(); reveal EqSubCtx(); }
       }
     }
     else {
@@ -540,7 +540,7 @@ module InlineLastBlock {
 
         InlineLastBlock_Seq_Rel(es, env, keys, ctx1, ctx1');
         reveal GEqCtx();
-        reveal EqScopes.Base.EqSubCtx();
+        reveal EqSubCtx();
       }
 
       assert SupportsInterp(e');

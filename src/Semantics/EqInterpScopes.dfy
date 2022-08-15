@@ -68,15 +68,6 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
     EqCtx(ctx.rollback + outer_rollback, ctx'.rollback + outer_rollback')
   }
 
-  // TODO(SMH): move?
-  predicate {:opaque} EqSubCtx(keys: set<string>, ctx: Context, ctx': Context)
-  {
-    && keys <= ctx.Keys
-    && keys <= ctx'.Keys
-    && forall x | x in keys :: EqValue(ctx[x], ctx'[x])
-  }
-
-  // TODO(SMH): move? This is not used in this module. But this should be kept with ``EqOuterRollback``
   predicate EqRolled(keys: set<string>, ctx: State, ctx': State)
   {
     EqSubCtx(keys, ctx.locals + ctx.rollback, ctx'.locals + ctx'.rollback)
@@ -103,8 +94,6 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
     EqResult(EqSeqValue, outer_rollback, res, outer_rollback', res')
   }
 
-  // TODO(SMH): factorize with EqResult and move. The annoying thing is that functions are not curried, so it makes
-  // facorization a bit hard...
   predicate EqResultRolled<V>(eq_value: (V,V) -> bool, keys: set<string>, res: InterpResult<V>, res': InterpResult<V>)
   {
     match (res, res')

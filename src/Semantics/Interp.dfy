@@ -49,7 +49,6 @@ module Bootstrap.Semantics.Interp {
     Predicates.Deep.All_Expr(e, SupportsInterp1)
   }
 
-  // TODO(SMH): rewrite as a shallow predicate applied through ``v.All``?
   predicate method WellFormedEqValue(v: V.T)
   // This predicate gives the constrainst we need to be able to *define* our equivalence relation
   // over values and actually *use* this relation to prove equivalence properties between expressions.
@@ -62,6 +61,9 @@ module Bootstrap.Semantics.Interp {
   // The good news is that when those cases happen, we actually try to use an equality over values
   // which don't have a decidable equality: we solve the problem by forcing some subvalues to have
   // a decidable equality.
+  //
+  // Rem.: we can't rewrite this predicate with `v.All(...)` because of the `Map`case: we need
+  // `WellFormedEqValue` to also apply on the keys of the map.
   {
     match v {
       case Unit => true
