@@ -1003,7 +1003,7 @@ module Bootstrap.Semantics.Interp {
     ctx.(locals := ctx.locals - vars, rollback := ctx.rollback + save)
   }
 
-  // TODO(SMH): update this to not enforce the intermediary blocks to evaluate to `Unit`,
+  // DISCUSS: we could update this to not enforce the intermediary blocks to evaluate to `Unit`,
   // and use ``InterpExprs``. We will add a condition on ``Expr`` stating that there can't
   // be empty blocks, and will use `{ () }` as a placeholder for an empty block whenever
   // we need to use one.
@@ -1011,6 +1011,13 @@ module Bootstrap.Semantics.Interp {
   // - ``Block`` takes one single expression, controls a scope and always evaluates to unit
   // - have an equivalent of the Lisp progn
   // - keep ``Bind``
+  // DISCUSS: we could also use ``InterpExprs`` (see ``InterpExprs_Block``) but update it to have
+  // return type `(seq<Value>, Result<(), Error>)`, where the returned sequence of values is the values
+  // computed for all the expressions which *successfully* evaluated (i.e., if the result is `Fail`,
+  // this sequence could have length < |es|).
+  // This way, the fact that, say, the expression #2 failed to evaluate wouldn't prevent us from
+  // checking that the expressions of #0 and #1 evaluated to `()`, and return the proper error if
+  // it was not the case. This would also work well once we add exceptions.
   function method {:opaque} InterpBlock_Exprs(es: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
     decreases env.fuel, es, 0
