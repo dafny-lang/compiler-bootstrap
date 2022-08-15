@@ -27,10 +27,7 @@ module Bootstrap.Semantics.EqInterpRefl {
   type Expr = Interp.Expr
 
   lemma InterpBlock_Exprs_EqRefl(es: seq<Expr>, env: Environment, ctx: State, ctx': State)
-    // TODO(SMH): for some reason, using ``Seq_All`` makes some proofs fail. The weird thing is
-    // that I can then prove `Seq_All(SupportsInterp, es)` in an assertion just before the call
-    // to the lemma, but the lemma precondition keeps failing.
-    requires forall e | e in es :: SupportsInterp(e)
+    requires Seq.All<Exprs.T>(SupportsInterp, es)
     requires EqState(ctx, ctx')
     ensures EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es, env, ctx'))
   {

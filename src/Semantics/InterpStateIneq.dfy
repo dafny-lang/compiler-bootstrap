@@ -236,10 +236,6 @@ module Bootstrap.Semantics.InterpStateIneq {
   }
 
   lemma InterpBlock_Exprs_StateSmaller(es: seq<Expr>, env: Environment, ctx: State)
-    // TODO(SMH): for some reason, using ``Seq_All`` makes some proofs fail. The weird thing is
-    // that I can then prove `Seq_All(SupportsInterp, es)` in an assertion just before the call
-    // to the lemma, but the lemma precondition keeps failing.
-    requires forall e | e in es :: SupportsInterp(e)
     ensures InterpResultStateSmaller(ctx, InterpBlock_Exprs(es, env, ctx))
   {
     InterpExprs_Block_Equiv_Strong(es, env, ctx);

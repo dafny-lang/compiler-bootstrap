@@ -10,8 +10,6 @@ include "../Transforms/Shallow.dfy"
 module Bootstrap.Semantics.Equiv {
   // This module introduces the relations we use to describe values and expressions
   // as equivalent, and which we use to state that our compilation passes are sound.
-  //
-  // TODO(SMH): use ``Expr`` instead of ``Exprs.T`` and remove the requirements about ``SupportsInterp``?
 
   import Utils.Lib
   import Utils.Lib.Debug
@@ -22,17 +20,10 @@ module Bootstrap.Semantics.Equiv {
   import opened Interp
   import opened Values
 
-  type Expr = Syntax.Expr
+  type Expr = Interp.Expr
   type WV = Interp.Value // FIXME
   type EqWV = Interp.EqWV // FIXME
   type Context = Values.Context
-
-  // TODO(SMH): move
-  // TODO(SMH): it should be equivalent to use ``Seq.All`` instead, but doing so breaks proofs.
-  predicate Seq_All<T>(f: T -> bool, s: seq<T>)
-  {
-    forall x | x in s :: f(x)
-  }
 
   // We introduce ``Equivs`` because in some situations we want to make ``EqValue``
   // and ``EqState`` opaque, and we can't (at least ``EqValue`` - see the comments for
@@ -131,7 +122,7 @@ module Bootstrap.Semantics.Equiv {
     Success(val)
   }
 
-  lemma InterpCallFunctionBody_Eq_InterpFunctionCall(e: Interp.Expr, env: Environment, fn: WV, argvs: seq<WV>)
+  lemma InterpCallFunctionBody_Eq_InterpFunctionCall(e: Expr, env: Environment, fn: WV, argvs: seq<WV>)
     requires env.fuel > 0
     requires fn.Closure?
     requires |fn.vars| == |argvs|
@@ -330,8 +321,7 @@ module Bootstrap.Semantics.Equiv {
   // TODO(SMH): this should be moved to EqInterp_Refl.dfy, but is needed for the proof of EqValue_Refl,
   // which is then used in the proof of EqInterp_Refl. See the comments there about the termination
   // issues.
-  lemma InterpExpr_Refl(e: Exprs.T, env: Environment, ctx: State, ctx': State)
-    requires SupportsInterp(e)
+  lemma InterpExpr_Refl(e: Expr, env: Environment, ctx: State, ctx': State)
     requires EqState(ctx, ctx')
     ensures EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e, env, ctx'))
   {
@@ -735,7 +725,7 @@ module Bootstrap.Semantics.Equiv {
                        InterpExpr(e', env, ctx')))
   }
 
-  function Mk_EqInterp(eq: Equivs): (Expr, Expr) -> bool {
+  function Mk_EqInterp(eq: Equivs): (Exprs.T, Exprs.T) -> bool {
     (e, e') => GEqInterp(eq, e, e')
   }
 
@@ -815,7 +805,6 @@ module Bootstrap.Semantics.Equiv {
   }
 
   lemma InterpExprs1_Strong_Eq(e: Expr, env: Environment, ctx: State)
-    requires SupportsInterp(e)
     ensures forall e' | e' in [e] :: SupportsInterp(e')
     ensures EqInterpResultSeq1Value_Strong(InterpExpr(e, env, ctx), InterpExprs([e], env, ctx))
     // Auxiliary lemma: evaluating a sequence of one expression is equivalent to evaluating
@@ -840,21 +829,17 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
-  lemma EqInterp_Inst(e: Exprs.T, e': Exprs.T, env: Environment, ctx: State, ctx': State)
-    requires SupportsInterp(e)
+  lemma EqInterp_Inst(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires EqInterp(e, e')
     requires EqState(ctx, ctx')
-    ensures SupportsInterp(e')
     ensures EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e', env, ctx'))
   // We use this lemma because sometimes quantifiers are are not triggered.
   {}
 
   lemma InterpExprs_GEqInterp_Inst(
     eq: Equivs, es: seq<Expr>, es': seq<Expr>, env: Environment, ctx: State, ctx': State)
-    requires forall e | e in es :: SupportsInterp(e)
     requires All_Rel_Forall(Mk_EqInterp(eq), es, es')
     requires eq.eq_state(ctx, ctx')
-    ensures forall e | e in es' :: SupportsInterp(e)
     ensures GEqInterpResultSeq(eq, InterpExprs(es, env, ctx), InterpExprs(es', env, ctx'))
   // Auxiliary lemma: if two sequences contain equivalent expressions, evaluating those two
   // sequences in equivalent contexts leads to equivalent results.
@@ -909,10 +894,8 @@ module Bootstrap.Semantics.Equiv {
   }
 
   lemma InterpExprs_EqInterp_Inst(es: seq<Expr>, es': seq<Expr>, env: Environment, ctx: State, ctx': State)
-    requires forall e | e in es :: SupportsInterp(e)
-    requires All_Rel_Forall(EqInterp, es, es')
+    requires All_Rel_Forall<Exprs.T, Exprs.T>(EqInterp, es, es')
     requires EqState(ctx, ctx')
-    ensures forall e | e in es' :: SupportsInterp(e)
     ensures EqInterpResultSeqValue(InterpExprs(es, env, ctx), InterpExprs(es', env, ctx'))
   // Auxiliary lemma: if two sequences contain equivalent expressions, evaluating those two
   // sequences in equivalent contexts leads to equivalent results.
@@ -920,7 +903,7 @@ module Bootstrap.Semantics.Equiv {
     InterpExprs_GEqInterp_Inst(EQ(EqValue, EqState), es, es', env, ctx, ctx');
   }
 
-  lemma Map_PairOfMapDisplaySeq(e: Interp.Expr, e': Interp.Expr, argvs: seq<WV>, argvs': seq<WV>)
+  lemma Map_PairOfMapDisplaySeq(e: Expr, e': Expr, argvs: seq<WV>, argvs': seq<WV>)
     requires EqSeqValue(argvs, argvs')
     ensures EqPureInterpResult(EqSeqPairEqValueValue,
                                Seq.MapResult(argvs, argv => PairOfMapDisplaySeq(e, argv)),
@@ -962,7 +945,7 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
-  lemma InterpMapDisplay_EqArgs(e: Interp.Expr, e': Interp.Expr, argvs: seq<WV>, argvs': seq<WV>)
+  lemma InterpMapDisplay_EqArgs(e: Expr, e': Expr, argvs: seq<WV>, argvs': seq<WV>)
     requires EqSeqValue(argvs, argvs')
     ensures EqPureInterpResult(EqMapValue, InterpMapDisplay(e, argvs), InterpMapDisplay(e', argvs')) {
     var res0 := Seq.MapResult(argvs, argv => PairOfMapDisplaySeq(e, argv));
@@ -1084,7 +1067,7 @@ module Bootstrap.Semantics.Equiv {
   // TODO(SMH): we could split this lemma, whose proof is big (though straightforward),
   // but it is a bit annoying to do...
   lemma InterpBinaryOp_Eq(
-    e: Interp.Expr, e': Interp.Expr, bop: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
+    e: Expr, e': Expr, bop: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
   )
     requires !bop.BV? && !bop.Datatypes?
     requires EqValue(v0, v0')
@@ -1228,7 +1211,7 @@ module Bootstrap.Semantics.Equiv {
 
   // TODO(SMH): this proof takes ~1 minute
   lemma {:timeLimit 120} InterpTernaryOp_Eq(
-    e: Interp.Expr, e': Interp.Expr, top: TernaryOp, v0: WV, v1: WV, v2: WV, v0': WV, v1': WV, v2': WV
+    e: Expr, e': Expr, top: TernaryOp, v0: WV, v1: WV, v2: WV, v0': WV, v1': WV, v2': WV
   )
     requires EqValue(v0, v0')
     requires EqValue(v1, v1')
@@ -1252,7 +1235,7 @@ module Bootstrap.Semantics.Equiv {
   }
 
   lemma Interp_Apply_Display_EqValue(
-    e: Interp.Expr, e': Interp.Expr, kind: Types.CollectionKind, vs: seq<WV>, vs': seq<WV>
+    e: Expr, e': Expr, kind: Types.CollectionKind, vs: seq<WV>, vs': seq<WV>
   )
     requires EqSeqValue(vs, vs')
     requires InterpDisplay(e, kind, vs).Success?
@@ -1287,7 +1270,7 @@ module Bootstrap.Semantics.Equiv {
   }
 
   lemma InterpFunctionCall_EqState(
-    e: Interp.Expr, e': Interp.Expr, env: Environment, f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>)
+    e: Expr, e': Expr, env: Environment, f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>)
     requires EqValue(f, f')
     requires EqSeqValue(argvs, argvs')
     requires InterpFunctionCall(e, env, f, argvs).Success?
@@ -1330,7 +1313,7 @@ module Bootstrap.Semantics.Equiv {
     assert EqPureInterpResultValue(res, res');
   }
 
-  lemma InterpExprs_Block_Equiv_Strong(stmts: seq<Interp.Expr>, env: Environment, ctx: State)
+  lemma InterpExprs_Block_Equiv_Strong(stmts: seq<Expr>, env: Environment, ctx: State)
     // TODO(SMH): at some point I used ``EqInterpResultValue_Strong`` in the ensures (which is
     // just ``EqInterpResultValue_Strong`` specialized and inlined) but it made the `InductBlock_Succ`
     // case fail in `EqInterpRefl.dfy` and `EqInterpScopes.dfy`, for no apparent reason.

@@ -504,9 +504,7 @@ module Bootstrap.Semantics.EqInterpScopes {
     reveal InterpExprs_Block();
   }
 
-  predicate EqInterpBlockExprs_Single(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, keys: set<string>, ctx:State, ctx':State)
-    requires Seq_All(SupportsInterp, es)
-    requires Seq_All(SupportsInterp, es')
+  predicate EqInterpBlockExprs_Single(es: seq<Expr>, es': seq<Expr>, env: Environment, keys: set<string>, ctx:State, ctx':State)
     requires EqState(ctx, ctx')
     // Rem.: we need this predicate, otherwise we don't manage to guide the instantiation in ``EqInterpBlockExprs_Inst``
   {
@@ -518,21 +516,17 @@ module Bootstrap.Semantics.EqInterpScopes {
     keys <= ctx.locals.Keys + ctx.rollback.Keys
   }
 
-  predicate {:opaque} EqInterpBlockExprs(es: seq<Exprs.T>, es': seq<Exprs.T>, keys: set<string>)
+  predicate {:opaque} EqInterpBlockExprs(es: seq<Expr>, es': seq<Expr>, keys: set<string>)
   {
-    Seq_All(SupportsInterp, es) ==>
-    (&& Seq_All(SupportsInterp, es')
-     && (forall env, ctx:State, ctx':State | EqState(ctx, ctx') && StateHasKeys(ctx, keys) && StateHasKeys(ctx', keys) ::
-        EqInterpBlockExprs_Single(es, es', env, keys, ctx, ctx')))
+    (forall env, ctx:State, ctx':State | EqState(ctx, ctx') && StateHasKeys(ctx, keys) && StateHasKeys(ctx', keys) ::
+       EqInterpBlockExprs_Single(es, es', env, keys, ctx, ctx'))
   }
 
-  lemma EqInterpBlockExprs_Inst(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, keys: set<string>, ctx: State, ctx': State)
+  lemma EqInterpBlockExprs_Inst(es: seq<Expr>, es': seq<Expr>, env: Environment, keys: set<string>, ctx: State, ctx': State)
     requires EqInterpBlockExprs(es, es', keys)
-    requires Seq_All(SupportsInterp, es)
     requires EqState(ctx, ctx')
     requires StateHasKeys(ctx, keys)
     requires StateHasKeys(ctx', keys)
-    ensures Seq_All(SupportsInterp, es')
     ensures EqResultRolledValue(keys, InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es', env, ctx'))
   {
     reveal EqInterpBlockExprs();
@@ -541,9 +535,6 @@ module Bootstrap.Semantics.EqInterpScopes {
 
   lemma InterpBlock_Exprs_Eq_Append(
     e: Expr, tl: seq<Expr>, tl': seq<Expr>, env: Environment, keys: set<string>, ctx: State, ctx': State)
-    requires SupportsInterp(e)
-    requires forall e | e in tl :: SupportsInterp(e)
-    requires forall e | e in tl' :: SupportsInterp(e)
     requires EqState(ctx, ctx')
     requires StateHasKeys(ctx, keys)
     requires StateHasKeys(ctx', keys)

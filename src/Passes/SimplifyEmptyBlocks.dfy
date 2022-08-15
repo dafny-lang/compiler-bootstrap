@@ -181,7 +181,7 @@ module FilterEmptyBlocks {
   type Context = FilterCommon.Context
 
   function method FilterEmptyBlocks_Seq(es: seq<Expr>): (es': seq<Expr>)
-    ensures Seq_All(SupportsInterp, es) ==> Seq_All(SupportsInterp, es')
+    ensures Seq.All(SupportsInterp, es) ==> Seq.All(SupportsInterp, es')
     ensures |es| >= |es'|
   {
     Seq.Filter(es, IsNotEmptyBlock)
@@ -196,7 +196,7 @@ module FilterEmptyBlocks {
   }
 
   lemma FilterEmptyBlocks_Seq_Rel(es: seq<Expr>, env: Environment, keys:set<string>, ctx: State, ctx': State)
-    requires Seq_All(SupportsInterp, es)
+    requires Seq.All(SupportsInterp, es)
     requires EqState(ctx, ctx')
     requires EqScopes.StateHasKeys(ctx, keys)
     requires EqScopes.StateHasKeys(ctx', keys)
@@ -368,7 +368,7 @@ module InlineLastBlock {
   type Value = Interp.Value
 
   function method InlineLastBlock_Seq(es: seq<Expr>): (es': seq<Expr>)
-    ensures Seq_All(SupportsInterp, es) ==> Seq_All(SupportsInterp, es')
+    ensures Seq.All(SupportsInterp, es) ==> Seq.All(SupportsInterp, es')
     // If the last expression of a sequence of expressions is a block, inline its content.
     //
     // It seems easier to reason about this function if we define it in a recursive way,
@@ -382,8 +382,8 @@ module InlineLastBlock {
     // We reached the last statement: inline it if it is a block
     else if |es| == 1 then
       if es[0].Block? then
-        assert Seq_All(SupportsInterp, es) ==> SupportsInterp(es[0]);
-        assert SupportsInterp(es[0]) ==> Seq_All(SupportsInterp, es[0].stmts);
+        assert Seq.All(SupportsInterp, es) ==> SupportsInterp(es[0]);
+        assert SupportsInterp(es[0]) ==> Seq.All(SupportsInterp, es[0].stmts);
         es[0].stmts
       else
         [es[0]]
@@ -486,7 +486,7 @@ module InlineLastBlock {
       }
       else {
         assert es == es';
-        assert Seq_All(SupportsInterp, es);
+        assert Seq.All(SupportsInterp, es);
         EqRefl.InterpBlock_Exprs_EqRefl(es, env, ctx, ctx');
         InterpBlock_Exprs_StateSmaller(es, env, ctx);
         InterpBlock_Exprs_StateSmaller(es, env, ctx');

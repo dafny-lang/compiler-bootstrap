@@ -31,63 +31,6 @@ module Types {
     | Collection(finite: bool, kind: CollectionKind, eltType: Type)
     | Function(args: seq<Type>, ret: Type) // TODO
     | Class(classType: ClassType)
-  {
-    // TODO(SMH): remove?
-    predicate method NoLeftFunction()
-    {
-      match this {
-        case Unit => true
-        case Bool => true
-        case Char => true
-        case Int => true
-        case Real => true
-        case BigOrdinal => true
-        case BitVector(width: nat) => true
-        case Collection(finite: bool, kind: CollectionKind, eltType: Type) =>
-          && eltType.NoLeftFunction()
-          && match kind {
-            case Seq => true
-            case Set => true
-            case Multiset => true
-            case Map(kt) => kt.NoLeftFunction()
-          }
-        case Function(args: seq<Type>, ret: Type) => false
-        case Class(classType: ClassType) => false
-      }
-    }
-
-    // TODO(SMH): remove?
-    predicate method WellFormed() {
-      match this {
-        case Unit => true
-        case Bool => true
-        case Char => true
-        case Int => true
-        case Real => true
-        case BigOrdinal => true
-        case BitVector(width: nat) => true
-        case Collection(finite: bool, kind: CollectionKind, eltType: Type) =>
-          && eltType.WellFormed()
-          // This condition is overly restrictive: we will do the general case later.
-          // For instance, maps can contain keys which don't have a decidable equality,
-          // and sequences can contain elements which also don't have a decidable equality
-          // (in which case we don't have a decidable equality over the sequences, but it
-          // is fine).
-          && eltType.NoLeftFunction()
-          && match kind {
-            case Seq => true
-            case Set => eltType.NoLeftFunction()
-            case Multiset => eltType.NoLeftFunction()
-            case Map(kt) => kt.WellFormed() && kt.NoLeftFunction()
-          }
-        case Function(args: seq<Type>, ret: Type) =>
-          && (forall i | 0 <= i < |args| :: args[i].WellFormed())
-          && ret.WellFormed()
-        case Class(classType: ClassType) =>
-          && (forall i | 0 <= i < |classType.typeArgs| :: classType.typeArgs[i].WellFormed())
-      }
-    }
-  }
 
   type T(!new,00,==) = Type
 }
@@ -422,7 +365,7 @@ module Exprs {
       case Bind(bvars, bvals, bbody) =>
         e'.Bind? && bvars == e'.bvars && |bvals| == |e'.bvals|
       case VarDecl(vdecls, ovals) =>
-        // TODO(SMH): we might not want to check that the variable types match (there
+        // TODO(SMH): we might want not to check that the variable types are equal (there
         // may be aliases)
         e'.VarDecl? && vdecls == e'.vdecls && ovals.Some? == e'.ovals.Some? &&
         (ovals.Some? ==> |ovals.value| == |e'.ovals.value|)
