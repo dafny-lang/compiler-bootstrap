@@ -331,21 +331,4 @@ module Exprs {
 }
 
   type Expr = Exprs.T
-
-  datatype Method = Method(CompileName: string, methodBody: Exprs.T) {
-    function method Depth() : nat {
-      1 + match this {
-        case Method(CompileName, methodBody) => methodBody.Depth()
-      }
-    }
-  }
-
-  datatype Program = Program(mainMethod: Method) {
-    function method Depth() : nat {
-      1 + match this {
-        case Program(mainMethod) =>
-          mainMethod.Depth()
-      }
-    }
-  }
 }
