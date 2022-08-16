@@ -5,6 +5,7 @@ include "../Interop/CSharpDafnyASTInterop.dfy"
 include "../Utils/Library.dfy"
 include "Syntax.dfy"
 include "Predicates.dfy"
+include "Translator.Common.dfy"
 
 module Bootstrap.AST.Translator {
   import opened Utils.Lib
@@ -19,37 +20,10 @@ module Bootstrap.AST.Translator {
   import DE = Syntax.Exprs
   import DT = Syntax.Types
   import P = Predicates.Deep
-
-  datatype TranslationError =
-    | Invalid(msg: string)
-    | GhostExpr(expr: C.Expression)
-    | UnsupportedType(ty: C.Type)
-    | UnsupportedExpr(expr: C.Expression)
-    | UnsupportedStmt(stmt: C.Statement)
-    | UnsupportedMember(decl: C.MemberDecl)
-  {
-    function method ToString() : string {
-      match this
-        case Invalid(msg) =>
-          "Invalid term: " + msg
-        case GhostExpr(expr) =>
-          "Ghost expression: " + TypeConv.ObjectToString(expr)
-        case UnsupportedType(ty) =>
-          "Unsupported type: " + TypeConv.ObjectToString(ty)
-        case UnsupportedExpr(expr) =>
-          "Unsupported expression: " + TypeConv.ObjectToString(expr)
-        case UnsupportedStmt(stmt) =>
-          "Unsupported statement: " + TypeConv.ObjectToString(stmt)
-        case UnsupportedMember(decl) =>
-          "Unsupported declaration: " + TypeConv.ObjectToString(decl)
-    }
-  }
+  import opened Common
 
   type Expr = e: DE.Expr | P.All_Expr(e, DE.WellFormed)
     witness DE.Block([])
-
-  type TranslationResult<+A> =
-    Result<A, TranslationError>
 
   function method TranslateType(ty: C.Type)
     : TranslationResult<DT.Type>
