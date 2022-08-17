@@ -237,18 +237,16 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       this.(entities := entities[name := entity])
     }
 
-    function Map(f: EntityMap): Registry
-      requires Valid?()
-    {
+    function Map(f: EntityMap): Registry requires Valid?() {
       Registry(map name | name in entities :: f(entities[name]))
     }
   }
 
   type Program = p: Program_ | p.Valid?() witness Program.EMPTY()
   datatype Program_ =
-    Program(r: Registry,
-            defaultModule: Name,
-            mainMethod: Option<Name>)
+    Program(registry: Registry,
+            nameonly defaultModule: Name,
+            nameonly mainMethod: Option<Name>)
   {
     static function EMPTY(): (p: Program_) ensures p.Valid?() {
       Program(
@@ -259,16 +257,20 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     }
 
     predicate ValidDefaultModule?() {
-      r.HasKind(defaultModule, EModule)
+      registry.HasKind(defaultModule, EModule)
     }
 
     predicate ValidMainMethod?() {
-      mainMethod.Some? ==> r.HasKind(mainMethod.value, EModule)
+      mainMethod.Some? ==> registry.HasKind(mainMethod.value, EModule)
     }
 
     predicate Valid?() {
       && ValidDefaultModule?()
       && ValidMainMethod?()
+    }
+
+    function DefaultModule(): Entity requires Valid?() {
+      registry.Get(defaultModule)
     }
   }
 }

@@ -35,27 +35,25 @@ module {:options "-functionSyntax:4"} Bootstrap.Debug.Entities {
       }
     }
 
-    method DumpEntity(e: Entity, indent: string)
-      requires e.ei.name in registry.entities
-      decreases registry.SuffixesOf(e.ei.name), 0
+    method DumpEntity(name: Name, indent: string)
+      requires registry.Contains(name)
+      decreases registry.SuffixesOf(name), 0
     {
-      registry.Decreases_SuffixesOfMany(e.ei);
-      DumpEntityHeader(e.ei, indent);
+      var entity := registry.Get(name);
+      DumpEntityHeader(entity.ei, indent);
       print Subtitle("Members", indent);
-      DumpEntities(e.ei.members, indent + INDENT);
+      registry.Decreases_SuffixesOfMany(entity.ei);
+      DumpEntities(entity.ei.members, indent + INDENT);
     }
 
     method DumpEntities(names: seq<Name>, indent: string)
+      requires forall name <- names :: registry.Contains(name)
       decreases registry.SuffixesOfMany(names), 1
     {
       for i := 0 to |names| {
         var name := names[i];
-        match registry.Find(name)
-          case None =>
-            print indent, "!! Name not found:", name, "\n";
-          case Some(e) =>
-            registry.Decreases_SuffixesOf(names, name);
-            DumpEntity(e, indent);
+        registry.Decreases_SuffixesOf(names, name);
+        DumpEntity(name, indent);
         print "\n";
       }
     }
@@ -66,9 +64,13 @@ module {:options "-functionSyntax:4"} Bootstrap.Debug.Entities {
         invariant names <= registry.entities.Keys
       {
         var name :| name in names;
-        DumpEntity(registry.entities[name], indent := "");
+        DumpEntity(name, indent := "");
         names := names - {name};
       }
     }
+  }
+
+  method DumpProgram(p: Program) {
+    RegistryPrinter(p.registry).DumpEntity(p.defaultModule, indent := "");
   }
 }
