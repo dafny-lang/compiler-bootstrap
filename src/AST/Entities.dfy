@@ -69,10 +69,16 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | EDefinition
 
   type EntityInfo = e: EntityInfo_ | e.Valid?()
-    witness EntityInfo(Anonymous, attrs := [], members := [])
+    witness EntityInfo_.EMPTY()
   datatype EntityInfo_ =
     EntityInfo(name: Name, nameonly attrs: seq<Attribute>, nameonly members: seq<Name>)
   {
+    static function EMPTY(): (ei: EntityInfo_)
+      ensures ei.Valid?()
+    {
+      EntityInfo(Anonymous, attrs := [], members := [])
+    }
+
     ghost predicate Valid?() {
       forall nm <- members :: nm.ChildOf(name)
     }
@@ -112,7 +118,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   type EntityMap = f | EntityMap?(f) witness e => e
 
   type Registry = r: Registry_ | r.Valid?()
-    witness Registry(map[])
+    witness Registry_.EMPTY()
   datatype Registry_ = Registry(entities: map<Name, Entity>)
     // A collection of Dafny entities, index by name.
     //
@@ -122,6 +128,12 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     // below, along with the two recursion lemmas `Decreases_SuffixesOf` and
     // `Decreases_SuffixesOfMany`.
   {
+    static function EMPTY(): (r: Registry_)
+      ensures r.Valid?()
+    {
+      Registry(map[])
+    }
+
     ghost predicate ValidNames?() {
       forall n <- entities :: entities[n].ei.name == n
     }
