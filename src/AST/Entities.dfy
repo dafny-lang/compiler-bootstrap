@@ -134,38 +134,46 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       Registry(map[])
     }
 
-    ghost predicate ValidNames?() {
-      forall n <- entities :: entities[n].ei.name == n
+    ghost predicate ValidName??(name: Name, entity: Entity) {
+      entity.ei.name == name
     }
 
-    ghost predicate ValidParent??(n: Name) {
-      n == Anonymous || n.parent in entities
-    }
-
-    ghost predicate ValidParents?() {
-      forall n <- entities :: ValidParent??(n)
+    ghost predicate ValidParent??(name: Name) {
+      name == Anonymous || name.parent in entities
     }
 
     ghost predicate ValidMembers??(ei: EntityInfo) {
       forall m <- ei.members :: m in entities
     }
 
+    ghost predicate ValidEntry??(name: Name, e: Entity) {
+      && ValidName??(name, e)
+      && ValidParent??(name)
+      && ValidMembers??(e.ei)
+    }
+
+    ghost predicate ValidNames?() {
+      forall name <- entities :: ValidName??(name, entities[name])
+    }
+
+    ghost predicate ValidParents?() {
+      forall name <- entities :: ValidParent??(name)
+    }
+
     ghost predicate ValidMembers?() {
-      forall n <- entities :: ValidMembers??(entities[n].ei)
+      forall name <- entities :: ValidMembers??(entities[name].ei)
     }
 
     ghost predicate Valid?() {
-      && ValidNames?()
-      && ValidParents?()
-      && ValidMembers?()
+      forall name <- entities :: ValidEntry??(name, entities[name])
     }
 
-    ghost function {:opaque} SuffixesOf(name: Name): set<Name> {
-      set n <- entities | n.SuffixOf(name)
+    ghost function {:opaque} SuffixesOf(prefix: Name): set<Name> {
+      set name <- entities | name.SuffixOf(prefix)
     }
 
-    ghost function {:opaque} SuffixesOfMany(names: seq<Name>): set<Name> {
-      set n <- names, sf <- SuffixesOf(n) :: sf
+    ghost function {:opaque} SuffixesOfMany(prefixes: seq<Name>): set<Name> {
+      set prefix <- prefixes, name <- SuffixesOf(prefix) :: name
     }
 
     lemma Decreases_SuffixesOfMany(ei: EntityInfo)
@@ -176,11 +184,11 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       reveal SuffixesOfMany();
 
       assert SuffixesOfMany(ei.members) <= SuffixesOf(ei.name) by {
-        forall sf <- SuffixesOfMany(ei.members)
-          ensures sf in SuffixesOf(ei.name)
+        forall name <- SuffixesOfMany(ei.members)
+          ensures name in SuffixesOf(ei.name)
         {
-          var name: Name :| name in ei.members && sf in SuffixesOf(name);
-          Name.SuffixOf_Transitive(ei.name, name, sf);
+          var prefix: Name :| prefix in ei.members && name in SuffixesOf(prefix);
+          Name.SuffixOf_Transitive(ei.name, prefix, name);
         }
       }
 
