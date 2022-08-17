@@ -82,6 +82,12 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     ghost predicate Valid?() {
       forall nm <- members :: nm.ChildOf(name)
     }
+
+    static function Mk(name: Name): EntityInfo
+      // Construct an `EntityInfo` instance with no attributes and no members.
+    {
+      EntityInfo(name, attrs := [], members := [])
+    }
   }
 
   datatype Entity =
@@ -204,14 +210,65 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       reveal SuffixesOfMany();
     }
 
-    function Find(n: Name) : Option<Entity> {
-      if n in entities then Some(entities[n]) else None
+    predicate Contains(name: Name) {
+      name in entities
     }
 
-    function Map(f: EntityMap) : Registry
+    function Get(name: Name): Entity
+      requires Contains(name)
+    {
+      entities[name]
+    }
+
+    function Lookup(name: Name): Option<Entity> {
+      if Contains(name) then Some(Get(name)) else None
+    }
+
+    predicate HasKind(name: Name, kind: EntityKind) {
+      Contains(name) && Get(name).kind == kind
+    }
+
+    function Add(name: Name, entity: Entity): Registry
+      requires Valid?()
+      requires !Contains(name)
+      requires entity.Module?
+      requires ValidEntry??(name, entity)
+    {
+      this.(entities := entities[name := entity])
+    }
+
+    function Map(f: EntityMap): Registry
       requires Valid?()
     {
-      Registry(map n | n in entities :: f(entities[n]))
+      Registry(map name | name in entities :: f(entities[name]))
+    }
+  }
+
+  type Program = p: Program_ | p.Valid?() witness Program.EMPTY()
+  datatype Program_ =
+    Program(r: Registry,
+            defaultModule: Name,
+            mainMethod: Option<Name>)
+  {
+    static function EMPTY(): (p: Program_) ensures p.Valid?() {
+      Program(
+        Registry.EMPTY().Add(Anonymous, Entity.Module(EntityInfo.Mk(Anonymous))),
+        defaultModule := Anonymous,
+        mainMethod := None
+      )
+    }
+
+    predicate ValidDefaultModule?() {
+      r.HasKind(defaultModule, EModule)
+    }
+
+    predicate ValidMainMethod?() {
+      mainMethod.Some? ==> r.HasKind(mainMethod.value, EModule)
+    }
+
+    predicate Valid?() {
+      && ValidDefaultModule?()
+      && ValidMainMethod?()
     }
   }
 }
