@@ -41,6 +41,7 @@ module Bootstrap.Semantics.Interp {
       case Update(vars, vals) => true
       case Block(stmts) => true
       case If(cond, thn, els) => true
+      case Loop(guard, lbody) => true
     }
   }
 
@@ -185,7 +186,7 @@ module Bootstrap.Semantics.Interp {
   // FIXME many "Invalid" below should really be type errors
 
   datatype InterpError =
-    | OutOfFuel(fn: Value)
+    | OutOfFuel(e: Expr)
     | TypeError(e: Expr, value: Value, expected: Type) // TODO rule out type errors through Wf predicate?
     | Invalid(e: Expr) // TODO rule out in Wf predicate?
     | OutOfIntBounds(x: int, low: Option<int>, high: Option<int>)
@@ -197,7 +198,7 @@ module Bootstrap.Semantics.Interp {
   {
     function method ToString() : string {
       match this // TODO include values in messages
-        case OutOfFuel(fn) => "Too many function evaluations"
+        case OutOfFuel(e) => "Too many function evaluations or loop iterations"
         case TypeError(e, value, expected) => "Type mismatch"
         case Invalid(e) => "Invalid expression"
         case OutOfIntBounds(x, low, high) => "Out-of-bounds value"
@@ -343,10 +344,25 @@ module Bootstrap.Semantics.Interp {
         var Return(v, ctx2) :- InterpBlock_Exprs(stmts, env, ctx1);
         var ctx3 := EndScope(ctx, ctx2);
         Success(Return(v, ctx3))
+
       case If(cond, thn, els) =>
         var Return(condv, ctx) :- InterpExpr(cond, env, ctx);
         :- NeedType(e, condv, Type.Bool);
         if condv.b then InterpExpr(thn, env, ctx) else InterpExpr(els, env, ctx)
+
+      case Loop(guard, lbody) =>
+        // This is ``InterpLoop`` inlined. See the comments for the ``Block`` case.
+        var Return(bv, ctx1) :- InterpExpr(guard, env, ctx);
+        :- NeedType(guard, bv, Types.Bool);
+        if bv.b then
+          // Perform one iteration, then recurse with a smaller fuel
+          var Return(v, ctx2) :- InterpExpr(lbody, env, ctx1);
+          :- NeedType(lbody, v, Types.Unit);
+          :- Need(env.fuel > 0, OutOfFuel(e));
+          InterpExpr(e, env.(fuel := env.fuel - 1), ctx2)
+        else
+          // Ignore the loop
+          Success(Return(Unit, ctx))
     }
   }
 
@@ -975,7 +991,7 @@ module Bootstrap.Semantics.Interp {
     : PureInterpResult<Value>
     decreases env.fuel, e, 0
   {
-    :- Need(env.fuel > 0, OutOfFuel(fn));
+    :- Need(env.fuel > 0, OutOfFuel(e));
     :- Need(fn.Closure?, Invalid(e));
     reveal SupportsInterp();
     Predicates.Deep.AllImpliesChildren(fn.body, SupportsInterp1);
@@ -1050,18 +1066,6 @@ module Bootstrap.Semantics.Interp {
     Success(Return(v, ctx3))
   }
 
-/*  function method InterpBind(e: Expr, env: Environment, ctx: State, vars: seq<string>, vals: seq<Value>, body: Expr)
-    : InterpResult<Value>
-    requires body < e
-    requires |vars| == |vals|
-    decreases env.fuel, e, 0
-  {
-    var bodyCtx := ctx.(locals := AugmentContext(ctx.locals, vars, vals));
-    var Return(val, bodyCtx) :- InterpExpr(body, env, bodyCtx);
-    var ctx := ctx.(locals := ctx.locals + (bodyCtx.locals - set v | v in vars)); // Preserve mutation
-    Success(Return(val, ctx))
-  }*/
-
   function method {:opaque} InterpExprs_Block(es: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
     // Alternative definition for ``InterpBlock_Exprs`` based on ``InterpExprs``, and which we use
@@ -1079,6 +1083,26 @@ module Bootstrap.Semantics.Interp {
       :- Need(Seq.All((v: Value) => v.HasType(Types.Unit), vs[0..(|vs|-1)]), Invalid(Exprs.Block(es))); // TODO(SMH): TypeError requires a value...
       // Return the value the last statement evaluated to
       Success(Return(vs[|vs| - 1], ctx))
+  }
+
+  function method {:opaque} InterpLoop(e: Expr, env: Environment, ctx: State)
+    : (r: InterpResult<Value>)
+    requires e.Loop?
+    decreases env.fuel, e, 0
+  {
+    reveal SupportsInterp();
+    var Loop(guard, lbody) := e;
+    var Return(bv, ctx1) :- InterpExpr(guard, env, ctx);
+    :- NeedType(guard, bv, Types.Bool);
+    if bv.b then
+      // Perform one iteration, then recurse with a smaller fuel
+      var Return(v, ctx2) :- InterpExpr(lbody, env, ctx1);
+      :- NeedType(lbody, v, Types.Unit);
+      :- Need(env.fuel > 0, OutOfFuel(e));
+      InterpExpr(e, env.(fuel := env.fuel - 1), ctx2)
+    else
+      // Ignore the loop
+      Success(Return(Unit, ctx))
   }
 
   function method StartScope(ctx: State): State {
@@ -1132,5 +1156,14 @@ module Bootstrap.Semantics.Interp {
   {
     reveal InterpExpr();
     reveal InterpBind();
+  }
+
+  // This lemma is here for sanity purposes - see the comment for the ``Loop`` case in ``InterpExpr``
+  lemma InterpLoop_Correct(e: Expr, env: Environment, ctx: State)
+    requires e.Loop?
+    ensures InterpExpr(e, env, ctx) == InterpLoop(e, env, ctx)
+  {
+    reveal InterpExpr();
+    reveal InterpLoop();
   }
 }

@@ -94,6 +94,18 @@ module Bootstrap.Semantics.InterpStateIneq.Base refines ExprInduction {
     vs[|vs| - 1]
   }
 
+  function GetFuel ...
+  {
+    st.env.fuel
+  }
+
+  function DecreaseFuel ...
+  {
+    var env := st.env;
+    var env' := env.(fuel := env.fuel - 1);
+    st.(env := env')
+  }
+
   predicate VS_UpdateStatePre ...
   {
     && |argvs| == |vars|
@@ -216,6 +228,15 @@ module Bootstrap.Semantics.InterpStateIneq.Base refines ExprInduction {
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx);
   }
 
+  lemma InductLoop_Fail ...
+  {
+    reveal InterpExpr();
+  }
+
+  lemma InductLoop_Succ ...
+  {
+    reveal InterpExpr();
+  }
 } // end of module Bootstrap.Semantics.EqInterpRefl.Base
 
 module Bootstrap.Semantics.InterpStateIneq {

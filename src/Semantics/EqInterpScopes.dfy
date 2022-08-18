@@ -197,6 +197,18 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
     MValue(v, v')
   }
 
+  function GetFuel ...
+  {
+    st.env.fuel
+  }
+
+  function DecreaseFuel ...
+  {
+    var env := st.env;
+    var env' := env.(fuel := env.fuel - 1);
+    st.(env := env')
+  }
+
   predicate VS_UpdateStatePre ...
   {
     && |argvs.vs| == |argvs.vs'| == |vars|
@@ -441,6 +453,16 @@ module Bootstrap.Semantics.EqInterpScopes.Base refines ExprInduction {
     
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx);
     InterpExprs_Block_Equiv_Strong(stmts, st.env, st_start.ctx');
+  }
+
+  lemma InductLoop_Fail ...
+  {
+    reveal InterpExpr();
+  }
+
+  lemma InductLoop_Succ ...
+  {
+    reveal InterpExpr();
   }
 
 } // end of module Bootstrap.Semantics.EqInterpScopes.Base

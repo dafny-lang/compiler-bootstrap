@@ -51,6 +51,7 @@ module Bootstrap.Semantics.Pure {
       case Bind(_, _, _) => true
       case Update(_, _) => false
       case If(_, _, _) => true
+      case Loop(_, _) => false // We could make it true, but there is no way this terminates if it is pure (unless the guard always evalutes to false)
   }
 
   predicate method {:opaque} IsPure(e: Syntax.Expr) {
@@ -89,6 +90,8 @@ module Bootstrap.Semantics.Pure {
       case If(cond, thn, els) =>
         InterpExpr_If_IsPure_SameState(e, env, ctx);
       case Update(_, _) =>
+        assert false; // Impossible branch
+      case Loop(_, _) =>
         assert false; // Impossible branch
   }
 

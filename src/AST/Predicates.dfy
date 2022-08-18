@@ -106,6 +106,8 @@ abstract module Base {
           && Seq.All((e requires e in vals => All_Expr(e, P)), vals)
         case If(cond, thn, els) =>
           All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
+        case Loop(guard, lbody) =>
+          All_Expr(guard, P) && All_Expr(lbody, P)
       }
     }
 
@@ -127,6 +129,8 @@ abstract module Base {
           && Seq.All((e requires e in vals => All_Expr(e, P)), vals)
         case If(cond, thn, els) =>
           All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
+        case Loop(guard, lbody) =>
+          All_Expr(guard, P) && All_Expr(lbody, P)
       }
     }
 

@@ -212,6 +212,7 @@ module Exprs {
     // this definition.
     | Update(vars: seq<string>, vals: seq<Expr>)
     | If(cond: Expr, thn: Expr, els: Expr) // DISCUSS: Lazy op node?
+    | Loop(guard: Expr, lbody: Expr)
   {
     function method Depth() : nat {
       1 + match this {
@@ -240,6 +241,8 @@ module Exprs {
           Seq.MaxF(var f := (e: Expr) requires e in vals => e.Depth(); f, vals, 0)
         case If(cond, thn, els) =>
           Math.Max(cond.Depth(), Math.Max(thn.Depth(), els.Depth()))
+        case Loop(guard, lbody) =>
+          Math.Max(guard.Depth(), lbody.Depth())
       }
     }
 
@@ -260,6 +263,7 @@ module Exprs {
           }
         case Update(vars, vals) => vals
         case If(cond, thn, els) => [cond, thn, els]
+        case Loop(guard, lbody) => [guard, lbody]
       }
     }
 
@@ -280,6 +284,7 @@ module Exprs {
           }
         case Update(vars, vals) => Exprs_Size(vals)
         case If(cond, thn, els) => cond.Size() + thn.Size() + els.Size()
+        case Loop(guard, lbody) => guard.Size() + lbody.Size()
       }
     }
 
@@ -371,6 +376,8 @@ module Exprs {
         (ovals.Some? ==> |ovals.value| == |e'.ovals.value|)
       case Update(vars, vals) =>
         e'.Update? && vars == e'.vars && |vals| == |e'.vals|
+      case Loop(guard, lbody) =>
+        e'.Loop?
     }
   }
 

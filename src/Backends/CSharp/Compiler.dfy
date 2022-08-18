@@ -245,6 +245,8 @@ module Compiler {
                       Str("} else {"),
                       SepSeq(Lib.Datatypes.None, [Str("  "), cEls]),
                       Str("}")])
+      case Loop(guard, lbody) =>
+        Unsupported
     }
   }
 

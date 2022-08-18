@@ -142,6 +142,12 @@ abstract module Bootstrap.Semantics.ExprInduction {
   function StateStartScope(st: S): (st':S)
   function StateEndScope(st0: S, st: S): (st':S)
 
+  // For the loops
+  function GetFuel(st: S): (f:nat)
+  function DecreaseFuel(st: S): (st':S)
+    requires GetFuel(st) > 0
+    ensures GetFuel(st') < GetFuel(st)
+
   // DISCUSS: can't write the postcondition on ``NilVS``, hence this auxiliary function
   function GetNilVS(): (vs:VS)
     ensures vs == SeqVToVS([])
@@ -157,6 +163,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires P(st, e)
     requires !P_Fail(st, e)
     ensures P_Succ(st, e, res.0, res.1)
+    ensures GetFuel(res.0) <= GetFuel(st)
 
   function P_StepState(st: S, e: Expr): S
     requires P(st, e)
@@ -176,6 +183,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires Pes(st, es)
     requires !Pes_Fail(st, es)
     ensures Pes_Succ(st, es, res.0, res.1)
+    ensures GetFuel(res.0) <= GetFuel(st)
 
   function Pes_StepState(st: S, es: seq<Expr>): S
     requires Pes(st, es)
@@ -433,6 +441,33 @@ abstract module Bootstrap.Semantics.ExprInduction {
     requires st_end == StateEndScope(st, st_stmts)
     ensures P_Succ(st, e, st_end, vf)
 
+  lemma InductLoop_Fail(st: S, e: Expr, guard: Expr, lbody: Expr)
+    requires e.Loop? && e.guard == guard && e.lbody == lbody
+    requires !P_Fail(st, e)
+    ensures !P_Fail(st, guard)
+    // The ensures below is slightly subtle, because we don't reason about the value of the boolean:
+    // - either the boolean is false, in which case we finished evaluating the loop and there is
+    //   nothing to prove
+    // - or the boolean is true and we fail to evaluate the body once, in which case evaluating the
+    //   loop actually fails, leading to a contradiction
+    // We use a similar reasoning for all the following ensures.
+    ensures forall st1, bv | P_Succ(st, guard, st1, bv) && P_Fail(st1, lbody) :: P(st, e)
+    ensures forall st1, bv, st2, v1 | P_Succ(st, guard, st1, bv) && P_Succ(st1, lbody, st2, v1) && GetFuel(st2) == 0 :: P(st, e)
+    ensures forall st1, bv, st2, v1 | P_Succ(st, guard, st1, bv) && P_Succ(st1, lbody, st2, v1) && GetFuel(st2) > 0 && P_Fail(DecreaseFuel(st2), e) :: P(st, e)
+
+  lemma InductLoop_Succ(
+    st: S, e: Expr, guard: Expr, lbody: Expr, st1: S, bv: V, st2: S, v1: V, st3: S, st4: S, v2: V)
+    requires e.Loop? && e.guard == guard && e.lbody == lbody
+    requires !P_Fail(st, e)
+    requires P_Succ(st, guard, st1, bv)
+    // This is slightly subtle, because we don't reason about the value of the boolean: the following
+    // requires are not necessary if the guard evaluates to false (but it is not a problem to provide
+    // more assumptions than necessary).
+    requires P_Succ(st1, lbody, st2, v1)
+    requires GetFuel(st2) > 0
+    requires st3 == DecreaseFuel(st2)
+    requires P_Succ(st3, e, st4, v2)
+    ensures P(st, e)
 
   //
   // Lemmas
@@ -440,7 +475,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
 
   lemma P_Satisfied(st: S, e: Expr)
     ensures P(st, e)
-    decreases e.Size(), 1
+    decreases e.Size(), GetFuel(st), 1
   {
     if P_Fail(st, e) {
       P_Fail_Sound(st, e);
@@ -462,7 +497,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
       var (stf, vsf) := Pes_Step(st, [e] + es);
       var (st1, v, st2, vs) := out;
       stf == st2 && vsf == AppendValue(v, vs)
-    decreases Exprs.Exprs_Size([e] + es), 4
+    decreases Exprs.Exprs_Size([e] + es), GetFuel(st), 4
   {
     Pes_Satisfied(st, [e] + es);
     
@@ -487,7 +522,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma P_Satisfied_Succ(st: S, e: Expr)
     requires !P_Fail(st, e)
     ensures P(st, e)
-    decreases e.Size(), 0
+    decreases e.Size(), GetFuel(st), 0
   {
     reveal SupportsInterp();
     
@@ -735,12 +770,42 @@ abstract module Bootstrap.Semantics.ExprInduction {
         InductBlock_Succ(st, e, stmts, st_start, st_stmts, vs, st_end, vf);
         assert P_Succ(st, e, st_end, vf);
         P_Succ_Sound(st, e, st_end, vf);
+
+      case Loop(guard, lbody) =>
+        P_Satisfied(st, guard); // Recursive call
+        assert !P_Fail(st, guard) by { InductLoop_Fail(st, e, guard, lbody);  }
+        var (st1, bv) := P_Step(st, guard);
+
+        if P_Fail(st1, lbody) {
+          InductLoop_Fail(st, e, guard, lbody);
+        }
+        else {
+          P_Satisfied(st1, lbody); // Recursive call
+          var (st2, v1) := P_Step(st1, lbody);
+         
+          if GetFuel(st2) == 0 {
+            InductLoop_Fail(st, e, guard, lbody);
+          }
+          else {
+            var st3 := DecreaseFuel(st2);
+
+            if P_Fail(st3, e) {
+              InductLoop_Fail(st, e, guard, lbody);
+            }
+            else {
+              P_Satisfied(st3, e); // Recursive call
+              var (st4, v2) := P_Step(st3, e);
+
+              InductLoop_Succ(st, e, guard, lbody, st1, bv, st2, v1, st3, st4, v2);
+            }
+          }
+        }
     }
   }
 
   lemma Pes_Satisfied(st: S, es: seq<Expr>)
     ensures Pes(st, es)
-    decreases Exprs.Exprs_Size(es), 3
+    decreases Exprs.Exprs_Size(es), GetFuel(st), 3
   {
     if Pes_Fail(st, es) {
       Pes_Fail_Sound(st, es);
@@ -753,7 +818,7 @@ abstract module Bootstrap.Semantics.ExprInduction {
   lemma Pes_Satisfied_Succ(st: S, es: seq<Expr>)
     requires !Pes_Fail(st, es)
     ensures Pes(st, es)
-    decreases Exprs.Exprs_Size(es), 2
+    decreases Exprs.Exprs_Size(es), GetFuel(st), 2
   {
     if es == [] {
       InductExprs_Nil(st);

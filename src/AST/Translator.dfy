@@ -566,11 +566,12 @@ module Bootstrap.AST.Translator {
     assume Decreases(i.Els, i);
     var cond :- TranslateExpression(i.Guard);
     var thn :- TranslateStatement(i.Thn);
-    var els :- TranslateStatement(i.Els);
+    // The "else" statement can be null
+    var els :- if IsNull(i.Els) then Success(Expr.Block([])) else TranslateStatement(i.Els);
     // We need to wrap the branches into blocks, so as to limit the scope of the variables
     // declared inside those branches.
     var thn := if wrapInBlocks then Expr.Block([thn]) else thn;
-    var els := if wrapInBlocks then Expr.Block([els]) else els;
+    var els := if wrapInBlocks && !IsNull(i.Els) then Expr.Block([els]) else els;
     // Doesn't work without those assertions
     assert P.All_Expr(thn, DE.WellFormed);
     assert P.All_Expr(els, DE.WellFormed);
@@ -670,6 +671,29 @@ module Bootstrap.AST.Translator {
     Success(updt)
   }
 
+  function method TranslateWhileStmt(s: C.WhileStmt)
+    : TranslationResult<Expr>
+    reads *
+    decreases ASTHeight(s), 0
+  {
+    assume Decreases(s.Body, s);
+    var body :- TranslateStatement(s.Body);
+    var guard :- TranslateExpression(s.Guard);
+    Success(DE.Loop(guard, body))
+  }
+
+  function method TranslateLoopStmt(s: C.LoopStmt)
+    : TranslationResult<Expr>
+    reads *
+    decreases ASTHeight(s), 1
+  {
+    // For now we only support while loops (no for loops)
+    if s is C.WhileStmt then
+      TranslateWhileStmt(s as C.WhileStmt)
+    else
+      Failure(UnsupportedStmt(s))
+  }
+
   function method TranslateStatement(s: C.Statement)
     : TranslationResult<Expr>
     reads *
@@ -685,6 +709,8 @@ module Bootstrap.AST.Translator {
       TranslateVarDeclStmt(s as C.VarDeclStmt)
     else if s is C.UpdateStmt then
       TranslateUpdateStmt(s as C.UpdateStmt)
+    else if s is C.LoopStmt then
+      TranslateLoopStmt(s as C.LoopStmt)
     else Failure(UnsupportedStmt(s))
   }
 
