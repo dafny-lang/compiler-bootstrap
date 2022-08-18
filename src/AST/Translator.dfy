@@ -219,14 +219,19 @@ module Bootstrap.AST.Translator {
     decreases ASTHeight(u), 0
     reads *
   {
-    :- Need(u is C.UnaryOpExpr, UnsupportedExpr("TranslateUnary", u));
-    var u := u as C.UnaryOpExpr;
-    var op, e := u.ResolvedOp, u.E;
-    assume Decreases(e, u);
-    :- Need(op !in GhostUnaryOps, GhostExpr(u));
-    :- Need(op in UnaryOpMap.Keys, UnsupportedExpr("TranslateUnary", u));
-    var te :- TranslateExpression(e);
-    Success(DE.Apply(DE.Eager(DE.UnaryOp(UnaryOpMap[op])), [te]))
+    // We translate conversions to the identity
+    if u is C.ConversionExpr then
+      assume Decreases(u.E, u);
+      TranslateExpression(u.E)
+    else
+      :- Need(u is C.UnaryOpExpr, UnsupportedExpr("TranslateUnary", u));
+      var u := u as C.UnaryOpExpr;
+      var op, e := u.ResolvedOp, u.E;
+      assume Decreases(e, u);
+      :- Need(op !in GhostUnaryOps, GhostExpr(u));
+      :- Need(op in UnaryOpMap.Keys, UnsupportedExpr("TranslateUnary", u));
+      var te :- TranslateExpression(e);
+      Success(DE.Apply(DE.Eager(DE.UnaryOp(UnaryOpMap[op])), [te]))
   }
 
   function method TranslateBinary(b: C.BinaryExpr)
