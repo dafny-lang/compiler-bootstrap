@@ -20,11 +20,18 @@ module Bootstrap.AST.Translator {
   import DT = Syntax.Types
   import P = Predicates.Deep
 
+  predicate method IsNull(o: object?)
+    // Small utility which allows us to get rid of warning such as:
+    // "the type of the other operand is a non-null type"
+  {
+    o == null
+  }
+
   datatype TranslationError =
     | Invalid(msg: string)
     | GhostExpr(expr: C.Expression)
     | UnsupportedType(ty: C.Type)
-    | UnsupportedExpr(expr: C.Expression)
+    | UnsupportedExpr(msg: string, expr: C.Expression)
     | UnsupportedStmt(stmt: C.Statement)
     | UnsupportedMember(decl: C.MemberDecl)
   {
@@ -36,8 +43,8 @@ module Bootstrap.AST.Translator {
           "Ghost expression: " + TypeConv.ObjectToString(expr)
         case UnsupportedType(ty) =>
           "Unsupported type: " + TypeConv.ObjectToString(ty)
-        case UnsupportedExpr(expr) =>
-          "Unsupported expression: " + TypeConv.ObjectToString(expr)
+        case UnsupportedExpr(msg, expr) =>
+          "Unsupported expression (" + msg + "): " + TypeConv.ObjectToString(expr)
         case UnsupportedStmt(stmt) =>
           "Unsupported statement: " + TypeConv.ObjectToString(stmt)
         case UnsupportedMember(decl) =>
@@ -50,6 +57,14 @@ module Bootstrap.AST.Translator {
 
   type TranslationResult<+A> =
     Result<A, TranslationError>
+
+  function method ExpandError<T>(msg: string, res: TranslationResult<T>): TranslationResult<T>
+  {
+    match res
+      case Success(_) => res
+      case Failure(e) =>
+        Failure(Invalid(msg + ": " + e.ToString()))
+  }
 
   function method TranslateType(ty: C.Type)
     : TranslationResult<DT.Type>
@@ -204,12 +219,12 @@ module Bootstrap.AST.Translator {
     decreases ASTHeight(u), 0
     reads *
   {
-    :- Need(u is C.UnaryOpExpr, UnsupportedExpr(u));
+    :- Need(u is C.UnaryOpExpr, UnsupportedExpr("TranslateUnary", u));
     var u := u as C.UnaryOpExpr;
     var op, e := u.ResolvedOp, u.E;
     assume Decreases(e, u);
     :- Need(op !in GhostUnaryOps, GhostExpr(u));
-    :- Need(op in UnaryOpMap.Keys, UnsupportedExpr(u));
+    :- Need(op in UnaryOpMap.Keys, UnsupportedExpr("TranslateUnary", u));
     var te :- TranslateExpression(e);
     Success(DE.Apply(DE.Eager(DE.UnaryOp(UnaryOpMap[op])), [te]))
   }
@@ -223,7 +238,7 @@ module Bootstrap.AST.Translator {
     // LATER b.AccumulatesForTailRecursion
     assume Decreases(e0, b);
     assume Decreases(e1, b);
-    :- Need(op in BinaryOpCodeMap, UnsupportedExpr(b));
+    :- Need(op in BinaryOpCodeMap, UnsupportedExpr("TranslateBinary", b));
     var t0 :- TranslateExpression(e0);
     var t1 :- TranslateExpression(e1);
     Success(DE.Apply(BinaryOpCodeMap[op], [t0, t1]))
@@ -250,7 +265,7 @@ module Bootstrap.AST.Translator {
       else
         Failure(Invalid("LiteralExpr with .Value of type string must be a char or a string."))
     else
-      Failure(UnsupportedExpr(l))
+      Failure(UnsupportedExpr("TranslateLiteral", l))
   }
 
   function method TranslateApplyExpr(ae: C.ApplyExpr)
@@ -285,7 +300,9 @@ module Bootstrap.AST.Translator {
     decreases ASTHeight(me), 0
   {
     assume Decreases(me.Obj, me);
-    TranslateMemberSelect(me.Obj, me.Member.FullName)
+    // TODO(SMH): proper path. For now we use the full Dafny name (ex.: "Module.Constant"),
+    // but this should be decomposed into a path (i.e., a sequence of strings)
+    TranslateMemberSelect(me.Obj, me.Member.FullDafnyName)
   }
 
   function method TranslateFunctionCallExpr(fce: C.FunctionCallExpr)
@@ -294,7 +311,9 @@ module Bootstrap.AST.Translator {
     decreases ASTHeight(fce), 0
   {
     assume Decreases(fce.Receiver, fce);
-    var fn :- TranslateMemberSelect(fce.Receiver, fce.Function.FullName);
+    // TODO(SMH): proper path. For now we use the full Dafny name (ex.: "Module.Constant"),
+    // but this should be decomposed into a path (i.e., a sequence of strings)
+    var fn :- TranslateMemberSelect(fce.Receiver, fce.Function.FullDafnyName);
     var args := ListUtils.ToSeq(fce.Args);
     var args :- Seq.MapResult(args, e requires e in args reads * =>
       assume Decreases(e, fce); TranslateExpression(e));
@@ -437,16 +456,16 @@ module Bootstrap.AST.Translator {
     // - `as_bind`: do we translate the let expression as a ``Bind``, or do we desugar it to a
     //   ``Block`` containing a ``VarDecl``?
   {
-    :- Need(le.Exact, UnsupportedExpr(le));
+    :- Need(le.Exact, UnsupportedExpr("TranslateLetExpr", le));
     var lhss := ListUtils.ToSeq(le.LHSs);
     var bvs :- Seq.MapResult(lhss, (pat: C.CasePattern<C.BoundVar>) reads * =>
-      :- Need(pat.Var != null, UnsupportedExpr(le));
+      :- Need(pat.Var != null, UnsupportedExpr("TranslateLetExpr", le));
       var ty :- TranslateType(pat.Var.Type);
       Success(DE.TypedVar(TypeConv.AsString(pat.Var.Name), ty)));
     var rhss := ListUtils.ToSeq(le.RHSs);
     var elems :- Seq.MapResult(rhss, e requires e in rhss reads * =>
       assume Decreases(e, le); TranslateExpression(e));
-    :- Need(|bvs| == |elems|, UnsupportedExpr(le));
+    :- Need(|bvs| == |elems|, UnsupportedExpr("TranslateLetExpr", le));
     assume Decreases(le.Body, le);
     var body :- TranslateExpression(le.Body);
     Success(DE.Bind(bvs, elems, body))
@@ -513,7 +532,7 @@ module Bootstrap.AST.Translator {
       TranslateITEExpr(c as C.ITEExpr)
     else if c is C.ConcreteSyntaxExpression then
       TranslateConcreteSyntaxExpression(c as C.ConcreteSyntaxExpression)
-    else Failure(UnsupportedExpr(c))
+    else Failure(UnsupportedExpr("TranslateExpression", c))
   }
 
   function method TranslatePrintStmt(p: C.PrintStmt)
@@ -558,10 +577,94 @@ module Bootstrap.AST.Translator {
     Success(DE.If(cond, thn, els))
   }
 
+  function method TranslateLocal(l: C.LocalVariable): TranslationResult<DE.TypedVar>
+    reads *
+  {
+    var ty :- TranslateType(l.Type);
+    var name := TypeConv.AsString(l.Name);
+    Success(DE.TypedVar(name, ty))
+  }
+
+  function method TranslateVarDeclStmt(s: C.VarDeclStmt)
+    : (e: TranslationResult<Expr>)
+    reads *
+    decreases ASTHeight(s), 1
+  {
+    if IsNull(s.Update) then
+      var locals := ListUtils.ToSeq(s.Locals);
+      var locals :- Seq.MapResult(locals, l requires l in locals reads * => TranslateLocal(l));
+      var vdecl: DE.T := Expr.VarDecl(locals, DE.OptExprs.None);
+      Success(vdecl)
+    else
+      :- Need(s.Update is C.UpdateStmt, Invalid("TranslateVarDeclStmt: the RHS must be an UpdateStmt"));
+      TranslateUpdateStmt(s.Update as C.UpdateStmt)
+  }
+
+  function method TranslateResolvedStatement(s: C.Statement):
+    (e: TranslationResult<(string, Expr)>)
+    reads *
+    decreases ASTHeight(s), 0
+    // Resolved statements are statements used in variable updates.
+  {
+    :- Need(s is C.AssignStmt || s is C.CallStmt, Invalid("TranslateResolvedStatement: unsupported statement: " + TypeConv.ObjectToString(s)));
+    // Translate the LHS, which must be an identifier expression
+    var lhs: C.Expression :-
+      (if s is C.AssignStmt then Success((s as C.AssignStmt).Lhs)
+       else
+        var lhs := (s as C.CallStmt).Lhs;
+        var lhs := ListUtils.ToSeq(lhs);
+        :- Need(|lhs| == 1, Invalid("TranslateResolvedStatement: LHS must have length 1"));
+        var lhs := lhs[0];
+        Success(lhs));
+    :- Need(lhs is C.IdentifierExpr, Invalid("TranslateResolvedStatement: LHS must be an identifier expression"));
+    var lhs :- TranslateIdentifierExpr(lhs as C.IdentifierExpr);
+    var lhs := lhs.name;
+    // Translate the RHS
+    if s is C.AssignStmt then
+      var s := s as C.AssignStmt;
+      // The RHS must be an ExprRhs
+      :- Need(s.Rhs is C.ExprRhs, Invalid("TranslateResolvedStatement: RHS must be an ExprRhs"));
+      var rhs := (s.Rhs as C.ExprRhs).Expr;
+      var rhs :- TranslateExpression(rhs);
+      Success((lhs, rhs))
+    else if s is C.CallStmt then
+      var s := s as C.CallStmt;
+      var args := ListUtils.ToSeq(s.Args);
+      var args :-
+        Seq.MapResult(args,
+          a requires a in args reads * =>
+          TranslateExpression(a));
+      // TODO(SMH): proper path. For now we use the full Dafny name (ex.: "Module.Function"),
+      // but this should be decomposed into a path (i.e., a sequence of strings)
+      var fname := TypeConv.AsString(s.Method.FullDafnyName);
+      var f := DE.Var(fname);
+      var args := [f] + args;
+      var app: DE.T := DE.Apply(DE.ApplyOp.Eager(DE.EagerOp.FunctionCall()), args);
+      assert P.All_Expr(app, DE.WellFormed);
+      Success((lhs, app))
+    else Failure(Invalid("TranslateResolvedStatement: unsupported statement: " + TypeConv.ObjectToString(s)))
+  }
+
+  function method TranslateUpdateStmt(s: C.UpdateStmt)
+    : (e: TranslationResult<Expr>)
+    reads *
+    decreases ASTHeight(s), 0
+  {
+    var ss := ListUtils.ToSeq(s.ResolvedStatements);
+    var ss' :- 
+      Seq.MapResult(ss,
+        s requires s in ss reads * =>
+        TranslateResolvedStatement(s));
+    var (lhs, rhs) := Seq.Unzip(ss');
+    var updt: DE.T := DE.Update(lhs, rhs);
+    assert P.All_Expr(updt, DE.WellFormed);
+    Success(updt)
+  }
+
   function method TranslateStatement(s: C.Statement)
     : TranslationResult<Expr>
     reads *
-    decreases ASTHeight(s), 1
+    decreases ASTHeight(s), 2
   {
     if s is C.PrintStmt then
       TranslatePrintStmt(s as C.PrintStmt)
@@ -569,6 +672,10 @@ module Bootstrap.AST.Translator {
       TranslateBlockStmt(s as C.BlockStmt)
     else if s is C.IfStmt then
       TranslateIfStmt(wrapBranchesInBlocks, s as C.IfStmt)
+    else if s is C.VarDeclStmt then
+      TranslateVarDeclStmt(s as C.VarDeclStmt)
+    else if s is C.UpdateStmt then
+      TranslateUpdateStmt(s as C.UpdateStmt)
     else Failure(UnsupportedStmt(s))
   }
 
