@@ -585,21 +585,6 @@ module Bootstrap.AST.Translator {
     Success(DE.TypedVar(name, ty))
   }
 
-  function method TranslateVarDeclStmt(s: C.VarDeclStmt)
-    : (e: TranslationResult<Expr>)
-    reads *
-    decreases ASTHeight(s), 1
-  {
-    if IsNull(s.Update) then
-      var locals := ListUtils.ToSeq(s.Locals);
-      var locals :- Seq.MapResult(locals, l requires l in locals reads * => TranslateLocal(l));
-      var vdecl: DE.T := Expr.VarDecl(locals, DE.OptExprs.None);
-      Success(vdecl)
-    else
-      :- Need(s.Update is C.UpdateStmt, Invalid("TranslateVarDeclStmt: the RHS must be an UpdateStmt"));
-      TranslateUpdateStmt(s.Update as C.UpdateStmt)
-  }
-
   function method TranslateResolvedStatement(s: C.Statement):
     (e: TranslationResult<(string, Expr)>)
     reads *
@@ -643,6 +628,30 @@ module Bootstrap.AST.Translator {
       assert P.All_Expr(app, DE.WellFormed);
       Success((lhs, app))
     else Failure(Invalid("TranslateResolvedStatement: unsupported statement: " + TypeConv.ObjectToString(s)))
+  }
+
+  function method TranslateVarDeclStmt(s: C.VarDeclStmt)
+    : (e: TranslationResult<Expr>)
+    reads *
+    decreases ASTHeight(s), 1
+  {
+    var locals := ListUtils.ToSeq(s.Locals);
+    var locals :- Seq.MapResult(locals, l requires l in locals reads * => TranslateLocal(l));
+    if IsNull(s.Update) then
+      var vdecl: DE.T := Expr.VarDecl(locals, DE.OptExprs.None);
+      Success(vdecl)
+    else
+      :- Need(s.Update is C.UpdateStmt, Invalid("TranslateVarDeclStmt: the RHS must be an UpdateStmt"));
+      var updt := s.Update as C.UpdateStmt;
+      var ss := ListUtils.ToSeq(updt.ResolvedStatements);
+      var ss' :-
+        Seq.MapResult(ss,
+          s requires s in ss reads * =>
+          TranslateResolvedStatement(s));
+      var (_, rhs) := Seq.Unzip(ss');
+      :- Need(|locals| == |rhs|, Invalid("TranslateVarDeclStmt: not the same number of LHS and RHS"));
+      var vdecl: DE.T := Expr.VarDecl(locals, DE.OptExprs.Some(rhs));
+      Success(vdecl)
   }
 
   function method TranslateUpdateStmt(s: C.UpdateStmt)
