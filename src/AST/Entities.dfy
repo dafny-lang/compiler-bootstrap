@@ -16,8 +16,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   import Utils.Lib.SetSort
   import OS = Utils.Lib.Outcome.OfSeq
 
+  // DISCUSS: Should this module be parameterized by `TExpr`?
+
   datatype Module =
-    Module(members: seq<Name>)
+    Module()
 
   datatype ExportSet =
     ExportSet(provided: set<Name>, revealed: set<Name>)
@@ -94,7 +96,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   }
 
   datatype Entity =
-    | Module(ei: EntityInfo)
+    | Module(ei: EntityInfo, m: Module)
     | ExportSet(ei: EntityInfo, e: ExportSet)
     | Import(ei: EntityInfo, i: Import)
     | Type(ei: EntityInfo, t: Type)
@@ -102,7 +104,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   {
     const kind :=
       match this
-        case Module(ei) => EModule
+        case Module(ei, m) => EModule
         case ExportSet(ei, e) => EExportSet
         case Import(ei, i) => EImport
         case Type(ei, t) => EType
@@ -130,14 +132,14 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     }
   }
 
-  ghost predicate EntityMap?(f: Entity -> Entity) {
+  ghost predicate EntityTransformer?(f: Entity -> Entity) {
     forall e ::
       && f(e).kind == e.kind
       && f(e).ei.name == e.ei.name
       && f(e).ei.members == e.ei.members
   }
 
-  type EntityMap = f | EntityMap?(f) witness e => e
+  type EntityTransformer = f | EntityTransformer?(f) witness e => e
 
   datatype ValidationError =
     | NameMismatch(name: Name, key: Name)
@@ -264,12 +266,12 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       requires Valid?()
       requires !Contains(name)
       requires entity.Module?
-      requires ValidEntry??(name, entity)
+      requires ValidEntry??(name, entity) // TODO: Only allows adding "Anonymous"
     {
       this.(entities := entities[name := entity])
     }
 
-    function Map(f: EntityMap): Registry requires Valid?() {
+    function Map(f: EntityTransformer): Registry requires Valid?() {
       Registry(map name | name in entities :: f(entities[name]))
     }
 
@@ -298,7 +300,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   {
     static function EMPTY(): (p: Program_) ensures p.Valid?() {
       Program(
-        Registry.EMPTY().Add(Anonymous, Entity.Module(EntityInfo.Mk(Anonymous))),
+        Registry.EMPTY().Add(Anonymous, Entity.Module(EntityInfo.Mk(Anonymous), Module.Module())),
         defaultModule := Anonymous,
         mainMethod := None
       )
@@ -309,7 +311,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     }
 
     predicate ValidMainMethod?() {
-      mainMethod.Some? ==> registry.HasKind(mainMethod.value, EModule)
+      mainMethod.Some? ==> registry.HasKind(mainMethod.value, EDefinition) // FIXME
     }
 
     predicate Valid?() {
