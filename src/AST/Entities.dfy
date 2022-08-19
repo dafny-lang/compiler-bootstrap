@@ -272,6 +272,22 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     function Map(f: EntityMap): Registry requires Valid?() {
       Registry(map name | name in entities :: f(entities[name]))
     }
+
+    // TODO Make a variant of SortedNames that traverses from the root and prove
+    // that it returns all entities.
+
+    function {:opaque} SortedNames(): (all_names: seq<Name>)
+      ensures (set name <- all_names) == entities.Keys
+    {
+      SetSort.Sort(entities.Keys, Name.Comparison)
+    }
+
+    // TODO
+    // function SortedEntities(): (all_entities: seq<Entity>)
+    //   ensures (set e <- all_entities :: e.ei.name) == entities.Keys
+    // {
+    //   Seq.Map(name requires name in entities.Keys => entities[name], SortedNames())
+    // }
   }
 
   type Program = p: Program_ | p.Valid?() witness Program.EMPTY()
