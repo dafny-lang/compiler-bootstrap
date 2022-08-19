@@ -26,7 +26,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     Import(localName: Atom, target: Name)
 
   datatype SubsetType =
-    SubsetType(boundVar: string, pred: Expr, witnessExpr: Expr)
+    SubsetType(boundVar: string, pred: Expr, witnessExpr: Option<Expr>)
 
   datatype TypeAlias =
     TypeAlias(base: Name)
