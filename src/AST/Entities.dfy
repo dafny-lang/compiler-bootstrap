@@ -109,11 +109,24 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
         case Definition(ei, d) => EDefinition
   }
 
-  datatype Attribute = // TODO: Move all exprs to top level?
-    Attribute(name: string, args: seq<Expr>)
+  datatype AttributeName =
+    | Axiom
+    | Extern
+    | UserAttribute(name: string)
   {
     function ToString(): string {
-      "{:" + name + (if args != [] then " ..." else "") + "}"
+      match this
+        case Axiom => "axiom"
+        case Extern => "extern"
+        case UserAttribute(name) => name
+    }
+  }
+
+  datatype Attribute =
+    Attribute(name: AttributeName, args: seq<Expr>)
+  {
+    function ToString(): string {
+      "{:" + name.ToString() + (if args != [] then " ..." else "") + "}"
     }
   }
 
