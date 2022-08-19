@@ -4,6 +4,7 @@
 include "Names.dfy"
 include "Syntax.dfy"
 include "../Utils/Library.dfy"
+include "../Utils/Lib.Sort.dfy"
 
 module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   // Hierarchies of Dafny entities.
@@ -12,6 +13,8 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   import opened Names
   import opened Syntax.Exprs
   import opened Utils.Lib.Datatypes
+  import Utils.Lib.SetSort
+  import OS = Utils.Lib.Outcome.OfSeq
 
   datatype Module =
     Module(members: seq<Name>)
@@ -123,6 +126,11 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 
   type EntityMap = f | EntityMap?(f) witness e => e
 
+  datatype ValidationError =
+    | NameMismatch(name: Name, key: Name)
+    | UnboundMember(name: Name, member: Name)
+    | UnboundParent(name: Name, parent: Name)
+
   type Registry = r: Registry_ | r.Valid?()
     witness Registry_.EMPTY()
   datatype Registry_ = Registry(entities: map<Name, Entity>)
@@ -140,38 +148,49 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       Registry(map[])
     }
 
-    ghost predicate ValidName??(name: Name, entity: Entity) {
+    predicate ValidName??(name: Name, entity: Entity) {
       entity.ei.name == name
     }
 
-    ghost predicate ValidParent??(name: Name) {
+    predicate ValidParent??(name: Name) {
       name == Anonymous || name.parent in entities
     }
 
-    ghost predicate ValidMembers??(ei: EntityInfo) {
+    predicate ValidMembers??(ei: EntityInfo) {
       forall m <- ei.members :: m in entities
     }
 
-    ghost predicate ValidEntry??(name: Name, e: Entity) {
-      && ValidName??(name, e)
+    ghost predicate ValidEntry??(name: Name, entity: Entity) {
+      && ValidName??(name, entity)
       && ValidParent??(name)
-      && ValidMembers??(e.ei)
-    }
-
-    ghost predicate ValidNames?() {
-      forall name <- entities :: ValidName??(name, entities[name])
-    }
-
-    ghost predicate ValidParents?() {
-      forall name <- entities :: ValidParent??(name)
-    }
-
-    ghost predicate ValidMembers?() {
-      forall name <- entities :: ValidMembers??(entities[name].ei)
+      && ValidMembers??(entity.ei)
     }
 
     ghost predicate Valid?() {
       forall name <- entities :: ValidEntry??(name, entities[name])
+    }
+
+    function {:opaque} ValidateEntry(name: Name, entity: Entity): (o: Outcome<seq<ValidationError>>)
+      requires Lookup(name) == Some(entity)
+      ensures o.Pass? <==> ValidEntry??(name, entity)
+    {
+      assume false; // TODO
+      OS.Combine(
+        [if ValidName??(name, entity) then Pass else Fail(NameMismatch(name, entity.ei.name)),
+         if ValidParent??(name) then Pass else Fail(UnboundParent(name, name.parent))]
+        + Seq.Map(m =>
+            if m in entities then Pass else Fail(UnboundMember(name, m)),
+            entity.ei.members)
+      )
+    }
+
+    function {:opaque} Validate(): (o: Outcome<seq<ValidationError>>)
+      ensures o.Pass? <==> Valid?()
+    {
+      OS.CombineSeq(
+        Seq.Map(name requires name in entities => ValidateEntry(name, entities[name]),
+                SetSort.Sort(entities.Keys, Name.Comparison))
+      )
     }
 
     ghost function {:opaque} SuffixesOf(prefix: Name): set<Name> {
