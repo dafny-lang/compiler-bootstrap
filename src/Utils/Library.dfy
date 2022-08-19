@@ -294,6 +294,17 @@ module Utils.Lib.Outcome.OfSeq { // FIXME rename to Seq
       assert fails[0] in so;
       Fail(Seq.Map((x: Outcome<E>) requires x.Fail? => x.error, fails))
   }
+
+  function method CombineSeq<E>(so: seq<Outcome<seq<E>>>): (os: Outcome<seq<E>>)
+    ensures os.Pass? <==> forall o | o in so :: o.Pass?
+  {
+    var fails := Seq.Filter(so, (x: Outcome<seq<E>>) => x.Fail?);
+    if |fails| == 0 then
+      Pass
+    else
+      assert fails[0] in so;
+      Fail(Seq.Flatten(Seq.Map((x: Outcome<seq<E>>) requires x.Fail? => x.error, fails)))
+  }
 }
 
 module Utils.Lib.Str {
