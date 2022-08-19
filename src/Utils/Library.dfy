@@ -152,6 +152,11 @@ module Utils.Lib.Seq {
     if ts == [] then a0 else f(FoldL(f, a0, ts[1..]), ts[0])
   }
 
+  function method Flatten<T>(tss: seq<seq<T>>): seq<T> { // TODO specify
+    if tss == [] then []
+    else tss[0] + Flatten(tss[1..])
+  }
+
   // TODO: Why not use forall directly?
   function method {:opaque} All<T>(P: T ~> bool, ts: seq<T>) : (b: bool)
     reads P.reads
@@ -280,8 +285,7 @@ module Utils.Lib.Outcome.OfSeq { // FIXME rename to Seq
   import opened Datatypes
 
   function method Combine<E>(so: seq<Outcome<E>>): (os: Outcome<seq<E>>)
-    ensures os.Pass? ==> forall o | o in so :: o.Pass?
-    ensures os.Pass? <== forall o | o in so :: o.Pass?
+    ensures os.Pass? <==> forall o | o in so :: o.Pass?
   {
     var fails := Seq.Filter(so, (x: Outcome<E>) => x.Fail?);
     if |fails| == 0 then
