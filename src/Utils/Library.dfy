@@ -682,7 +682,7 @@ module Utils.Lib.Sort.Comparison {
       Complete?(ts) && /* Antisymmetric?(ts) && */ Transitive?(ts)
     }
 
-    predicate Total?(ts: set<T>) {
+    predicate Total?(ts: set<T>) { // TODO: Make this opaque?  Automated proofs can get very slow and costly
       Complete?(ts) && Antisymmetric?(ts) && Transitive?(ts)
     }
 
@@ -738,7 +738,7 @@ module Utils.Lib.Sort.DerivedComparison {
 
     lemma Total(ts: set<T>)
       requires cmp.Total?(Set.Map(ts, fn))
-      requires forall i, j :: fn(i) == fn(j) ==> i == j
+      requires forall i, j | fn(i) == fn(j) :: i == j
       ensures Comparison.Total?(ts)
     {
       Valid(ts);

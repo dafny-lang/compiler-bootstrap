@@ -404,20 +404,10 @@ module Utils.Lib.ArraySort {
   }
 }
 
-module Utils.Lib.SetSort {
+module Utils.Lib.SetSort { // TODO rename to Sort.Set when it becomes possible
   import opened C = Sort.Comparison
   import Array
   import ArraySort
-
-  // function Sort<T(==)>(st: set<T>, cmp: Comparison<T>): (sq: seq<T>)
-  //   requires cmp.Valid?(st)
-  //   ensures st == set x <- sq
-  //   ensures cmp.Sorted(sq)
-  // {
-  //   []
-  // } by method {
-  //   sq := QuickSort(st, cmp);
-  // {
 
   method QuickSort<T>(st: set<T>, cmp: Comparison<T>) returns (sq: seq<T>)
     requires cmp.Valid?(st)
@@ -440,5 +430,16 @@ module Utils.Lib.SetSort {
       st;
     }
     return arr[..];
+  }
+
+  function {:opaque} Sort<T(==)>(st: set<T>, cmp: Comparison<T>): (sq: seq<T>)
+    requires cmp.Valid?(st)
+    ensures st == set x <- sq
+    ensures cmp.Sorted(sq)
+  {
+    assume false; [] // TODO
+  } by method {
+    assume false; // TODO
+    sq := QuickSort(st, cmp);
   }
 }
