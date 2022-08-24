@@ -308,7 +308,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       set prefix <- prefixes, name <- TransitiveMembers(prefix) :: name
     }
 
-    lemma TransitiveMembersOfMany_Le(root: Name, members: seq<Name>)
+    lemma {:induction false} TransitiveMembersOfMany_Le(root: Name, members: seq<Name>)
       requires forall member <- members :: member.ChildOf(root)
       ensures TransitiveMembersOfMany(members) <= TransitiveMembers(root);
     {
@@ -323,7 +323,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       }
     }
 
-    lemma TransitiveMembersOfMany_Lt(root: Name, members: seq<Name>)
+    lemma {:induction false} TransitiveMembersOfMany_Lt(root: Name, members: seq<Name>)
       requires Contains(root)
       requires forall member <- members :: member.ChildOf(root)
       ensures TransitiveMembersOfMany(members) < TransitiveMembers(root);
@@ -399,7 +399,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       set name <- entities | name.StrictExtensionOf(root)
     }
 
-    lemma TransitiveMembers_StrictTransitiveMembers(root: Name)
+    lemma {:induction false} TransitiveMembers_StrictTransitiveMembers(root: Name)
       requires Contains(root)
       ensures TransitiveMembers(root) == {root} + StrictTransitiveMembers(root)
     {
@@ -413,7 +413,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       set member <- Members(root), name <- TransitiveMembers(member) :: name
     }
 
-    lemma StrictTransitiveMembers_Partition(root: Name)
+    lemma {:induction false} StrictTransitiveMembers_Partition(root: Name)
       requires Valid?()
       requires Contains(root)
       ensures StrictTransitiveMembers(root) == StrictTransitiveMembers_Partitioned(root)
@@ -463,20 +463,6 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       member requires member in Members(root) =>
         TransitiveMembers_Lt(root, member);
         RecursiveTransitiveMembers(member)
-    }
-
-    lemma RecursiveTransitiveMembers_Extension(root: Name)
-      requires Valid?()
-      requires Contains(root)
-      ensures forall d <- RecursiveTransitiveMembers(root) :: d.ExtensionOf(root)
-    {
-      forall d <- RecursiveTransitiveMembers(root)
-        ensures d.ExtensionOf(root)
-      {
-        RecursiveTransitiveMembers_Eq(root);
-        assert d in TransitiveMembers(root);
-        reveal TransitiveMembers();
-      }
     }
 
     lemma {:induction false} RecursiveTransitiveMembers_Le(root: Name, name: Name)
@@ -532,6 +518,21 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
         }
       }
     }
+
+    lemma {:induction false} RecursiveTransitiveMembers_Extension(root: Name)
+      requires Valid?()
+      requires Contains(root)
+      ensures forall d <- RecursiveTransitiveMembers(root) :: d.ExtensionOf(root)
+    {
+      forall d <- RecursiveTransitiveMembers(root)
+        ensures d.ExtensionOf(root)
+      {
+        RecursiveTransitiveMembers_Eq(root);
+        assert d in TransitiveMembers(root);
+        reveal TransitiveMembers();
+      }
+    }
+
   }
 
   type Program = p: Program_ | p.Valid?() witness Program.EMPTY()
