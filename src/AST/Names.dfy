@@ -76,7 +76,8 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
       // Check whether `this` is an indirect parent of `child`.
       ensures StrictPrefixOf(child) ==> Length() < child.Length()
     {
-      this != child && PrefixOf(child)
+      || ParentOf(child)
+      || (child.Name? && StrictPrefixOf(child.parent))
     }
 
     predicate PrefixOf(child: Name)
@@ -84,7 +85,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
       ensures PrefixOf(child) ==> Length() <= child.Length()
     {
       || child == this
-      || (child.Name? && PrefixOf(child.parent))
+      || StrictPrefixOf(child)
     }
 
     static lemma {:induction n2} PrefixOf_Transitive(n0: Name, n1: Name, n2: Name)
@@ -138,6 +139,54 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
       ensures n2.StrictExtensionOf(n0)
     {
       ExtensionOf_Transitive(n0, n1, n2);
+    }
+
+    function NthParent(n: nat): (nth_parent: Name)
+      requires n <= Length()
+      ensures ExtensionOf(nth_parent)
+      ensures nth_parent.Length() == Length() - n
+    {
+      if n == 0 then this
+      else this.parent.NthParent(n - 1)
+    }
+
+    lemma NthParent_Extension(ancestor: Name, n: nat)
+      requires ExtensionOf(ancestor)
+      requires n <= Length() - ancestor.Length()
+      ensures NthParent(n).ExtensionOf(ancestor)
+    {}
+
+    function TruncateTo(length: nat): (truncated: Name)
+      requires length <= Length()
+      ensures ExtensionOf(truncated)
+      ensures truncated.Length() == length
+    {
+      NthParent(Length() - length)
+    }
+
+    lemma TruncateTo_Extension(ancestor: Name, length: nat)
+      requires ExtensionOf(ancestor)
+      requires ancestor.Length() <= length <= Length()
+      ensures TruncateTo(length).ExtensionOf(ancestor)
+    {
+      NthParent_Extension(ancestor, Length() - length);
+    }
+
+    lemma Length_ChildOf(parent: Name)
+      requires Length() == parent.Length() + 1
+      requires ExtensionOf(parent)
+      ensures ChildOf(parent)
+    {}
+
+    function ChildOfAncestor(ancestor: Name): (child: Name)
+      requires StrictExtensionOf(ancestor)
+      ensures ExtensionOf(child)
+      ensures child.ChildOf(ancestor)
+    {
+      var child := TruncateTo(ancestor.Length() + 1);
+      TruncateTo_Extension(ancestor, ancestor.Length() + 1);
+      child.Length_ChildOf(ancestor);
+      child
     }
 
     static const toSeq: Name -> seq<string> := (name: Name) => name.ToSeq();
