@@ -213,13 +213,22 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       )
     }
 
-    function {:opaque} Validate(): (o: Outcome<seq<ValidationError>>)
-      ensures o.Pass? <==> Valid?()
+    function {:opaque} Validate(): (os: Outcome<seq<ValidationError>>)
+      ensures os.Pass? <==> Valid?()
     {
-      OS.CombineSeq(
-        Seq.Map(name requires name in entities => ValidateEntry(name, entities[name]),
-                SetSort.Sort(entities.Keys, Name.Comparison))
-      )
+      var names := SortedNames();
+      var validate := nm requires Contains(nm) => ValidateEntry(nm, entities[nm]);
+      var os := OS.CombineSeq(Seq.Map(validate, names));
+      calc <==> {
+        os.Pass?;
+        forall o <- Seq.Map(validate, names) :: o.Pass?;
+        { Seq.Map_in(validate, names); }
+        forall name <- names :: validate(name).Pass?;
+        forall name <- Set.OfSeq(names) :: ValidEntry??(name, entities[name]);
+        { reveal AllNames(); }
+        Valid?();
+      }
+      os
     }
 
 /// Core API
