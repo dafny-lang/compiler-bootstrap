@@ -65,39 +65,79 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
       this.Name? && parent == this.parent
     }
 
-    predicate StrictSuffixOf(parent: Name)
-      // Check whether one of the parents of `this` is `parent`.
-      ensures StrictSuffixOf(parent) ==> Length() > parent.Length()
+    predicate ParentOf(child: Name)
+      // Check whether `this` is a direct parent of `child`.
+      ensures ParentOf(child) ==> Length() + 1 == child.Length()
     {
-      this != parent && SuffixOf(parent)
+      child.ChildOf(this)
     }
 
-    predicate SuffixOf(parent: Name)
-      // Check whether `this` descended from `parent`.
-      decreases this
-      ensures SuffixOf(parent) ==> Length() >= parent.Length()
+    predicate StrictPrefixOf(child: Name)
+      // Check whether `this` is an indirect parent of `child`.
+      ensures StrictPrefixOf(child) ==> Length() < child.Length()
     {
-      || parent == this
-      || (this.Name? && this.parent.SuffixOf(parent))
+      this != child && PrefixOf(child)
     }
 
-    static lemma {:induction n2} SuffixOf_Transitive(n0: Name, n1: Name, n2: Name)
-      requires n2.SuffixOf(n1) && n1.SuffixOf(n0)
-      ensures n2.SuffixOf(n0)
+    predicate PrefixOf(child: Name)
+      // Check whether `this` is a direct or indirect parent of `child`.
+      ensures PrefixOf(child) ==> Length() <= child.Length()
+    {
+      || child == this
+      || (child.Name? && PrefixOf(child.parent))
+    }
+
+    static lemma {:induction n2} PrefixOf_Transitive(n0: Name, n1: Name, n2: Name)
+      requires n0.PrefixOf(n1) && n1.PrefixOf(n2)
+      ensures n0.PrefixOf(n2)
     {}
 
-    static lemma {:induction false} StrictSuffixOf_Left_Transitive(n0: Name, n1: Name, n2: Name)
-      requires n2.StrictSuffixOf(n1) && n1.SuffixOf(n0)
-      ensures n2.StrictSuffixOf(n0)
+    static lemma {:induction false} StrictPrefixOf_Left_Transitive(n0: Name, n1: Name, n2: Name)
+      requires n0.StrictPrefixOf(n1) && n1.PrefixOf(n2)
+      ensures n0.StrictPrefixOf(n2)
     {
-      SuffixOf_Transitive(n0, n1, n2);
+      PrefixOf_Transitive(n0, n1, n2);
     }
 
-    static lemma {:induction false} StrictSuffixOf_Right_Transitive(n0: Name, n1: Name, n2: Name)
-      requires n2.SuffixOf(n1) && n1.StrictSuffixOf(n0)
-      ensures n2.StrictSuffixOf(n0)
+    static lemma {:induction false} StrictPrefixOf_Right_Transitive(n0: Name, n1: Name, n2: Name)
+      requires n0.PrefixOf(n1) && n1.StrictPrefixOf(n2)
+      ensures n0.StrictPrefixOf(n2)
     {
-      SuffixOf_Transitive(n0, n1, n2);
+      PrefixOf_Transitive(n0, n1, n2);
+    }
+
+    predicate StrictExtensionOf(parent: Name)
+      // Check whether one of the parents of `this` is `parent`.
+      ensures StrictExtensionOf(parent) ==> Length() > parent.Length()
+    {
+      parent.StrictPrefixOf(this)
+    }
+
+    predicate ExtensionOf(parent: Name)
+      // Check whether `this` is descended from `parent`.
+      decreases this
+      ensures ExtensionOf(parent) ==> Length() >= parent.Length()
+    {
+      parent.PrefixOf(this)
+    }
+
+    static lemma {:induction n2} ExtensionOf_Transitive(n0: Name, n1: Name, n2: Name)
+      requires n2.ExtensionOf(n1) && n1.ExtensionOf(n0)
+      ensures n2.ExtensionOf(n0)
+    {}
+
+    static lemma {:induction false} StrictExtensionOf_Left_Transitive(n0: Name, n1: Name, n2: Name)
+      requires n2.StrictExtensionOf(n1) && n1.ExtensionOf(n0)
+      ensures n2.StrictExtensionOf(n0)
+    {
+      ExtensionOf_Transitive(n0, n1, n2);
+    }
+
+    static lemma {:induction false} StrictExtensionOf_Right_Transitive(n0: Name, n1: Name, n2: Name)
+      requires n2.ExtensionOf(n1) && n1.StrictExtensionOf(n0)
+      ensures n2.StrictExtensionOf(n0)
+    {
+      ExtensionOf_Transitive(n0, n1, n2);
     }
 
     static const toSeq: Name -> seq<string> := (name: Name) => name.ToSeq();

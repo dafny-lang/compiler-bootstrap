@@ -209,7 +209,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     }
 
     ghost function {:opaque} SuffixesOf(prefix: Name): set<Name> {
-      set name <- entities | name.SuffixOf(prefix)
+      set name <- entities | name.ExtensionOf(prefix)
     }
 
     ghost function {:opaque} SuffixesOfMany(prefixes: seq<Name>): set<Name> {
@@ -228,7 +228,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
           ensures name in SuffixesOf(ei.name)
         {
           var prefix: Name :| prefix in ei.members && name in SuffixesOf(prefix);
-          Name.SuffixOf_Transitive(ei.name, prefix, name);
+          Name.ExtensionOf_Transitive(ei.name, prefix, name);
         }
       }
 
