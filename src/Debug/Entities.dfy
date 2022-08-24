@@ -37,22 +37,22 @@ module {:options "-functionSyntax:4"} Bootstrap.Debug.Entities {
 
     method DumpEntity(name: Name, indent: string)
       requires registry.Contains(name)
-      decreases registry.SuffixesOf(name), 0
+      decreases registry.TransitiveMembers(name), 0
     {
       var entity := registry.Get(name);
       DumpEntityHeader(entity.ei, indent);
       print Subtitle("Members", indent);
-      registry.Decreases_SuffixesOfMany(entity.ei);
+      registry.Decreases_TransitiveMembersOfMany(entity.ei);
       DumpEntities(entity.ei.members, indent + INDENT);
     }
 
     method DumpEntities(names: seq<Name>, indent: string)
       requires forall name <- names :: registry.Contains(name)
-      decreases registry.SuffixesOfMany(names), 1
+      decreases registry.TransitiveMembersOfMany(names), 1
     {
       for i := 0 to |names| {
         var name := names[i];
-        registry.Decreases_SuffixesOf(names, name);
+        registry.Decreases_TransitiveMembers(names, name);
         DumpEntity(name, indent);
         print "\n";
       }

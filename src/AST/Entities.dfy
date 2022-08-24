@@ -153,9 +153,9 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     //
     // The entity graph of a Dafny program is a tree: members of a module or
     // class have names that extend that of the parent module.  This fact allows
-    // easy recursion, using the functions `SuffixesOf` and `SuffixesOfMany`
-    // below, along with the two recursion lemmas `Decreases_SuffixesOf` and
-    // `Decreases_SuffixesOfMany`.
+    // easy recursion, using the functions `TransitiveMembers` and `TransitiveMembersOfMany`
+    // below, along with the two recursion lemmas `Decreases_TransitiveMembers` and
+    // `Decreases_TransitiveMembersOfMany`.
   {
     static function EMPTY(): (r: Registry_)
       ensures r.Valid?()
@@ -208,40 +208,40 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       )
     }
 
-    ghost function {:opaque} SuffixesOf(prefix: Name): set<Name> {
+    ghost function {:opaque} TransitiveMembers(prefix: Name): set<Name> {
       set name <- entities | name.ExtensionOf(prefix)
     }
 
-    ghost function {:opaque} SuffixesOfMany(prefixes: seq<Name>): set<Name> {
-      set prefix <- prefixes, name <- SuffixesOf(prefix) :: name
+    ghost function {:opaque} TransitiveMembersOfMany(prefixes: seq<Name>): set<Name> {
+      set prefix <- prefixes, name <- TransitiveMembers(prefix) :: name
     }
 
-    lemma Decreases_SuffixesOfMany(ei: EntityInfo)
+    lemma Decreases_TransitiveMembersOfMany(ei: EntityInfo)
       requires Contains(ei.name)
-      ensures SuffixesOfMany(ei.members) < SuffixesOf(ei.name);
+      ensures TransitiveMembersOfMany(ei.members) < TransitiveMembers(ei.name);
     {
-      reveal SuffixesOf();
-      reveal SuffixesOfMany();
+      reveal TransitiveMembers();
+      reveal TransitiveMembersOfMany();
 
-      assert SuffixesOfMany(ei.members) <= SuffixesOf(ei.name) by {
-        forall name <- SuffixesOfMany(ei.members)
-          ensures name in SuffixesOf(ei.name)
+      assert TransitiveMembersOfMany(ei.members) <= TransitiveMembers(ei.name) by {
+        forall name <- TransitiveMembersOfMany(ei.members)
+          ensures name in TransitiveMembers(ei.name)
         {
-          var prefix: Name :| prefix in ei.members && name in SuffixesOf(prefix);
+          var prefix: Name :| prefix in ei.members && name in TransitiveMembers(prefix);
           Name.ExtensionOf_Transitive(ei.name, prefix, name);
         }
       }
 
-      assert ei.name in SuffixesOf(ei.name);
-      assert ei.name !in SuffixesOfMany(ei.members);
+      assert ei.name in TransitiveMembers(ei.name);
+      assert ei.name !in TransitiveMembersOfMany(ei.members);
     }
 
-    lemma {:induction false} Decreases_SuffixesOf(names: seq<Name>, name: Name)
+    lemma {:induction false} Decreases_TransitiveMembers(names: seq<Name>, name: Name)
       requires name in names
-      ensures SuffixesOf(name) <= SuffixesOfMany(names);
+      ensures TransitiveMembers(name) <= TransitiveMembersOfMany(names);
     {
-      reveal SuffixesOf();
-      reveal SuffixesOfMany();
+      reveal TransitiveMembers();
+      reveal TransitiveMembersOfMany();
     }
 
     predicate Contains(name: Name) {
