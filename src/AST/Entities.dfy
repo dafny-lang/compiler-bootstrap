@@ -285,6 +285,12 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     // TODO Make a variant of SortedNames that traverses from the root and prove
     // that it returns all entities.
 
+    function {:opaque} AllNames(): set<Name>
+      ensures forall name :: name in AllNames() <==> Contains(name)
+    {
+      entities.Keys
+    }
+
     function {:opaque} SortedNames(): (all_names: seq<Name>)
       ensures (set name <- all_names) == entities.Keys
     {
