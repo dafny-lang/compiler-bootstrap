@@ -19,5 +19,9 @@ namespace CSharpInterop {
       }
       return b0;
     }
+
+    public static List<K, V> DictionaryToList(Dictionary<K, V> d) {
+      return d.ToList();
+    }
   }
 }

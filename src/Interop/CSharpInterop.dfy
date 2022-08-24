@@ -12,6 +12,8 @@ module {:extern "CSharpInterop"} Bootstrap.Interop.CSharpInterop {
     static method {:extern} Mk<T>() returns (l: List<T>)
     static method {:extern} Append<T>(l: List<T>, t: T)
 
+    static function method {:extern} DictionaryToList<K, V>(d: Dictionary<K, V>): List<(K, V)>
+
     static function method ToSeq<T>(l: List<T>) : seq<T> {
       FoldR((t, s) => [t] + s, [], l)
     }
