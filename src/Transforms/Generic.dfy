@@ -24,7 +24,7 @@ module Bootstrap.Transforms.Generic {
     }
 
     predicate Valid?() {
-      forall a | f.requires(a) :: HasValidPost()
+      HasValidPost()
     }
   }
 
