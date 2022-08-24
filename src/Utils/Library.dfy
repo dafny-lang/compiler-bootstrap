@@ -94,6 +94,7 @@ module Utils.Lib.Datatypes {
 
 module Utils.Lib.Seq {
   // FIXME why not use a comprehension directly?
+  // FIXME move `f`
   function method {:opaque} Map<T, Q>(f: T ~> Q, ts: seq<T>) : (qs: seq<Q>)
     reads f.reads
     requires forall t | t in ts :: f.requires(t)
@@ -152,7 +153,10 @@ module Utils.Lib.Seq {
     if ts == [] then a0 else f(FoldL(f, a0, ts[1..]), ts[0])
   }
 
-  function method Flatten<T>(tss: seq<seq<T>>): seq<T> { // TODO specify
+  function method Flatten<T>(tss: seq<seq<T>>): (ts: seq<T>)
+    ensures forall s <- ts :: exists ts <- tss :: s in ts
+    ensures forall ts0 <- tss, s <- ts0 :: s in ts
+  {
     if tss == [] then []
     else tss[0] + Flatten(tss[1..])
   }
