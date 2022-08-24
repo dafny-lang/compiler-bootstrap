@@ -436,6 +436,96 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       }
     }
 
+/// Depth-first traversal
+/// ~~~~~~~~~~~~~~~~~~~~~
+
+    function RecursiveTransitiveMembers(root: Name): (members: seq<Name>)
+      requires Valid?()
+      requires Contains(root)
+      decreases TransitiveMembers(root), 1
+    {
+      // DISCUSS: We need to name the lambda to prove anything about it below
+      [root] + Seq.Flatten(Seq.Map(RecursiveTransitiveMembers'(root), Members(root)))
+    }
+
+    function RecursiveTransitiveMembers'(ghost root: Name)
+      : (Name --> seq<Name>)
+      requires Valid?()
+      requires Contains(root)
+      decreases TransitiveMembers(root), 0
+    {
+      member requires member in Members(root) =>
+        TransitiveMembers_Lt(root, member);
+        RecursiveTransitiveMembers(member)
+    }
+
+    lemma RecursiveTransitiveMembers_Extension(root: Name)
+      requires Valid?()
+      requires Contains(root)
+      ensures forall d <- RecursiveTransitiveMembers(root) :: d.ExtensionOf(root)
+    {
+      forall d <- RecursiveTransitiveMembers(root)
+        ensures d.ExtensionOf(root)
+      {
+        RecursiveTransitiveMembers_Eq(root);
+        assert d in TransitiveMembers(root);
+        reveal TransitiveMembers();
+      }
+    }
+
+    lemma {:induction false} RecursiveTransitiveMembers_Le(root: Name, name: Name)
+      requires Valid?()
+      requires Contains(root)
+      decreases TransitiveMembers(root)
+      requires name in RecursiveTransitiveMembers(root)
+      ensures name in TransitiveMembers(root)
+    {
+      reveal TransitiveMembers();
+      if name != root {
+        assert name in Seq.Flatten(Seq.Map(RecursiveTransitiveMembers'(root), Members(root)));
+        var member :| member in Members(root) && name in RecursiveTransitiveMembers(member);
+        TransitiveMembers_Lt(root, member);
+        RecursiveTransitiveMembers_Le(member, name);
+        TransitiveMembers_Extension_Le(root, member);
+      }
+    }
+
+    lemma {:induction false} RecursiveTransitiveMembers_Ge(root: Name, name: Name)
+      requires Valid?()
+      requires Contains(root)
+      decreases TransitiveMembers(root)
+      requires name in TransitiveMembers(root)
+      ensures name in RecursiveTransitiveMembers(root)
+    {
+      reveal TransitiveMembers();
+      if name != root {
+        assert name in StrictTransitiveMembers(root) by {
+          TransitiveMembers_StrictTransitiveMembers(root);
+        }
+        StrictTransitiveMembers_Partition(root);
+        assert name in StrictTransitiveMembers_Partitioned(root);
+        var member :| member in Members(root) && name in TransitiveMembers(member);
+        TransitiveMembers_Lt(root, member);
+        RecursiveTransitiveMembers_Ge(member, name);
+      }
+    }
+
+    lemma {:induction false} RecursiveTransitiveMembers_Eq(root: Name)
+      requires Valid?()
+      requires Contains(root)
+      ensures Set.OfSeq(RecursiveTransitiveMembers(root)) == TransitiveMembers(root)
+    {
+      forall name ensures name in Set.OfSeq(RecursiveTransitiveMembers(root))
+                      <==> name in TransitiveMembers(root)
+      {
+        if name in Set.OfSeq(RecursiveTransitiveMembers(root)) {
+          RecursiveTransitiveMembers_Le(root, name);
+        }
+        if name in TransitiveMembers(root) {
+          RecursiveTransitiveMembers_Ge(root, name);
+        }
+      }
+    }
   }
 
   type Program = p: Program_ | p.Valid?() witness Program.EMPTY()
