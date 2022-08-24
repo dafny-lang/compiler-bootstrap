@@ -287,6 +287,26 @@ module Utils.Lib.Seq {
             case Some(y) => [y]
             case None => []) + MapFilter(s[1..], f)
   }
+
+  function method Break<T>(f: T -> bool, s: seq<T>): (result: (seq<T>, seq<T>))
+    ensures |result.1| <= |s|
+    ensures forall c | c in result.0 :: !f(c)
+  {
+    if |s| == 0 then ([], [])
+    else if f(s[0]) then ([], s)
+    else
+      var (h, t) := Break(f, s[1..]);
+      ([s[0]] + h, t)
+  }
+
+  function method Split<T(==)>(x: T, s: seq<T>): (result: seq<seq<T>>)
+    decreases |s|
+    ensures forall s | s in result :: x !in s
+  {
+    var (h, t) := Break(y => y == x, s);
+    assert !(x in h);
+    [h] + if |t| == 0 then [] else Split(x, t[1..])
+  }
 }
 
 module Utils.Lib.Outcome.OfSeq { // FIXME rename to Seq

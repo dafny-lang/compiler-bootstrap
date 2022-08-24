@@ -8,6 +8,8 @@ module {:extern "CSharpDafnyASTInterop"} Bootstrap.Interop.CSharpDafnyASTInterop
   function {:axiom} ASTHeight(c: object) : nat
     requires || c is CSharpDafnyASTModel.Expression
              || c is CSharpDafnyASTModel.Statement
+             || c is CSharpDafnyASTModel.Declaration
+             || c is CSharpDafnyASTModel.ModuleSignature
 
   class {:extern} TypeUtils {
     constructor {:extern} () requires false // Prevent instantiation

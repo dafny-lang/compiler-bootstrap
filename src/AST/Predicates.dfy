@@ -5,6 +5,7 @@ module Shallow {
   import opened Utils.Lib
   import opened Syntax
 
+  /*
   function method All_Method(m: Method, P: Expr -> bool) : bool {
     match m {
       case Method(CompileName_, methodBody) => P(methodBody)
@@ -20,6 +21,7 @@ module Shallow {
   function method All(p: Program, P: Expr -> bool) : bool {
     All_Program(p, P)
   }
+  */
 }
 
 module DeepImpl {
@@ -39,6 +41,7 @@ abstract module Base {
     : (b: bool)
     decreases e.Depth(), 1
 
+  /*
   function method All_Method(m: Method, P: Expr -> bool) : bool {
     Shallow.All_Method(m, e => All_Expr(e, P))
   }
@@ -46,6 +49,7 @@ abstract module Base {
   function method All_Program(p: Program, P: Expr -> bool) : bool {
     Shallow.All_Program(p, e => All_Expr(e, P))
   }
+  */
 
   //
   // Lemmas

@@ -3,6 +3,7 @@ include "../Interop/CSharpInterop.dfy"
 include "../Interop/CSharpDafnyInterop.dfy"
 include "../Interop/CSharpDafnyASTInterop.dfy"
 include "../Utils/Library.dfy"
+include "Entities.dfy"
 include "Syntax.dfy"
 include "Predicates.dfy"
 include "Translator.Common.dfy"
@@ -19,6 +20,8 @@ module Bootstrap.AST.Translator {
   import D = Syntax
   import DE = Syntax.Exprs
   import DT = Syntax.Types
+  import E = Entities
+  import N = Names
   import P = Predicates.Deep
   import opened Common
 
@@ -533,6 +536,7 @@ module Bootstrap.AST.Translator {
     else Failure(UnsupportedStmt(s))
   }
 
+  /*
   function method TranslateMethod(m: C.Method)
     : TranslationResult<D.Method>
     reads *
@@ -549,5 +553,177 @@ module Bootstrap.AST.Translator {
   {
     var tm :- TranslateMethod(p.MainMethod);
     Success(D.Program(tm))
+  }
+  */
+
+  function method TranslateName(str: System.String): N.Name {
+    var name := TypeConv.AsString(str);
+    var parts := Seq.Split('.', name);
+    assume forall s | s in parts :: s != "";
+    assert forall s | s in parts :: '.' !in s;
+    assert forall s | s in parts :: s != "" && '.' !in s;
+    var atoms : seq<N.Atom> := parts;
+    Seq.FoldL((n: N.Name, a: N.Atom) => N.Name(n, a), N.Anonymous, atoms)
+  }
+
+  function method TranslateImports(md: C.ModuleDecl): (imps: TranslationResult<seq<E.Import>>)
+    reads *
+  {
+    Failure(Invalid("NYI"))
+  }
+
+  function method TranslateExportSet(md: C.ModuleDecl): (exps: TranslationResult<E.ExportSet>)
+    reads *
+  {
+    Failure(Invalid("NYI"))
+  }
+
+  function method TranslateField(f: C.Field): (d: TranslationResult<E.Definition>)
+    reads *
+  {
+    var kind := if f.IsMutable then E.Var else E.Const;
+    var name := f.FullDafnyName;
+    Failure(Invalid("NYI"))
+  }
+
+  function method TranslateMethod(m: C.Method): (d: TranslationResult<E.Definition>)
+    reads *
+  {
+    var body :- TranslateStatement(m.Body);
+    var def := if m is C.Constructor then
+                 E.Constructor(body)
+               else
+                 E.Method(body);
+    Success(E.Callable(def))
+  }
+
+  function method TranslateFunction(f: C.Function): (d: TranslationResult<E.Definition>)
+    reads *
+  {
+    var body :- TranslateExpression(f.Body);
+    Success(E.Callable(E.Function(body)))
+  }
+
+  function method TranslateMemberDecl(md: C.MemberDecl): (d: TranslationResult<E.Definition>)
+    reads *
+  {
+    if md is C.Field then
+      TranslateField(md)
+    else if md is C.Function then
+      TranslateFunction(md)
+    else if md is C.Method then
+      TranslateMethod(md)
+    else
+      Failure(Invalid("Unsupported member declaration type"))
+  }
+
+  function method TranslateValueTypeDecl(vt: C.ValuetypeDecl): (e: TranslationResult<seq<E.Entity>>)
+    reads *
+  {
+    Failure(Invalid("NYI"))
+  }
+
+  function method TranslateTypeSynonymDecl(ts: C.TypeSynonymDecl): (e: TranslationResult<seq<E.Entity>>)
+    reads *
+  {
+    Failure(Invalid("NYI"))
+  }
+
+  function method TranslateOpaqueTypeDecl(ot: C.OpaqueTypeDecl): (e: TranslationResult<seq<E.Entity>>)
+    reads *
+  {
+    Failure(Invalid("NYI"))
+  }
+
+  function method TranslateNewtypeDecl(nt: C.NewtypeDecl): (e: TranslationResult<seq<E.Entity>>)
+    reads *
+  {
+    Failure(Invalid("NYI"))
+  }
+
+  function method TranslateDatatypeDecl(dt: C.DatatypeDecl): (e: TranslationResult<seq<E.Entity>>)
+    reads *
+  {
+    Failure(Invalid("NYI"))
+  }
+
+  function method TranslateTraitDecl(t: C.TraitDecl): (e: TranslationResult<seq<E.Entity>>)
+    reads *
+  {
+    Failure(Invalid("NYI"))
+  }
+
+  function method TranslateClassDecl(c: C.ClassDecl): (e: TranslationResult<seq<E.Entity>>)
+    reads *
+  {
+    Failure(Invalid("NYI"))
+  }
+
+  function method TranslateTopLevelDeclWithMembers(tl: C.TopLevelDeclWithMembers): (e: TranslationResult<seq<E.Entity>>)
+    reads *
+  {
+    if tl is C.OpaqueTypeDecl then
+      TranslateOpaqueTypeDecl(tl)
+    else if tl is C.NewtypeDecl then
+      TranslateNewtypeDecl(tl)
+    else if tl is C.DatatypeDecl then
+      TranslateDatatypeDecl(tl)
+    else if tl is C.TraitDecl then
+      TranslateTraitDecl(tl)
+    else if tl is C.ClassDecl then
+      TranslateClassDecl(tl)
+    else
+      Failure(Invalid("Unsupported top level declaration type"))
+  }
+
+  function method TranslateTopLevelDecl(tl: C.TopLevelDecl): (exps: TranslationResult<seq<E.Entity>>)
+    reads *
+    decreases ASTHeight(tl), 0
+  {
+    if tl is C.TopLevelDeclWithMembers then
+      TranslateTopLevelDeclWithMembers(tl)
+    else if tl is C.ValuetypeDecl then
+      TranslateValueTypeDecl(tl)
+    else if tl is C.ModuleDecl then
+      var md := tl as C.ModuleDecl;
+      assume ASTHeight(md.Signature) < ASTHeight(tl);
+      TranslateModule(md.Signature)
+    else
+      Failure(Invalid("Unsupported top level declaration type"))
+  }
+
+  function method TranslateModule(sig: C.ModuleSignature): (m: TranslationResult<seq<E.Entity>>)
+    reads *
+    decreases ASTHeight(sig), 1
+  {
+    var name := TranslateName(sig.ModuleDef.FullName);
+    var attrs := sig.ModuleDef.Attributes;
+    var includes := ListUtils.ToSeq(sig.ModuleDef.Includes);
+    var exports := sig.ExportSets;
+    var topLevels := ListUtils.ToSeq(ListUtils.DictionaryToList(sig.TopLevels));
+    var topDecls :- Seq.MapResult(topLevels,
+      (tl: (System.String, C.TopLevelDecl)) reads * =>
+        assume ASTHeight(tl.1) < ASTHeight(sig);
+        TranslateTopLevelDecl(tl.1));
+    var topDecls' := Seq.Flatten(topDecls);
+    var ei := E.EntityInfo.Mk(name);
+    var topNames := Seq.Map((e: E.Entity) => e.ei.name, topDecls');
+    var mod := E.Entity.Module(ei, E.Module.Module(topNames));
+    Success([mod] + topDecls')
+  }
+
+  function method TranslateProgram(p: C.Program): (exps: TranslationResult<E.Program>)
+    reads *
+  {
+    var moduleSigs := ListUtils.ToSeq(ListUtils.DictionaryToList(p.ModuleSigs));
+    var entities :- Seq.MapResult(moduleSigs,
+      (sig: (C.ModuleDefinition, C.ModuleSignature)) reads * => TranslateModule(sig.1));
+    var regMap := Seq.FoldL((m:map<N.Name, E.Entity>, e: E.Entity) => m + map[e.ei.name := e], map[], Seq.Flatten(entities));
+    var mainMethodName := TranslateName(p.MainMethod.FullName);
+    var defaultModuleName := TranslateName(p.DefaultModule.FullName);
+    var reg := E.Registry_.Registry(regMap);
+    :- Need(reg.Validate().Pass?, Invalid("Failed to validate registry"));
+    var prog := E.Program(reg, defaultModule := defaultModuleName, mainMethod := Some(mainMethodName));
+    if prog.Valid?() then Success(prog) else Failure(Invalid("Generated invalid program"))
   }
 }
