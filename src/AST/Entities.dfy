@@ -168,7 +168,15 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     }
 
     predicate ValidParent??(name: Name) {
-      name == Anonymous || name.parent in entities
+      || name == Anonymous
+      || (name.parent in entities && MemberOf(name, name.parent))
+    }
+
+    predicate MemberOf(name: Name, parent: Name)
+      requires name.Name?
+      requires Contains(name.parent)
+    {
+      name in entities[name.parent].ei.members
     }
 
     predicate ValidMembers??(ei: EntityInfo) {
