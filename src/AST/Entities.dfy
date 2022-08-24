@@ -291,9 +291,6 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       Registry(map name | name in entities :: f(entities[name]))
     }
 
-    // TODO Make a variant of SortedNames that traverses from the root and prove
-    // that it returns all entities.
-
     function {:opaque} AllNames(): set<Name>
       ensures forall name :: name in AllNames() <==> Contains(name)
     {
