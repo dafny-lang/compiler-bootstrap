@@ -154,14 +154,17 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     // The entity graph of a Dafny program is a tree: members of a module or
     // class have names that extend that of the parent module.  This fact allows
     // easy recursion, using the functions `TransitiveMembers` and `TransitiveMembersOfMany`
-    // below, along with the two recursion lemmas `Decreases_TransitiveMembers` and
-    // `Decreases_TransitiveMembersOfMany`.
+    // below, along with the recursion lemmas `Decreases_TransitiveMembers_Single`,
+    // `Decreases_TransitiveMembers_Many`, and `Decreases_TransitiveMembersOfMany`.
   {
     static function EMPTY(): (r: Registry_)
       ensures r.Valid?()
     {
       Registry(map[])
     }
+
+/// Well-formedness
+/// ~~~~~~~~~~~~~~~
 
     predicate ValidName??(name: Name, entity: Entity) {
       entity.ei.name == name
@@ -193,6 +196,9 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       forall name <- entities :: ValidEntry??(name, entities[name])
     }
 
+/// Post-construction validation
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     function {:opaque} ValidateEntry(name: Name, entity: Entity): (o: Outcome<seq<ValidationError>>)
       requires Lookup(name) == Some(entity)
       ensures o.Pass? <==> ValidEntry??(name, entity)
@@ -216,44 +222,31 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       )
     }
 
-    ghost function {:opaque} TransitiveMembers(prefix: Name): set<Name> {
-      set name <- entities | name.ExtensionOf(prefix)
-    }
-
-    ghost function {:opaque} TransitiveMembersOfMany(prefixes: seq<Name>): set<Name> {
-      set prefix <- prefixes, name <- TransitiveMembers(prefix) :: name
-    }
-
-    lemma Decreases_TransitiveMembersOfMany(ei: EntityInfo)
-      requires Contains(ei.name)
-      ensures TransitiveMembersOfMany(ei.members) < TransitiveMembers(ei.name);
-    {
-      reveal TransitiveMembers();
-      reveal TransitiveMembersOfMany();
-
-      assert TransitiveMembersOfMany(ei.members) <= TransitiveMembers(ei.name) by {
-        forall name <- TransitiveMembersOfMany(ei.members)
-          ensures name in TransitiveMembers(ei.name)
-        {
-          var prefix: Name :| prefix in ei.members && name in TransitiveMembers(prefix);
-          Name.ExtensionOf_Transitive(ei.name, prefix, name);
-        }
-      }
-
-      assert ei.name in TransitiveMembers(ei.name);
-      assert ei.name !in TransitiveMembersOfMany(ei.members);
-    }
-
-    lemma {:induction false} Decreases_TransitiveMembers(names: seq<Name>, name: Name)
-      requires name in names
-      ensures TransitiveMembers(name) <= TransitiveMembersOfMany(names);
-    {
-      reveal TransitiveMembers();
-      reveal TransitiveMembersOfMany();
-    }
+/// Core API
+/// ~~~~~~~~
 
     predicate Contains(name: Name) {
       name in entities
+    }
+
+    lemma {:induction false} NthParent_Contains(name: Name, n: nat)
+      requires Valid?()
+      requires Contains(name)
+      requires n <= name.Length()
+      ensures Contains(name.NthParent(n))
+    {
+      if n > 0 {
+        NthParent_Contains(name.parent, n - 1);
+      }
+    }
+
+    lemma {:induction false} TruncateTo_Contains(name: Name, length: nat)
+      requires Valid?()
+      requires Contains(name)
+      requires length <= name.Length()
+      ensures Contains(name.TruncateTo(length))
+    {
+      NthParent_Contains(name, name.Length() - length);
     }
 
     function Get(name: Name): Entity
@@ -268,6 +261,12 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 
     predicate HasKind(name: Name, kind: EntityKind) {
       Contains(name) && Get(name).kind == kind
+    }
+
+    function Members(name: Name): seq<Name>
+      requires Contains(name)
+    {
+      Get(name).ei.members
     }
 
     function Add(name: Name, entity: Entity): Registry
@@ -292,12 +291,151 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       SetSort.Sort(entities.Keys, Name.Comparison)
     }
 
-    // TODO
-    // function SortedEntities(): (all_entities: seq<Entity>)
-    //   ensures (set e <- all_entities :: e.ei.name) == entities.Keys
-    // {
-    //   Seq.Map(name requires name in entities.Keys => entities[name], SortedNames())
-    // }
+/// Unordered traversals
+/// ~~~~~~~~~~~~~~~~~~~~
+
+    function {:opaque} TransitiveMembers(prefix: Name): set<Name> {
+      set name <- entities | name.ExtensionOf(prefix)
+    }
+
+    function {:opaque} TransitiveMembersOfMany(prefixes: seq<Name>): set<Name> {
+      set prefix <- prefixes, name <- TransitiveMembers(prefix) :: name
+    }
+
+    lemma TransitiveMembersOfMany_Le(root: Name, members: seq<Name>)
+      requires forall member <- members :: member.ChildOf(root)
+      ensures TransitiveMembersOfMany(members) <= TransitiveMembers(root);
+    {
+      reveal TransitiveMembers();
+      reveal TransitiveMembersOfMany();
+
+      forall name <- TransitiveMembersOfMany(members)
+        ensures name in TransitiveMembers(root)
+      {
+        var prefix: Name :| prefix in members && name in TransitiveMembers(prefix);
+        Name.ExtensionOf_Transitive(root, prefix, name);
+      }
+    }
+
+    lemma TransitiveMembersOfMany_Lt(root: Name, members: seq<Name>)
+      requires Contains(root)
+      requires forall member <- members :: member.ChildOf(root)
+      ensures TransitiveMembersOfMany(members) < TransitiveMembers(root);
+    {
+      reveal TransitiveMembers();
+      reveal TransitiveMembersOfMany();
+
+      TransitiveMembersOfMany_Le(root, members);
+
+      assert root in TransitiveMembers(root);
+      assert root !in TransitiveMembersOfMany(members);
+    }
+
+    lemma {:induction false} TransitiveMembers_Le_Many(names: seq<Name>, name: Name)
+      requires name in names
+      ensures TransitiveMembers(name) <= TransitiveMembersOfMany(names);
+    {
+      reveal TransitiveMembers();
+      reveal TransitiveMembersOfMany();
+    }
+
+    lemma {:induction false} TransitiveMembers_Le(root: Name, member: Name)
+      requires member.ChildOf(root)
+      ensures TransitiveMembers(member) <= TransitiveMembers(root);
+    {
+      TransitiveMembersOfMany_Le(root, [member]);
+      TransitiveMembers_Le_Many([member], member);
+    }
+
+    lemma {:induction false} TransitiveMembers_Lt(root: Name, member: Name)
+      requires Contains(root)
+      requires member.ChildOf(root)
+      ensures TransitiveMembers(member) < TransitiveMembers(root);
+    {
+      TransitiveMembersOfMany_Lt(root, [member]);
+      TransitiveMembers_Le_Many([member], member);
+    }
+
+    lemma {:induction false} TransitiveMembers_Extension_Le(root: Name, name: Name)
+      requires name.ExtensionOf(root)
+      ensures TransitiveMembers(name) <= TransitiveMembers(root)
+    {
+      if name != root {
+        TransitiveMembers_Le(name.parent, name);
+        TransitiveMembers_Extension_Le(root, name.parent);
+      }
+    }
+
+    lemma {:induction false} Decreases_TransitiveMembers_Many(names: seq<Name>, name: Name)
+      requires name in names
+      ensures TransitiveMembers(name) <= TransitiveMembersOfMany(names);
+    {
+      TransitiveMembers_Le_Many(names, name);
+    }
+
+    lemma {:induction false} Decreases_TransitiveMembers_Single(ei: EntityInfo, member: Name)
+      requires Contains(ei.name)
+      requires member in ei.members
+      ensures TransitiveMembers(member) < TransitiveMembers(ei.name);
+    {
+     TransitiveMembers_Lt(ei.name, member);
+    }
+
+    lemma {:induction false} Decreases_TransitiveMembersOfMany(ei: EntityInfo)
+      requires Contains(ei.name)
+      ensures TransitiveMembersOfMany(ei.members) < TransitiveMembers(ei.name);
+    {
+      TransitiveMembersOfMany_Lt(ei.name, ei.members);
+    }
+
+
+    function {:opaque} StrictTransitiveMembers(root: Name): (descendants: set<Name>) {
+      set name <- entities | name.StrictExtensionOf(root)
+    }
+
+    lemma TransitiveMembers_StrictTransitiveMembers(root: Name)
+      requires Contains(root)
+      ensures TransitiveMembers(root) == {root} + StrictTransitiveMembers(root)
+    {
+      reveal TransitiveMembers();
+      reveal StrictTransitiveMembers();
+    }
+
+    ghost function StrictTransitiveMembers_Partitioned(root: Name): set<Name>
+      requires Contains(root)
+    {
+      set member <- Members(root), name <- TransitiveMembers(member) :: name
+    }
+
+    lemma StrictTransitiveMembers_Partition(root: Name)
+      requires Valid?()
+      requires Contains(root)
+      ensures StrictTransitiveMembers(root) == StrictTransitiveMembers_Partitioned(root)
+    {
+      reveal TransitiveMembers();
+      reveal StrictTransitiveMembers();
+
+      var members := Members(root);
+
+      forall name <- StrictTransitiveMembers(root)
+        ensures name in StrictTransitiveMembers_Partitioned(root)
+      {
+        var member := name.ChildOfAncestor(root);
+        assert Contains(member) by { TruncateTo_Contains(name, root.Length() + 1); }
+        assert member in members;
+        assert name in TransitiveMembers(member);
+        assert name in StrictTransitiveMembers_Partitioned(root);
+      }
+
+      forall name <- StrictTransitiveMembers_Partitioned(root)
+        ensures name in StrictTransitiveMembers(root)
+      {
+        var member :| member in members && name in TransitiveMembers(member);
+        Name.StrictExtensionOf_Right_Transitive(root, member, name);
+        assert name in StrictTransitiveMembers(root);
+      }
+    }
+
   }
 
   type Program = p: Program_ | p.Valid?() witness Program.EMPTY()
