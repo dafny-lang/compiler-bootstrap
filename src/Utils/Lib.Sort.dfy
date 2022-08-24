@@ -86,6 +86,7 @@ module Utils.Lib.ArraySort {
       requires 0 <= lo <= hi <= arr.Length
       reads arr
     {
+      reveal C.Valid?(); // Leaks through
       C.Valid?(Set.OfSlice(arr, lo, hi))
     }
 
@@ -188,10 +189,11 @@ module Utils.Lib.ArraySort {
     lemma StripedNonEmpty(sq: seq<T>, pivot: T, lo: int, left: int, mid: int, right: int, hi: int)
       requires 0 <= lo <= left <= mid <= right <= hi <= |sq|
       requires C.Striped(sq, pivot, lo, left, mid, right, hi)
-      requires C.Valid?(set x <- sq[lo..hi])
+      requires C.Valid?(Set.OfSeq(sq[lo..hi]))
       requires pivot in sq[lo..hi]
       ensures left < right
     {
+      reveal C.Valid?();
       var idx :| lo <= idx < hi && sq[idx] == pivot;
       C.AlwaysReflexive(pivot);
       reveal C.Striped();
@@ -406,12 +408,14 @@ module Utils.Lib.ArraySort {
 
 module Utils.Lib.SetSort { // TODO rename to Sort.Set when it becomes possible
   import opened C = Sort.Comparison
+  import Set
   import Array
   import ArraySort
 
   method QuickSort<T>(st: set<T>, cmp: Comparison<T>) returns (sq: seq<T>)
     requires cmp.Valid?(st)
-    ensures st == set x <- sq
+    ensures multiset(st) == multiset(sq)
+    ensures st == Set.OfSeq(sq)
     ensures cmp.Sorted(sq)
   {
     var arr := Array.OfSet(st);
@@ -422,7 +426,7 @@ module Utils.Lib.SetSort { // TODO rename to Sort.Set when it becomes possible
     assert arr[0..arr.Length] == arr[..];
     assert old@unsorted(arr[0..arr.Length]) == old@unsorted(arr[..]);
     calc {
-      set x <- arr[..];
+      Set.OfSeq(arr[..]);
       set x <- multiset(arr[..]);
       set x <- old@unsorted(multiset(arr[..]));
       set x <- multiset(st);
@@ -434,7 +438,8 @@ module Utils.Lib.SetSort { // TODO rename to Sort.Set when it becomes possible
 
   function {:opaque} Sort<T(==)>(st: set<T>, cmp: Comparison<T>): (sq: seq<T>)
     requires cmp.Valid?(st)
-    ensures st == set x <- sq
+    ensures multiset(st) == multiset(sq)
+    ensures st == Set.OfSeq(sq)
     ensures cmp.Sorted(sq)
   {
     assume false; [] // TODO

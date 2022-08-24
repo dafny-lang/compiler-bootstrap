@@ -105,6 +105,11 @@ module Utils.Lib.Seq {
     if ts == [] then [] else [f(ts[0])] + Map(f, ts[1..])
   }
 
+  lemma Map_in<T, Q>(f: T ~> Q, ts: seq<T>)
+    requires forall t | t in ts :: f.requires(t)
+    ensures forall q :: q in Map(f, ts) <==> exists t | t in ts :: q == f(t)
+  {}
+
   function method FoldL<TAcc(!new), T>(f: (TAcc, T) ~> TAcc, a0: TAcc, ts: seq<T>) : TAcc
     reads f.reads
     requires forall a, t | t in ts :: f.requires(a, t)
@@ -473,7 +478,9 @@ module Utils.Lib.Int.Comparison {
 
   lemma {:induction ints} Total(ints: set<int>)
     ensures Comparison.Total?(ints)
-  {}
+  {
+    reveal Comparison.Total?();
+  }
 }
 
 module Utils.Lib.Char.Comparison {
@@ -489,7 +496,9 @@ module Utils.Lib.Char.Comparison {
 
   lemma {:induction chars} Total(chars: set<char>)
     ensures Comparison.Total?(chars)
-  {}
+  {
+    reveal Comparison.Total?();
+  }
 }
 
 module Utils.Lib.Seq.Comparison {
@@ -517,6 +526,7 @@ module Utils.Lib.Seq.Comparison {
       requires cmp.Total?(Set.OfSeq(s0) + Set.OfSeq(s1))
       ensures Comparison.Complete??(s0, s1)
     {
+      reveal cmp.Total?();
       if s0 != [] && s1 != [] {
         assert s0[0] in s0 && s1[0] in s1;
         assert s0[0] in Set.OfSeq(s0) && s1[0] in Set.OfSeq(s1);
@@ -528,7 +538,7 @@ module Utils.Lib.Seq.Comparison {
       requires cmp.Total?(Set.OfSeq(s0) + Set.OfSeq(s1))
       ensures Comparison.Antisymmetric??(s0, s1)
     {
-      // forall s0, s1 | s0 in tss && s1 in tss ensures Comparison.Complete??(s0, s1) {
+      reveal cmp.Total?();
       if s0 != [] && s1 != [] {
         assert s0[0] in s0 && s1[0] in s1;
         assert s0[0] in Set.OfSeq(s0) && s1[0] in Set.OfSeq(s1);
@@ -541,6 +551,7 @@ module Utils.Lib.Seq.Comparison {
       requires cmp.Total?(Set.OfSeq(s0) + Set.OfSeq(s1) + Set.OfSeq(s2))
       ensures Comparison.Transitive??(s0, s1, s2)
     {
+      reveal cmp.Total?();
       if s0 != [] && s1 != [] && s1 != [] && Comparison.Compare(s0, s1).Le? && Comparison.Compare(s1, s2).Le? {
         assert s0[0] in s0 && s1[0] in s1 && s2[0] in s2;
         assert s0[0] in Set.OfSeq(s0) && s1[0] in Set.OfSeq(s1) && s2[0] in Set.OfSeq(s2);
@@ -557,6 +568,8 @@ module Utils.Lib.Seq.Comparison {
       requires cmp.Total?(Flatten(tss))
       ensures Comparison.Total?(tss)
     {
+      reveal cmp.Total?();
+      reveal Comparison.Total?();
       forall s0, s1 | s0 in tss && s1 in tss ensures Comparison.Complete??(s0, s1) {
         Complete1(s0, s1);
       }
@@ -693,11 +706,11 @@ module Utils.Lib.Sort.Comparison {
       forall t0, t1, t2 | t0 in ts && t1 in ts && t2 in ts :: Transitive??(t0, t1, t2)
     }
 
-    predicate Valid?(ts: set<T>) {
+    predicate {:opaque} Valid?(ts: set<T>) {
       Complete?(ts) && /* Antisymmetric?(ts) && */ Transitive?(ts)
     }
 
-    predicate Total?(ts: set<T>) { // TODO: Make this opaque?  Automated proofs can get very slow and costly
+    predicate {:opaque} Total?(ts: set<T>) {
       Complete?(ts) && Antisymmetric?(ts) && Transitive?(ts)
     }
 
@@ -743,6 +756,8 @@ module Utils.Lib.Sort.DerivedComparison {
       requires cmp.Valid?(Set.Map(ts, fn))
       ensures Comparison.Valid?(ts)
     {
+      reveal cmp.Valid?();
+      reveal Comparison.Valid?();
       forall s0, s1 | s0 in ts && s1 in ts ensures Comparison.Complete??(s0, s1) {
         assert cmp.Complete??(fn(s0), fn(s1));
       }
@@ -756,6 +771,10 @@ module Utils.Lib.Sort.DerivedComparison {
       requires forall i, j | fn(i) == fn(j) :: i == j
       ensures Comparison.Total?(ts)
     {
+      reveal cmp.Valid?();
+      reveal cmp.Total?();
+      reveal Comparison.Valid?();
+      reveal Comparison.Total?();
       Valid(ts);
       forall s0, s1 | s0 in ts && s1 in ts ensures Comparison.Antisymmetric??(s0, s1) {
         calc ==> {
