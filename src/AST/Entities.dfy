@@ -217,7 +217,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     }
 
     lemma Decreases_SuffixesOfMany(ei: EntityInfo)
-      requires ei.name in entities
+      requires Contains(ei.name)
       ensures SuffixesOfMany(ei.members) < SuffixesOf(ei.name);
     {
       reveal SuffixesOf();
