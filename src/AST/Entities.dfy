@@ -166,7 +166,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 /// Well-formedness
 /// ~~~~~~~~~~~~~~~
 
-    predicate ValidName??(name: Name, entity: Entity) {
+    static predicate ValidName??(name: Name, entity: Entity) {
       entity.ei.name == name
     }
 
@@ -280,13 +280,45 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       Get(name).ei.members
     }
 
-    function Add(name: Name, entity: Entity): Registry
+    function AddRoot(name: Name, entity: Entity): Registry
       requires Valid?()
+      requires name.Anonymous?
       requires !Contains(name)
-      requires entity.Module?
-      requires ValidEntry??(name, entity) // TODO: Only allows adding "Anonymous"
+      requires entity.ei.members == []
+      requires entity.ei.name == name
     {
-      this.(entities := entities[name := entity])
+      this.(entities := entities[Anonymous := entity])
+    }
+
+    function AddMember(name: Name, entity: Entity): Registry
+      requires Valid?()
+      requires name.Name?
+      requires !Contains(name)
+      requires entity.ei.members == []
+      requires ValidName??(name, entity)
+      requires Contains(name.parent)
+    {
+      var parent := Get(name.parent);
+      var parent := parent.(ei := parent.ei.(members := parent.ei.members + [name]));
+      var entities := entities[name := entity][name.parent := parent];
+      var this': Registry_ := this.(entities := entities);
+      assert entities.Keys == this.entities.Keys + {name};
+      assert this'.Valid?() by {
+        forall nm <- this'.entities ensures this'.ValidEntry??(nm, entities[nm]) {
+          if nm != name && nm != name.parent {}
+        }
+      }
+      this'
+    }
+
+    function Add(entity: Entity): Registry
+      requires Valid?()
+      requires !Contains(entity.ei.name)
+      requires entity.ei.members == []
+      requires entity.ei.name.Name? ==> Contains(entity.ei.name.parent)
+    {
+      var name := entity.ei.name;
+      if name.Anonymous? then AddRoot(name, entity) else AddMember(name, entity)
     }
 
     function Map(f: EntityTransformer): Registry requires Valid?() {
@@ -554,7 +586,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   {
     static function EMPTY(): (p: Program_) ensures p.Valid?() {
       Program(
-        Registry.EMPTY().Add(Anonymous, Entity.Module(EntityInfo.Mk(Anonymous), Module.Module())),
+        Registry.EMPTY().Add(Entity.Module(EntityInfo.Mk(Anonymous), Module.Module())),
         defaultModule := Anonymous,
         mainMethod := None
       )
