@@ -19,7 +19,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   // DISCUSS: Should this module be parameterized by `TExpr`?
 
   datatype Module =
-    Module(members: seq<Name>)
+    Module()
 
   datatype ExportSet =
     ExportSet(provided: set<Name>, revealed: set<Name>)
@@ -586,7 +586,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   {
     static function EMPTY(): (p: Program_) ensures p.Valid?() {
       Program(
-        Registry.EMPTY().Add(Entity.Module(EntityInfo.Mk(Anonymous), Module.Module([]))),
+        Registry.EMPTY().Add(Entity.Module(EntityInfo.Mk(Anonymous), Module.Module())),
         defaultModule := Anonymous,
         mainMethod := None
       )

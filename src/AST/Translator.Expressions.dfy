@@ -706,9 +706,8 @@ module Bootstrap.AST.Translator {
         assume ASTHeight(tl.1) < ASTHeight(sig);
         TranslateTopLevelDecl(tl.1));
     var topDecls' := Seq.Flatten(topDecls);
-    var ei := E.EntityInfo.Mk(name);
-    var topNames := Seq.Map((e: E.Entity) => e.ei.name, topDecls');
-    var mod := E.Entity.Module(ei, E.Module.Module(topNames));
+    var ei := E.EntityInfo.Mk(name); // TODO
+    var mod := E.Entity.Module(ei, E.Module.Module());
     Success([mod] + topDecls')
   }
 
