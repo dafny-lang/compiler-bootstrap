@@ -19,9 +19,14 @@ namespace CSharpInterop {
       }
       return b0;
     }
+  }
 
-    public static List<K, V> DictionaryToList(Dictionary<K, V> d) {
-      return d.ToList();
+  public class DictUtils {
+    public static R FoldL<K, V, R>(Func<R, (K, V), R> f, R r0, Dictionary<K, V> d) {
+      foreach (var k in d.Keys) {
+        r0 = f(r0, (k, d[k]));
+      }
+      return r0;
     }
   }
 }

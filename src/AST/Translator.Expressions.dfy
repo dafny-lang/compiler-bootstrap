@@ -700,7 +700,7 @@ module Bootstrap.AST.Translator {
     var attrs := sig.ModuleDef.Attributes;
     var includes := ListUtils.ToSeq(sig.ModuleDef.Includes);
     var exports := sig.ExportSets;
-    var topLevels := ListUtils.ToSeq(ListUtils.DictionaryToList(sig.TopLevels));
+    var topLevels := DictUtils.DictionaryToSeq(sig.TopLevels);
     var topDecls :- Seq.MapResult(topLevels,
       (tl: (System.String, C.TopLevelDecl)) reads * =>
         assume ASTHeight(tl.1) < ASTHeight(sig);
@@ -715,7 +715,7 @@ module Bootstrap.AST.Translator {
   function method TranslateProgram(p: C.Program): (exps: TranslationResult<E.Program>)
     reads *
   {
-    var moduleSigs := ListUtils.ToSeq(ListUtils.DictionaryToList(p.ModuleSigs));
+    var moduleSigs := DictUtils.DictionaryToSeq(p.ModuleSigs);
     var entities :- Seq.MapResult(moduleSigs,
       (sig: (C.ModuleDefinition, C.ModuleSignature)) reads * => TranslateModule(sig.1));
     var regMap := Seq.FoldL((m:map<N.Name, E.Entity>, e: E.Entity) => m + map[e.ei.name := e], map[], Seq.Flatten(entities));

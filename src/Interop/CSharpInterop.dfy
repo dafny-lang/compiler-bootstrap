@@ -12,8 +12,6 @@ module {:extern "CSharpInterop"} Bootstrap.Interop.CSharpInterop {
     static method {:extern} Mk<T>() returns (l: List<T>)
     static method {:extern} Append<T>(l: List<T>, t: T)
 
-    static function method {:extern} DictionaryToList<K, V>(d: Dictionary<K, V>): List<(K, V)>
-
     static function method ToSeq<T>(l: List<T>) : seq<T> {
       FoldR((t, s) => [t] + s, [], l)
     }
@@ -24,6 +22,19 @@ module {:extern "CSharpInterop"} Bootstrap.Interop.CSharpInterop {
         Append(l, s[i]);
         i := i + 1;
       }
+    }
+  }
+
+  class DictUtils {
+    constructor {:extern} () requires false // Prevent instantiation
+
+    static function method {:extern} FoldL<K, V, R>(f: (R, (K, V)) -> R, r0: R, d: Dictionary<K, V>): R
+
+    static function method ReduceSeq<K, V>(acc: seq<(K, V)>, entry: (K, V)): seq<(K, V)> {
+      acc + [entry]
+    }
+    static function method DictionaryToSeq<K, V>(d: Dictionary<K, V>): seq<(K, V)> {
+      FoldL(ReduceSeq, [], d)
     }
   }
 }
