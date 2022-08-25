@@ -51,6 +51,14 @@ Project hierarchy
       Operational semantics for the pure subset of Dafny
     ``Equiv.dfy``
       Definition of program equivalence based on ``Interp.dfy``
+    ``ExprInduction.dfy``
+      Induction principle based on ``Interp.dfy``
+    ``InterpStateIneq.dfy``
+      Proof of a monotonicity property for the interpreter
+    ``EqInterpScopes.dfy``
+      Proof that evaluating an expression with equivalent states (after roll back) leads to equivalent results
+    ``EqInterpRefl.dfy``
+      Proof that evaluating an expression with states equivalent in the sense of ``Equiv.dfy`` leads to equivalent results
   ``Transforms/``
     ``Generic.dfy``
       Basic definitions for AST transformers
@@ -61,6 +69,8 @@ Project hierarchy
       Definition of a compiler pass
     ``EliminateNegatedBinops.dfy``
       Simple demo pass
+    ``SimplifyEmptyBlocks.dfy``
+      Pass which simplifies empty blocks
   ``REPL/``
     ``Repl.dfy``
       Driver for a REPL build on top of ``Interp/``
