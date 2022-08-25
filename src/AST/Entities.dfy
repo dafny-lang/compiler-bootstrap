@@ -199,18 +199,20 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 /// Post-construction validation
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    function {:opaque} ValidateEntry(name: Name, entity: Entity): (o: Outcome<seq<ValidationError>>)
+    function {:opaque} ValidateEntry(name: Name, entity: Entity): (os: Outcome<seq<ValidationError>>)
       requires Lookup(name) == Some(entity)
-      ensures o.Pass? <==> ValidEntry??(name, entity)
+      ensures os.Pass? <==> ValidEntry??(name, entity)
     {
-      assume false; // TODO
-      OS.Combine(
-        [if ValidName??(name, entity) then Pass else Fail(NameMismatch(name, entity.ei.name)),
-         if ValidParent??(name) then Pass else Fail(UnboundParent(name, name.parent))]
-        + Seq.Map(m =>
-            if m in entities then Pass else Fail(UnboundMember(name, m)),
-            entity.ei.members)
-      )
+      var validName := Need(ValidName??(name, entity), NameMismatch(name, entity.ei.name));
+      var validParent := if ValidParent??(name) then Pass else Fail(UnboundParent(name, name.parent));
+      var validMembers := Seq.Map(m => Need(m in entities, UnboundMember(name, m)), entity.ei.members);
+      var os := OS.Combine([validName, validParent] + validMembers);
+      calc <==> {
+        os.Pass?;
+        validName.Pass? && validParent.Pass? && forall o <- validMembers :: o.Pass?;
+        validName.Pass? && validParent.Pass? && forall m <- entity.ei.members :: m in entities;
+      }
+      os
     }
 
     function {:opaque} Validate(): (os: Outcome<seq<ValidationError>>)
