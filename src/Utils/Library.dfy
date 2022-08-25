@@ -714,6 +714,13 @@ module Utils.Lib.Sort.Comparison {
       Complete?(ts) && Antisymmetric?(ts) && Transitive?(ts)
     }
 
+    lemma TotalValid(ts: set<T>)
+      ensures Total?(ts) ==> Valid?(ts)
+    {
+      reveal Total?();
+      reveal Valid?();
+    }
+
     predicate Sorted(sq: seq<T>) {
       forall i, j | 0 <= i < j < |sq| :: cmp(sq[i], sq[j]).Le?
     }

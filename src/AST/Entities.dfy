@@ -298,9 +298,12 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     }
 
     function {:opaque} SortedNames(): (all_names: seq<Name>)
-      ensures (set name <- all_names) == entities.Keys
+      ensures Set.OfSeq(all_names) == AllNames()
+      ensures forall name :: name in all_names <==> Contains(name)
     {
-      SetSort.Sort(entities.Keys, Name.Comparison)
+      Name.Total(AllNames());
+      Name.Comparison.TotalValid(AllNames());
+      SetSort.Sort(AllNames(), Name.Comparison)
     }
 
 /// Unordered traversals
