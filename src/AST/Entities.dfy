@@ -12,6 +12,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 {
   import opened Names
   import opened Syntax.Exprs
+  import ST = Syntax.Types
   import opened Utils.Lib.Datatypes
   import Utils.Lib.SetSort
   import OS = Utils.Lib.Outcome.OfSeq
@@ -31,7 +32,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     SubsetType(boundVar: string, pred: Expr, witnessExpr: Option<Expr>)
 
   datatype TypeAlias =
-    TypeAlias(base: Name)
+    TypeAlias(base: ST.Type)
   datatype AbstractType =
     AbstractType()
   datatype TraitType =
@@ -55,7 +56,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   datatype FieldKind =
     Const | Var
   datatype Field =
-    Field(kind: FieldKind, body: Expr)
+    Field(kind: FieldKind, body: Option<Expr>)
 
   datatype Callable =
     | Method(body: Expr)
