@@ -15,7 +15,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateName(str: System.String): TranslationResult<N.Name> {
     var name := TypeConv.AsString(str);
     var parts := Seq.Split('.', name);
-    :- Need(forall s | s in parts :: s != "", Invalid("Empty component in name"));
+    :- Need(forall s | s in parts :: s != "", Invalid("Empty component in name: " + name));
     assert forall s | s in parts :: '.' !in s;
     assert forall s | s in parts :: s != "" && '.' !in s;
     var atoms : seq<N.Atom> := parts;
@@ -102,7 +102,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     else if md is C.Method then
       TranslateMethod(md)
     else
-      Failure(Invalid("Unsupported member declaration type"))
+      Failure(Invalid("Unsupported member declaration type: " + TypeConv.AsString(md.FullDafnyName)))
   }
 
   function TranslateTypeSynonymDecl(ts: C.TypeSynonymDecl): (e: TranslationResult<E.Type>)
@@ -164,7 +164,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     var memberDecls := ListUtils.ToSeq(tl.Members);
     var members :- Seq.MapResult(memberDecls, d reads * => TranslateMemberDecl(d));
     var memberNames := Seq.Map((m: E.Entity) => m.ei.name, members);
-    :- Need(forall nm <- memberNames :: nm.ChildOf(name), Invalid("Malformed name"));
+    :- Need(forall nm <- memberNames :: nm.ChildOf(name), Invalid("Malformed member name in " + name.ToString()));
     Success((members, E.EntityInfo(name, location := loc, attrs := attrs, members := memberNames)))
   }
 
@@ -183,7 +183,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
                else if tl is C.ClassDecl then
                  TranslateClassDecl(tl)
                else
-                 Failure(Invalid("Unsupported top level declaration type"));
+                 Failure(Invalid("Unsupported top level declaration type for " + TypeConv.AsString(tl.FullDafnyName)));
     var topEntity := E.Entity.Type(ei, top);
     Success([topEntity] + members)
   }
@@ -199,7 +199,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       assume ASTHeight(md.Signature) < ASTHeight(tl);
       TranslateModule(md.Signature)
     else
-      Failure(Invalid("Unsupported top level declaration type"))
+      Failure(Invalid("Unsupported top level declaration type for " + TypeConv.AsString(tl.FullDafnyName)))
   }
 
   function TranslateModule(sig: C.ModuleSignature): (m: TranslationResult<seq<E.Entity>>)
@@ -219,7 +219,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
         TranslateTopLevelDecl(tl.1));
     var topDecls' := Seq.Flatten(topDecls);
     var topNames := Seq.Map((d: E.Entity) => d.ei.name, topDecls');
-    :- Need(forall nm <- topNames :: nm.ChildOf(name), Invalid("Malformed name"));
+    :- Need(forall nm <- topNames :: nm.ChildOf(name), Invalid("Malformed name in " + name.ToString()));
     var ei := E.EntityInfo(name, location := loc, attrs := attrs, members := topNames);
     var mod := E.Entity.Module(ei, E.Module.Module());
     Success([mod] + topDecls')
