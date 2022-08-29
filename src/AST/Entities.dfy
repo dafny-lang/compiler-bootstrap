@@ -59,9 +59,9 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     Field(kind: FieldKind, body: Option<Expr>)
 
   datatype Callable =
-    | Method(body: Expr)
-    | Function(body: Expr)
-    | Constructor(body: Expr)
+    | Method(req: seq<Expr>, ens: seq<Expr>, body: Option<Expr>)
+    | Function(req: seq<Expr>, ens: seq<Expr>, body: Option<Expr>)
+    | Constructor(req: seq<Expr>, ens: seq<Expr>, body: Option<Expr>)
 
   datatype Definition =
     | Field(fi: Field)

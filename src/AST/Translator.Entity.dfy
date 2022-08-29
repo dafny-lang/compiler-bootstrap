@@ -50,6 +50,17 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     Success([E.Attribute.Attribute(TranslateAttributeName(name), args)] + rest)
   }
 
+  // TODO: adapt auto-generated AST to include some nullable fields
+  function TranslateNullableExpression(e: C.Expression?): TranslationResult<Option<Expr.Expr>>
+    reads *
+  {
+    if e == null then
+      Success(None)
+    else
+      var e' :- Expr.TranslateExpression(e);
+      Success(Some(e'))
+  }
+
   function TranslateMemberEntityInfo(md: C.MemberDecl): (e: TranslationResult<E.EntityInfo>)
     reads *
   {
@@ -74,12 +85,14 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateMethod(m: C.Method): (d: TranslationResult<E.Entity>)
     reads *
   {
+    // TODO: empty body
     var body :- Expr.TranslateStatement(m.Body);
+    var req :- Seq.MapResult(ListUtils.ToSeq(m.Req), (ae: C.AttributedExpression) reads * => Expr.TranslateExpression(ae.E));
+    var ens :- Seq.MapResult(ListUtils.ToSeq(m.Ens), (ae: C.AttributedExpression) reads * => Expr.TranslateExpression(ae.E));
     var def := if m is C.Constructor then
-                 E.Constructor(body)
+                 E.Constructor(req := req, ens := ens, body := Some(body))
                else
-                 E.Method(body);
-    var ei := E.EntityInfo(name, attrs := attrs, members := []);
+                 E.Method(req := req, ens := ens, body := Some(body));
     var ei :- TranslateMemberEntityInfo(m);
     Success(E.Definition(ei, E.Callable(def)))
   }
@@ -87,9 +100,12 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateFunction(f: C.Function): (d: TranslationResult<E.Entity>)
     reads *
   {
+    // TODO: empty body
     var body :- Expr.TranslateExpression(f.Body);
-    Success(E.Definition(ei, E.Callable(E.Function(body))))
+    var req :- Seq.MapResult(ListUtils.ToSeq(f.Req), (ae: C.AttributedExpression) reads * => Expr.TranslateExpression(ae.E));
+    var ens :- Seq.MapResult(ListUtils.ToSeq(f.Ens), (ae: C.AttributedExpression) reads * => Expr.TranslateExpression(ae.E));
     var ei :- TranslateMemberEntityInfo(f);
+    Success(E.Definition(ei, E.Callable(E.Function(req := req, ens := ens, body := Some(body)))))
   }
 
   function TranslateMemberDecl(md: C.MemberDecl): (d: TranslationResult<E.Entity>)

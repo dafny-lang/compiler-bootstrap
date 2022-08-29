@@ -1,7 +1,7 @@
 include "../../AST/Entities.dfy"
 include "../../AST/Names.dfy"
 include "../../AST/Syntax.dfy"
-include "../../AST/Translator.Entities.dfy"
+include "../../AST/Translator.Entity.dfy"
 include "../../Interop/CSharpDafnyASTModel.dfy"
 include "../../Interop/CSharpDafnyInterop.dfy"
 include "../../Utils/Library.dfy"
@@ -10,7 +10,7 @@ include "Report.dfy"
 import opened Bootstrap.AST.Entities
 import opened Bootstrap.AST.Names
 import opened Bootstrap.AST.Syntax.Exprs
-import opened Bootstrap.AST.EntityTranslator
+import E = Bootstrap.AST.Translator.Entity
 import opened AuditReport
 import opened Utils.Lib.Datatypes
 import opened Utils.Lib.Seq
@@ -30,9 +30,9 @@ function GetTags(e: Entity): set<Tag> {
   TagIf(exists a | a in e.ei.attrs :: a.name == Extern, HasExternAttribute) +
   TagIf(exists a | a in e.ei.attrs :: a.name == Axiom, HasAxiomAttribute) +
   TagIf(e.Type? && e.t.SubsetType? && e.t.st.witnessExpr.None?, HasNoWitness) +
-  TagIf(e.Definition? && e.d.Callable? /*&& e.d.ci.body.None?*/, HasNoBody) +
-  //TagIf(e.Definition? && e.d.Callable? && ContainsAssumeStatement(e.d.ci.body), HasNoBody) +
-  TagIf(e.Definition? && e.d.Callable? /*&& e.d.ci.ensures.Some?*/, HasEnsuresClause)
+  TagIf(e.Definition? && e.d.Callable? && e.d.ci.body.None?, HasNoBody) +
+  //TagIf(e.Definition? && e.d.Callable? && ContainsAssumeStatement(e.d.ci.body), HasAssumeInBody) +
+  TagIf(e.Definition? && e.d.Callable? && |e.d.ci.ens| > 0, HasEnsuresClause)
 }
 
 //// Rport generation ////
@@ -56,7 +56,7 @@ function GenerateAuditReport(reg: Registry): Report {
 function {:export} Audit(p: Bootstrap.Interop.CSharpDafnyASTModel.Program): string
   reads *
 {
-  var res := TranslateProgram(p);
+  var res := E.TranslateProgram(p);
   match res {
     case Success(p') =>
       var rpt := GenerateAuditReport(p'.registry);
