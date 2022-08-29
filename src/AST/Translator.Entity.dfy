@@ -1,6 +1,6 @@
 include "Translator.Expressions.dfy"
 
-module Bootstrap.AST.Translator.Entity {
+module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   import opened Utils.Lib
   import opened Utils.Lib.Datatypes
   import opened Interop.CSharpInterop
@@ -12,7 +12,7 @@ module Bootstrap.AST.Translator.Entity {
   import Expr = Expressions
   import opened Common
 
-  function method TranslateName(str: System.String): TranslationResult<N.Name> {
+  function TranslateName(str: System.String): TranslationResult<N.Name> {
     var name := TypeConv.AsString(str);
     var parts := Seq.Split('.', name);
     :- Need(forall s | s in parts :: s != "", Invalid("Empty component in name"));
@@ -22,7 +22,7 @@ module Bootstrap.AST.Translator.Entity {
     Success(Seq.FoldL((n: N.Name, a: N.Atom) => N.Name(n, a), N.Anonymous, atoms))
   }
 
-  function method TranslateAttributeName(s: string): E.AttributeName {
+  function TranslateAttributeName(s: string): E.AttributeName {
     match s {
       case "axiom" => E.AttributeName.Axiom
       case "extern" => E.AttributeName.Extern
@@ -30,7 +30,7 @@ module Bootstrap.AST.Translator.Entity {
     }
   }
 
-  function method TranslateAttributes(attrs: C.Attributes): TranslationResult<seq<E.Attribute>>
+  function TranslateAttributes(attrs: C.Attributes): TranslationResult<seq<E.Attribute>>
     reads *
   {
     var name := TypeConv.AsString(attrs.Name);
@@ -41,7 +41,7 @@ module Bootstrap.AST.Translator.Entity {
     Success([E.Attribute.Attribute(TranslateAttributeName(name), args)] + rest)
   }
 
-  function method TranslateField(f: C.Field): (d: TranslationResult<E.Entity>)
+  function TranslateField(f: C.Field): (d: TranslationResult<E.Entity>)
     reads *
   {
     var name :- TranslateName(f.FullDafnyName);
@@ -55,7 +55,7 @@ module Bootstrap.AST.Translator.Entity {
       Success(E.Definition(ei, E.Definition.Field(E.Field.Field(kind, None))))
   }
 
-  function method TranslateMethod(m: C.Method): (d: TranslationResult<E.Entity>)
+  function TranslateMethod(m: C.Method): (d: TranslationResult<E.Entity>)
     reads *
   {
     var name :- TranslateName(m.FullDafnyName);
@@ -69,7 +69,7 @@ module Bootstrap.AST.Translator.Entity {
     Success(E.Definition(ei, E.Callable(def)))
   }
 
-  function method TranslateFunction(f: C.Function): (d: TranslationResult<E.Entity>)
+  function TranslateFunction(f: C.Function): (d: TranslationResult<E.Entity>)
     reads *
   {
     var name :- TranslateName(f.FullDafnyName);
@@ -79,7 +79,7 @@ module Bootstrap.AST.Translator.Entity {
     Success(E.Definition(ei, E.Callable(E.Function(body))))
   }
 
-  function method TranslateMemberDecl(md: C.MemberDecl): (d: TranslationResult<E.Entity>)
+  function TranslateMemberDecl(md: C.MemberDecl): (d: TranslationResult<E.Entity>)
     reads *
   {
     if md is C.Field then
@@ -92,32 +92,32 @@ module Bootstrap.AST.Translator.Entity {
       Failure(Invalid("Unsupported member declaration type"))
   }
 
-  function method TranslateTypeSynonymDecl(ts: C.TypeSynonymDecl): (e: TranslationResult<E.Type>)
+  function TranslateTypeSynonymDecl(ts: C.TypeSynonymDecl): (e: TranslationResult<E.Type>)
     reads *
   {
     var ty :- Expr.TranslateType(ts.Rhs);
     Success(E.Type.TypeAlias(E.TypeAlias.TypeAlias(ty)))
   }
 
-  function method TranslateOpaqueTypeDecl(ot: C.OpaqueTypeDecl): (e: TranslationResult<E.Type>)
+  function TranslateOpaqueTypeDecl(ot: C.OpaqueTypeDecl): (e: TranslationResult<E.Type>)
     reads *
   {
     Success(E.Type.AbstractType(E.AbstractType.AbstractType()))
   }
 
-  function method TranslateNewtypeDecl(nt: C.NewtypeDecl): (e: TranslationResult<E.Type>)
+  function TranslateNewtypeDecl(nt: C.NewtypeDecl): (e: TranslationResult<E.Type>)
     reads *
   {
     Success(E.Type.NewType(E.NewType.NewType()))
   }
 
-  function method TranslateDatatypeDecl(dt: C.DatatypeDecl): (e: TranslationResult<E.Type>)
+  function TranslateDatatypeDecl(dt: C.DatatypeDecl): (e: TranslationResult<E.Type>)
     reads *
   {
     Success(E.Type.DataType(E.DataType.DataType()))
   }
 
-  function method TranslateTraitDecl(t: C.TraitDecl): (e: TranslationResult<E.Type>)
+  function TranslateTraitDecl(t: C.TraitDecl): (e: TranslationResult<E.Type>)
     reads *
   {
     var parentTraits :- Seq.MapResult(ListUtils.ToSeq(t.ParentTraits), (t: C.Type) reads * =>
@@ -125,7 +125,7 @@ module Bootstrap.AST.Translator.Entity {
     Success(E.Type.TraitType(E.TraitType.TraitType(parentTraits)))
   }
 
-  function method TranslateClassDecl(c: C.ClassDecl): (e: TranslationResult<E.Type>)
+  function TranslateClassDecl(c: C.ClassDecl): (e: TranslationResult<E.Type>)
     reads *
   {
     var parentTraits :- Seq.MapResult(ListUtils.ToSeq(c.ParentTraits), (t: C.Type) reads * =>
@@ -133,7 +133,7 @@ module Bootstrap.AST.Translator.Entity {
     Success(E.Type.ClassType(E.ClassType.ClassType(parentTraits)))
   }
 
-  function method TranslateEntityInfo(tl: C.TopLevelDecl): (e: TranslationResult<E.EntityInfo>)
+  function TranslateTopLevelEntityInfo(tl: C.TopLevelDecl): (e: TranslationResult<E.EntityInfo>)
     reads *
   {
     var name :- TranslateName(tl.FullDafnyName);
@@ -141,7 +141,7 @@ module Bootstrap.AST.Translator.Entity {
     Success(E.EntityInfo(name, attrs := attrs, members := []))
   }
 
-  function method TranslateEntityInfoMembers(tl: C.TopLevelDeclWithMembers): (e: TranslationResult<(seq<E.Entity>, E.EntityInfo)>)
+  function TranslateTopLevelEntityInfoMembers(tl: C.TopLevelDeclWithMembers): (e: TranslationResult<(seq<E.Entity>, E.EntityInfo)>)
     reads *
   {
     var name :- TranslateName(tl.FullDafnyName);
@@ -153,10 +153,10 @@ module Bootstrap.AST.Translator.Entity {
     Success((members, E.EntityInfo(name, attrs := attrs, members := memberNames)))
   }
 
-  function method TranslateTopLevelDeclWithMembers(tl: C.TopLevelDeclWithMembers): (e: TranslationResult<seq<E.Entity>>)
+  function TranslateTopLevelDeclWithMembers(tl: C.TopLevelDeclWithMembers): (e: TranslationResult<seq<E.Entity>>)
     reads *
   {
-    var (members, ei) :- TranslateEntityInfoMembers(tl);
+    var (members, ei) :- TranslateTopLevelEntityInfoMembers(tl);
     var top :- if tl is C.OpaqueTypeDecl then
                  TranslateOpaqueTypeDecl(tl)
                else if tl is C.NewtypeDecl then
@@ -173,7 +173,7 @@ module Bootstrap.AST.Translator.Entity {
     Success([topEntity] + members)
   }
 
-  function method TranslateTopLevelDecl(tl: C.TopLevelDecl): (exps: TranslationResult<seq<E.Entity>>)
+  function TranslateTopLevelDecl(tl: C.TopLevelDecl): (exps: TranslationResult<seq<E.Entity>>)
     reads *
     decreases ASTHeight(tl), 0
   {
@@ -187,7 +187,7 @@ module Bootstrap.AST.Translator.Entity {
       Failure(Invalid("Unsupported top level declaration type"))
   }
 
-  function method TranslateModule(sig: C.ModuleSignature): (m: TranslationResult<seq<E.Entity>>)
+  function TranslateModule(sig: C.ModuleSignature): (m: TranslationResult<seq<E.Entity>>)
     reads *
     decreases ASTHeight(sig), 1
   {
@@ -208,7 +208,7 @@ module Bootstrap.AST.Translator.Entity {
     Success([mod] + topDecls')
   }
 
-  function method TranslateProgram(p: C.Program): (exps: TranslationResult<E.Program>)
+  function TranslateProgram(p: C.Program): (exps: TranslationResult<E.Program>)
     reads *
   {
     var moduleSigs := DictUtils.DictionaryToSeq(p.ModuleSigs);
