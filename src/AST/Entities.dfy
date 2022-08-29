@@ -506,7 +506,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       [root] + Seq.Flatten(Seq.Map(RecursiveTransitiveMembers'(root), Members(root)))
     }
 
-    function RecursiveTransitiveMembers'(ghost root: Name)
+    function RecursiveTransitiveMembers'(root: Name)
       : (Name --> seq<Name>)
       requires Valid?()
       requires Contains(root)

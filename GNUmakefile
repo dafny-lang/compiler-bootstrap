@@ -58,14 +58,16 @@ dafny_verify := $(dafny) -compile:0  -trace -verifyAllModules -showSnippets:1 -v
 # Subprojects
 csharp := src/Backends/CSharp
 repl := src/REPL
+auditor := src/Tools/Auditor
 
 # Binaries
 plugin_dll := $(csharp)/bin/Debug/net6.0/CSharpCompiler.dll
 repl_dll := $(repl)/bin/Release/net6.0/REPL.dll
-dlls := $(plugin_dll) $(repl_dll)
+auditor_dll := $(auditor)/bin/Release/net6.0/DafnyAuditor.dll
+dlls := $(plugin_dll) $(repl_dll) $(auditor_dll)
 
 # Entry points
-dfy_entry_points := $(repl)/Repl.dfy $(csharp)/Compiler.dfy
+dfy_entry_points := $(repl)/Repl.dfy $(csharp)/Compiler.dfy $(auditor)/Auditor.dfy
 cs_entry_points := $(dfy_entry_points:.dfy=.cs)
 cs_roots := $(dir $(cs_entry_points))
 cs_objs := $(cs_roots:=bin) $(cs_roots:=obj)
@@ -103,9 +105,19 @@ $(csharp)/Compiler.cs: $(csharp)/Compiler.dfy $(dfy_models) $(dfy_interop) $(Daf
 	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
 	rm "$@.bak" # https://stackoverflow.com/questions/4247068/
 
+$(auditor)/Auditor.cs: $(auditor)/Auditor.dfy $(dfy_models) $(dfy_interop) $(DafnyRuntime)
+	$(dafny_codegen) $< || true
+	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
+	rm "$@.bak"
+	sed -i.bak -e 's/.*Tuple0.*//g' "$@"
+	rm "$@.bak" # https://stackoverflow.com/questions/4247068/
+
 # Compile the resulting C# code
 $(plugin_dll): $(csharp)/Compiler.cs $(cs_interop)
 	dotnet build $(csharp)/CSharpCompiler.csproj
+
+$(auditor_dll): $(auditor)/Auditor.cs $(cs_interop)
+	dotnet build $(auditor)/DafnyAuditor.csproj
 
 # Run it on tests
 test/%.cs: test/%.dfy $(plugin_dll) $(DafnyRuntime)

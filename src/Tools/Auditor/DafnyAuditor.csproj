@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <DAFNY_ROOT Condition="'$(DAFNY_ROOT)' == ''">..\..\..\..\</DAFNY_ROOT>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(DAFNY_ROOT)\Source\Dafny\DafnyPipeline.csproj" />
+    <Compile Include="..\..\Interop\CSharpInterop.cs" />
+    <Compile Include="..\..\Interop\CSharpDafnyInterop.cs" />
+    <Compile Include="..\..\Interop\CSharpDafnyASTInterop.cs" />
+  </ItemGroup>
+</Project>

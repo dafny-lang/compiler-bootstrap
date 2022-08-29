@@ -7,70 +7,69 @@ include "../../Interop/CSharpDafnyInterop.dfy"
 include "../../Utils/Library.dfy"
 include "Report.dfy"
 
-import opened Bootstrap.AST.Entities
-import opened Bootstrap.AST.Names
-import opened Bootstrap.AST.Syntax.Exprs
-import E = Bootstrap.AST.Translator.Entity
-import opened AuditReport
-import opened Utils.Lib.Datatypes
-import opened Utils.Lib.Seq
+module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootstrap.Tools.Auditor {
 
-//// AST traversals ////
+  import opened AST.Entities
+  import opened AST.Names
+  import opened AST.Syntax.Exprs
+  import E = AST.Translator.Entity
+  import opened AuditReport
+  import opened Interop
+  import opened Utils.Lib.Datatypes
+  import opened Utils.Lib.Seq
 
-// TODO: can't be implemented yet because there's no representation for `assume`
-//predicate ContainsAssumeStatement(e: Expr)
+  //// AST traversals ////
 
-//// Tag extraction and processing ////
+  // TODO: can't be implemented yet because there's no representation for `assume`
+  //predicate ContainsAssumeStatement(e: Expr)
 
-function TagIf(cond: bool, t: Tag): set<Tag> {
-  if cond then {t} else {}
-}
+  //// Tag extraction and processing ////
 
-function GetTags(e: Entity): set<Tag> {
-  TagIf(exists a | a in e.ei.attrs :: a.name == Extern, HasExternAttribute) +
-  TagIf(exists a | a in e.ei.attrs :: a.name == Axiom, HasAxiomAttribute) +
-  TagIf(e.Type? && e.t.SubsetType? && e.t.st.witnessExpr.None?, HasNoWitness) +
-  TagIf(e.Definition? && e.d.Callable? && e.d.ci.body.None?, HasNoBody) +
-  //TagIf(e.Definition? && e.d.Callable? && ContainsAssumeStatement(e.d.ci.body), HasAssumeInBody) +
-  TagIf(e.Definition? && e.d.Callable? && |e.d.ci.ens| > 0, HasEnsuresClause)
-}
+  function TagIf(cond: bool, t: Tag): set<Tag> {
+    if cond then {t} else {}
+  }
 
-//// Rport generation ////
+  function GetTags(e: Entity): set<Tag> {
+    TagIf(exists a | a in e.ei.attrs :: a.name == Extern, HasExternAttribute) +
+    TagIf(exists a | a in e.ei.attrs :: a.name == Axiom, HasAxiomAttribute) +
+    TagIf(e.Type? && e.t.SubsetType? && e.t.st.witnessExpr.None?, HasNoWitness) +
+    TagIf(e.Definition? && e.d.Callable? && e.d.ci.body.None?, HasNoBody) +
+    //TagIf(e.Definition? && e.d.Callable? && ContainsAssumeStatement(e.d.ci.body), HasAssumeInBody) +
+    TagIf(e.Definition? && e.d.Callable? && |e.d.ci.ens| > 0, HasEnsuresClause)
+  }
 
-function AddAssumptions(e: Entity, rpt: Report): Report {
-  var tags := GetTags(e);
-  if IsAssumption(tags)
-    then Report(rpt.assumptions + [Assumption(e.ei.name.ToString(), tags)])
-    else rpt
-}
+  //// Report generation ////
 
-function FoldEntities<T(!new)>(f: (Entity, T) -> T, reg: Registry, init: T): T {
-  var names := reg.SortedNames();
-  FoldL((a, n) requires reg.Contains(n) => f(reg.Get(n), a), init, names)
-}
+  function AddAssumptions(e: Entity, rpt: Report): Report {
+    var tags := GetTags(e);
+    if IsAssumption(tags)
+      then Report(rpt.assumptions + [Assumption(e.ei.name.ToString(), tags)])
+      else rpt
+  }
 
-function GenerateAuditReport(reg: Registry): Report {
-  FoldEntities(AddAssumptions, reg, EmptyReport)
-}
+  function FoldEntities<T(!new)>(f: (Entity, T) -> T, reg: Registry, init: T): T {
+    var names := reg.SortedNames();
+    FoldL((a, n) requires reg.Contains(n) => f(reg.Get(n), a), init, names)
+  }
 
-function {:export} Audit(p: Bootstrap.Interop.CSharpDafnyASTModel.Program): string
-  reads *
-{
-  var res := E.TranslateProgram(p);
-  match res {
-    case Success(p') =>
-      var rpt := GenerateAuditReport(p'.registry);
-      RenderAuditReportMarkdown(rpt)
-    case Failure(err) => err.ToString()
+  function GenerateAuditReport(reg: Registry): Report {
+    FoldEntities(AddAssumptions, reg, EmptyReport)
+  }
+
+  class {:extern} DafnyAuditor {
+    constructor() {
+    }
+
+    function Audit(p: CSharpDafnyASTModel.Program): string
+      reads *
+    {
+      var res := E.TranslateProgram(p);
+      match res {
+        case Success(p') =>
+          var rpt := GenerateAuditReport(p'.registry);
+          RenderAuditReportMarkdown(rpt)
+        case Failure(err) => err.ToString()
+      }
+    }
   }
 }
-
-//// Later functionality ////
-
-/*
-predicate EntityDependsOn(client: Entity, target: Entity)
-
-function ImmediateDependents(e: Entity): set<Entity>
-
-function TransitiveDependents(e: Entity): set<Entity>
-*/

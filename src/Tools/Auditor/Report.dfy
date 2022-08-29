@@ -48,7 +48,7 @@ module AuditReport {
 
   //// Tag categorization ////
 
-  predicate IsAssumption(ts: set<Tag>) {
+  predicate method IsAssumption(ts: set<Tag>) {
     || (IsSubsetType in ts && HasNoWitness in ts)
     || HasAxiomAttribute in ts
     || (&& IsCallable in ts

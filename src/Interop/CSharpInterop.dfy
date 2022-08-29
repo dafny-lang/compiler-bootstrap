@@ -28,11 +28,12 @@ module {:extern "CSharpInterop"} Bootstrap.Interop.CSharpInterop {
   class DictUtils {
     constructor {:extern} () requires false // Prevent instantiation
 
-    static function method {:extern} FoldL<K, V, R>(f: (R, (K, V)) -> R, r0: R, d: Dictionary<K, V>): R
+    static function method {:extern} FoldL<K, V, R>(f: (R, K, V) -> R, r0: R, d: Dictionary<K, V>): R
 
-    static function method ReduceSeq<K, V>(acc: seq<(K, V)>, entry: (K, V)): seq<(K, V)> {
-      acc + [entry]
+    static function method ReduceSeq<K, V>(acc: seq<(K, V)>, key: K, value: V): seq<(K, V)> {
+      acc + [(key, value)]
     }
+
     static function method DictionaryToSeq<K, V>(d: Dictionary<K, V>): seq<(K, V)> {
       FoldL(ReduceSeq, [], d)
     }
