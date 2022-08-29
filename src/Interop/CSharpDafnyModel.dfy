@@ -30,7 +30,13 @@ module {:extern "Microsoft.Dafny"} {:compile false} Microsoft.Dafny {
 }
 
 module {:extern "Microsoft.Boogie"} {:compile false} Microsoft.Boogie {
-  trait {:compile false} {:extern} {:termination false} IToken {}
+  import System
+
+  trait {:compile false} {:extern} {:termination false} IToken {
+    var {:extern "filename"} FileName: System.String
+    var {:extern "line"} Line: System.int32
+    var {:extern "col"} Column: System.int32
+  }
   class {:extern} {:compile false} ErrorReporter {}
   class {:extern} {:compile false} Expr {}
   class {:extern} {:compile false} Function {}

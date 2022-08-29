@@ -22,6 +22,15 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     Success(Seq.FoldL((n: N.Name, a: N.Atom) => N.Name(n, a), N.Anonymous, atoms))
   }
 
+  function TranslateLocation(tok: Microsoft.Boogie.IToken): E.Location
+    reads *
+  {
+    var filename := TypeConv.AsString(tok.FileName);
+    var line := tok.Line;
+    var col := tok.Column;
+    E.Location(filename, line as int, col as int)
+  }
+
   function TranslateAttributeName(s: string): E.AttributeName {
     match s {
       case "axiom" => E.AttributeName.Axiom
@@ -41,13 +50,20 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     Success([E.Attribute.Attribute(TranslateAttributeName(name), args)] + rest)
   }
 
+  function TranslateMemberEntityInfo(md: C.MemberDecl): (e: TranslationResult<E.EntityInfo>)
+    reads *
+  {
+    var name :- TranslateName(md.FullDafnyName);
+    var attrs :- TranslateAttributes(md.Attributes);
+    var loc := TranslateLocation(md.tok);
+    Success(E.EntityInfo(name, location := loc, attrs := attrs, members := []))
+  }
+
   function TranslateField(f: C.Field): (d: TranslationResult<E.Entity>)
     reads *
   {
-    var name :- TranslateName(f.FullDafnyName);
-    var attrs :- TranslateAttributes(f.Attributes);
     var kind := if f.IsMutable then E.Var else E.Const;
-    var ei := E.EntityInfo(name, attrs := attrs, members := []);
+    var ei :- TranslateMemberEntityInfo(f);
     if f is C.ConstantField then
       var init :- Expr.TranslateExpression((f as C.ConstantField).Rhs);
       Success(E.Definition(ei, E.Definition.Field(E.Field.Field(kind, Some(init)))))
@@ -58,25 +74,22 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateMethod(m: C.Method): (d: TranslationResult<E.Entity>)
     reads *
   {
-    var name :- TranslateName(m.FullDafnyName);
-    var attrs :- TranslateAttributes(m.Attributes);
     var body :- Expr.TranslateStatement(m.Body);
     var def := if m is C.Constructor then
                  E.Constructor(body)
                else
                  E.Method(body);
     var ei := E.EntityInfo(name, attrs := attrs, members := []);
+    var ei :- TranslateMemberEntityInfo(m);
     Success(E.Definition(ei, E.Callable(def)))
   }
 
   function TranslateFunction(f: C.Function): (d: TranslationResult<E.Entity>)
     reads *
   {
-    var name :- TranslateName(f.FullDafnyName);
-    var attrs :- TranslateAttributes(f.Attributes);
     var body :- Expr.TranslateExpression(f.Body);
-    var ei := E.EntityInfo(name, attrs := attrs, members := []);
     Success(E.Definition(ei, E.Callable(E.Function(body))))
+    var ei :- TranslateMemberEntityInfo(f);
   }
 
   function TranslateMemberDecl(md: C.MemberDecl): (d: TranslationResult<E.Entity>)
@@ -138,7 +151,8 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   {
     var name :- TranslateName(tl.FullDafnyName);
     var attrs :- TranslateAttributes(tl.Attributes);
-    Success(E.EntityInfo(name, attrs := attrs, members := []))
+    var loc := TranslateLocation(tl.tok);
+    Success(E.EntityInfo(name, location := loc, attrs := attrs, members := []))
   }
 
   function TranslateTopLevelEntityInfoMembers(tl: C.TopLevelDeclWithMembers): (e: TranslationResult<(seq<E.Entity>, E.EntityInfo)>)
@@ -146,11 +160,12 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   {
     var name :- TranslateName(tl.FullDafnyName);
     var attrs :- TranslateAttributes(tl.Attributes);
+    var loc := TranslateLocation(tl.tok);
     var memberDecls := ListUtils.ToSeq(tl.Members);
     var members :- Seq.MapResult(memberDecls, d reads * => TranslateMemberDecl(d));
     var memberNames := Seq.Map((m: E.Entity) => m.ei.name, members);
     :- Need(forall nm <- memberNames :: nm.ChildOf(name), Invalid("Malformed name"));
-    Success((members, E.EntityInfo(name, attrs := attrs, members := memberNames)))
+    Success((members, E.EntityInfo(name, location := loc, attrs := attrs, members := memberNames)))
   }
 
   function TranslateTopLevelDeclWithMembers(tl: C.TopLevelDeclWithMembers): (e: TranslationResult<seq<E.Entity>>)
@@ -191,9 +206,11 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     reads *
     decreases ASTHeight(sig), 1
   {
-    var name :- TranslateName(sig.ModuleDef.FullDafnyName);
-    var attrs :- TranslateAttributes(sig.ModuleDef.Attributes);
-    var includes := ListUtils.ToSeq(sig.ModuleDef.Includes);
+    var def := sig.ModuleDef;
+    var name :- TranslateName(def.FullDafnyName);
+    var attrs :- TranslateAttributes(def.Attributes);
+    var loc := TranslateLocation(def.tok);
+    var includes := ListUtils.ToSeq(def.Includes);
     var exports := sig.ExportSets;
     var topLevels := DictUtils.DictionaryToSeq(sig.TopLevels);
     var topDecls :- Seq.MapResult(topLevels,
@@ -203,7 +220,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     var topDecls' := Seq.Flatten(topDecls);
     var topNames := Seq.Map((d: E.Entity) => d.ei.name, topDecls');
     :- Need(forall nm <- topNames :: nm.ChildOf(name), Invalid("Malformed name"));
-    var ei := E.EntityInfo(name, attrs := attrs, members := topNames);
+    var ei := E.EntityInfo(name, location := loc, attrs := attrs, members := topNames);
     var mod := E.Entity.Module(ei, E.Module.Module());
     Success([mod] + topDecls')
   }

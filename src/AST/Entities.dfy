@@ -74,15 +74,23 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | EType
     | EDefinition
 
+  datatype Location =
+    Location(file: string, line: int, column: int)
+  {
+    static function EMPTY(): Location {
+      Location("<none>", 0, 0)
+    }
+  }
+
   type EntityInfo = e: EntityInfo_ | e.Valid?()
     witness EntityInfo_.EMPTY()
   datatype EntityInfo_ =
-    EntityInfo(name: Name, nameonly attrs: seq<Attribute>, nameonly members: seq<Name>)
+    EntityInfo(name: Name, nameonly location: Location, nameonly attrs: seq<Attribute>, nameonly members: seq<Name>)
   {
     static function EMPTY(): (ei: EntityInfo_)
       ensures ei.Valid?()
     {
-      EntityInfo(Anonymous, attrs := [], members := [])
+      EntityInfo(Anonymous, location := Location.EMPTY(), attrs := [], members := [])
     }
 
     ghost predicate Valid?() {
@@ -92,7 +100,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     static function Mk(name: Name): EntityInfo
       // Construct an `EntityInfo` instance with no attributes and no members.
     {
-      EntityInfo(name, attrs := [], members := [])
+      EntityInfo(name, location := Location.EMPTY(), attrs := [], members := [])
     }
   }
 
