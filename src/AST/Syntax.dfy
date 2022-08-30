@@ -250,6 +250,7 @@ module Exprs {
     | Block(stmts: seq<Expr>)
     | Bind(vars: seq<string>, vals: seq<Expr>, body: Expr)
     | If(cond: Expr, thn: Expr, els: Expr) // DISCUSS: Lazy op node?
+    | Unsupported(description: string)
   {
     function method Depth() : nat {
       1 + match this {
@@ -270,6 +271,8 @@ module Exprs {
           )
         case If(cond, thn, els) =>
           Math.Max(cond.Depth(), Math.Max(thn.Depth(), els.Depth()))
+        case Unsupported(_) =>
+          0
       }
     }
 
@@ -284,6 +287,7 @@ module Exprs {
         case Block(exprs) => exprs
         case Bind(vars, vals, body) => vals + [body]
         case If(cond, thn, els) => [cond, thn, els]
+        case Unsupported(_) => []
       }
     }
   }
@@ -324,6 +328,8 @@ module Exprs {
         e'.If?
       case Bind(vars, vals, body) =>
         e'.Bind? && |vars| == |e'.vars| && |vals| == |e'.vals|
+      case Unsupported(description) =>
+        e'.Unsupported? && e'.description == description
     }
   }
 

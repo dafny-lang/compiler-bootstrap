@@ -484,7 +484,7 @@ module Bootstrap.AST.Translator.Expressions {
       TranslateITEExpr(c as C.ITEExpr)
     else if c is C.ConcreteSyntaxExpression then
       TranslateConcreteSyntaxExpression(c as C.ConcreteSyntaxExpression)
-    else Failure(UnsupportedExpr(c))
+    else Success(DE.Unsupported("Unsupported expression"))
   }
 
   function method TranslatePrintStmt(p: C.PrintStmt)
@@ -533,7 +533,7 @@ module Bootstrap.AST.Translator.Expressions {
       TranslateBlockStmt(s as C.BlockStmt)
     else if s is C.IfStmt then
       TranslateIfStmt(s as C.IfStmt)
-    else Failure(UnsupportedStmt(s))
+    else Success(DE.Unsupported("Unsupported statement"))
   }
 
   /*
