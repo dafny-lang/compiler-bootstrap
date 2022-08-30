@@ -11,6 +11,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
 
   import opened AST.Entities
   import opened AST.Names
+  import opened AST.Predicates
   import opened AST.Syntax.Exprs
   import E = AST.Translator.Entity
   import opened AuditReport
@@ -21,7 +22,17 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
   //// AST traversals ////
 
   // TODO: can't be implemented yet because there's no representation for `assume`
-  //predicate ContainsAssumeStatement(e: Expr)
+  predicate IsAssumeStatement(e: Expr) {
+    && e.Apply?
+    && e.aop.Eager?
+    && e.aop.eOp.Builtin?
+    && e.aop.eOp.builtin.Predicate?
+    && e.aop.eOp.builtin.predTy.Assume?
+  }
+
+  predicate ContainsAssumeStatement(e: Expr) {
+    Deep.Any_Expr(e, IsAssumeStatement)
+  }
 
   //// Tag extraction and processing ////
 
@@ -34,8 +45,11 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     TagIf(exists a | a in e.ei.attrs :: a.name == Axiom, HasAxiomAttribute) +
     TagIf(e.Type? && e.t.SubsetType? && e.t.st.witnessExpr.None?, HasNoWitness) +
     TagIf(e.Definition? && e.d.Callable? && e.d.ci.body.None?, HasNoBody) +
-    //TagIf(e.Definition? && e.d.Callable? && ContainsAssumeStatement(e.d.ci.body), HasAssumeInBody) +
-    TagIf(e.Definition? && e.d.Callable? && |e.d.ci.ens| > 0, HasEnsuresClause)
+    TagIf(e.Definition? && e.d.Callable? && e.d.ci.body.Some? &&
+          ContainsAssumeStatement(e.d.ci.body.value), HasAssumeInBody) +
+    TagIf(e.Definition? && e.d.Callable? && |e.d.ci.ens| > 0, HasEnsuresClause) +
+    // TagIf(e.Definition? && e.d.Callable? && |e.d.ci.req| > 0, HasRequiresClause) +
+    TagIf(e.Definition? && e.d.Callable?, IsCallable)
   }
 
   //// Report generation ////
