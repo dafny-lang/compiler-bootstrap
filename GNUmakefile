@@ -47,7 +47,7 @@ DafnyPipeline = $(dafny_Source)/Dafny/DafnyPipeline
 DafnyAST = $(dafny_Source)/Dafny/AST/DafnyAst
 DafnyRuntime := $(dafny_Source)/DafnyRuntime/DafnyRuntime.cs
 
-dafny := dotnet run --project $(DafnyDriver).csproj $(DAFNY_DOTNET_RUN_FLAGS) --
+dafny ?= dotnet run --project $(DafnyDriver).csproj $(DAFNY_DOTNET_RUN_FLAGS) --
 dafny_codegen := $(dafny) -spillTargetCode:3 -compile:0 -noVerify -useRuntimeLib
 dafny_typecheck := $(dafny) -dafnyVerify:0
 dafny_verify := $(dafny) -compile:0  -trace -verifyAllModules -showSnippets:1 -vcsCores:8
@@ -63,7 +63,7 @@ auditor := src/Tools/Auditor
 # Binaries
 plugin_dll := $(csharp)/bin/Debug/net6.0/CSharpCompiler.dll
 repl_dll := $(repl)/bin/Release/net6.0/REPL.dll
-auditor_dll := $(auditor)/bin/Release/net6.0/DafnyAuditor.dll
+auditor_dll := $(auditor)/bin/Debug/net6.0/DafnyAuditor.dll
 dlls := $(plugin_dll) $(repl_dll) $(auditor_dll)
 
 # Entry points
@@ -116,7 +116,7 @@ $(auditor)/Auditor.cs: $(auditor)/Auditor.dfy $(dfy_models) $(dfy_interop) $(Daf
 $(plugin_dll): $(csharp)/Compiler.cs $(cs_interop)
 	dotnet build $(csharp)/CSharpCompiler.csproj
 
-$(auditor_dll): $(auditor)/Auditor.cs $(cs_interop)
+$(auditor_dll): $(auditor)/Auditor.cs $(auditor)/EntryPoint.cs $(cs_interop)
 	dotnet build $(auditor)/DafnyAuditor.csproj
 
 # Run it on tests

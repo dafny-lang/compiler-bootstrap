@@ -7,7 +7,7 @@ public class Auditor : Plugins.Rewriter {
 
   private readonly DafnyAuditor auditor = new();
 
-  internal Auditor(ErrorReporter reporter) : base(reporter) { }
+  public Auditor(ErrorReporter reporter) : base(reporter) { }
 
   public override void PostResolve(Program program) {
     var text = auditor.Audit(program);
