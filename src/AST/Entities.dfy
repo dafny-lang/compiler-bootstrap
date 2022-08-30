@@ -59,6 +59,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     Field(kind: FieldKind, body: Option<Expr>)
 
   datatype Callable =
+    // TODO: should all these fields be part of Callable, instead?
     | Method(req: seq<Expr>, ens: seq<Expr>, body: Option<Expr>)
     | Function(req: seq<Expr>, ens: seq<Expr>, body: Option<Expr>)
     | Constructor(req: seq<Expr>, ens: seq<Expr>, body: Option<Expr>)
@@ -154,6 +155,15 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | NameMismatch(name: Name, key: Name)
     | UnboundMember(name: Name, member: Name)
     | UnboundParent(name: Name, parent: Name)
+  {
+    function ToString(): string {
+      match this {
+        case NameMismatch(name, key) => "Name mismatch: " + name.ToString() + " and " + key.ToString()
+        case UnboundMember(name, parent) => "Unbound member: " + name.ToString() + " in " + parent.ToString()
+        case UnboundParent(name, parent) => "Unbound parent: " + name.ToString() + " in " + parent.ToString()
+      }
+    }
+  }
 
   type Registry = r: Registry_ | r.Valid?()
     witness Registry_.EMPTY()
