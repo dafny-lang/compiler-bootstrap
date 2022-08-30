@@ -14,18 +14,21 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
 
   function TranslateName(str: System.String): TranslationResult<N.Name> {
     var name := TypeConv.AsString(str);
-    var parts := Seq.Split('.', name);
-    :- Need(forall s | s in parts :: s != "", Invalid("Empty component in name: " + name));
-    assert forall s | s in parts :: '.' !in s;
-    assert forall s | s in parts :: s != "" && '.' !in s;
-    var atoms : seq<N.Atom> := parts;
-    Success(Seq.FoldL((n: N.Name, a: N.Atom) => N.Name(n, a), N.Anonymous, atoms))
+    if name == "" then
+      Success(N.Anonymous)
+    else
+      var parts := Seq.Split('.', name);
+      :- Need(forall s | s in parts :: s != "", Invalid("Empty component in name: " + name));
+      assert forall s | s in parts :: '.' !in s;
+      assert forall s | s in parts :: s != "" && '.' !in s;
+      var atoms : seq<N.Atom> := parts;
+      Success(Seq.FoldL((n: N.Name, a: N.Atom) => N.Name(n, a), N.Anonymous, atoms))
   }
 
   function TranslateLocation(tok: Microsoft.Boogie.IToken): E.Location
     reads *
   {
-    var filename := TypeConv.AsString(tok.FileName);
+    var filename := if tok.FileName == null then "<none>" else TypeConv.AsString(tok.FileName);
     var line := tok.Line;
     var col := tok.Column;
     E.Location(filename, line as int, col as int)
@@ -41,24 +44,16 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
 
   function TranslateAttributes(attrs: C.Attributes): TranslationResult<seq<E.Attribute>>
     reads *
+    decreases ASTHeight(attrs)
   {
-    var name := TypeConv.AsString(attrs.Name);
-    var args :- Seq.MapResult(ListUtils.ToSeq(attrs.Args), Expr.TranslateExpression);
-    // TODO: Attributes needs to be nullable
-    //var rest :- if attrs.Prev == null then Success([]) else TranslateAttributes(attrs.Prev);
-    var rest := [];
-    Success([E.Attribute.Attribute(TranslateAttributeName(name), args)] + rest)
-  }
-
-  // TODO: adapt auto-generated AST to include some nullable fields
-  function TranslateNullableExpression(e: C.Expression?): TranslationResult<Option<Expr.Expr>>
-    reads *
-  {
-    if e == null then
-      Success(None)
+    if attrs == null then
+      Success([])
     else
-      var e' :- Expr.TranslateExpression(e);
-      Success(Some(e'))
+      var name := TypeConv.AsString(attrs.Name);
+      var args :- Seq.MapResult(ListUtils.ToSeq(attrs.Args), Expr.TranslateExpression);
+      assume ASTHeight(attrs.Prev) < ASTHeight(attrs);
+      var rest :- TranslateAttributes(attrs.Prev);
+      Success([E.Attribute.Attribute(TranslateAttributeName(name), args)] + rest)
   }
 
   function TranslateMemberEntityInfo(md: C.MemberDecl): (e: TranslationResult<E.EntityInfo>)

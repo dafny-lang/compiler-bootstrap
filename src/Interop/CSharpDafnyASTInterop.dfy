@@ -10,6 +10,7 @@ module {:extern "CSharpDafnyASTInterop"} Bootstrap.Interop.CSharpDafnyASTInterop
              || c is CSharpDafnyASTModel.Statement
              || c is CSharpDafnyASTModel.Declaration
              || c is CSharpDafnyASTModel.ModuleSignature
+             || c is CSharpDafnyASTModel.Attributes
 
   class {:extern} TypeUtils {
     constructor {:extern} () requires false // Prevent instantiation
