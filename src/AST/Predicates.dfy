@@ -41,6 +41,13 @@ abstract module Base {
     : (b: bool)
     decreases e.Depth(), 1
 
+  function method Any_Expr(e: Expr, P: Expr -> bool)
+    : (b: bool)
+    decreases e.Depth(), 1
+  {
+    !All_Expr(e, e' => !P(e'))
+  }
+
   /*
   function method All_Method(m: Method, P: Expr -> bool) : bool {
     Shallow.All_Method(m, e => All_Expr(e, P))
@@ -106,6 +113,7 @@ abstract module Base {
           && All_Expr(body, P)
         case If(cond, thn, els) =>
           All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
+        case Unsupported(_) => true
       }
     }
 
@@ -123,6 +131,7 @@ abstract module Base {
           && All_Expr(body, P)
         case If(cond, thn, els) =>
           All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
+        case Unsupported(_) => true
       }
     }
 
