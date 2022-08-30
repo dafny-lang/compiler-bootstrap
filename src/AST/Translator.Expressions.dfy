@@ -487,6 +487,17 @@ module Bootstrap.AST.Translator.Expressions {
     else Success(DE.Unsupported("Unsupported expression"))
   }
 
+  // TODO: adapt auto-generated AST to include some nullable fields
+  function method TranslateOptionalExpression(e: C.Expression): TranslationResult<Option<Expr>>
+    reads *
+  {
+    if e == null then
+      Success(None)
+    else
+      var e' :- TranslateExpression(e);
+      Success(Some(e'))
+  }
+
   function method TranslatePrintStmt(p: C.PrintStmt)
     : (e: TranslationResult<Expr>)
     reads *
@@ -554,23 +565,14 @@ module Bootstrap.AST.Translator.Expressions {
     else Success(DE.Unsupported("Unsupported statement"))
   }
 
-  /*
-  function method TranslateMethod(m: C.Method)
-    : TranslationResult<D.Method>
+  // TODO: adapt auto-generated AST to include some nullable fields
+  function method TranslateOptionalStatement(s: C.Statement): TranslationResult<Option<Expr>>
     reads *
   {
-    // var compileName := m.CompileName;
-    // FIXME “Main”
-    var stmts :- Seq.MapResult(ListUtils.ToSeq(m.Body.Body), TranslateStatement);
-    Success(D.Method("Main", DE.Block(stmts)))
+    if s == null then
+      Success(None)
+    else
+      var s' :- TranslateStatement(s);
+      Success(Some(s'))
   }
-
-  function method TranslateProgram(p: C.Program)
-    : TranslationResult<D.Program>
-    reads *
-  {
-    var tm :- TranslateMethod(p.MainMethod);
-    Success(D.Program(tm))
-  }
-  */
 }

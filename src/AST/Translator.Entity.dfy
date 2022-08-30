@@ -85,14 +85,13 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateMethod(m: C.Method): (d: TranslationResult<E.Entity>)
     reads *
   {
-    // TODO: empty body
-    var body :- Expr.TranslateStatement(m.Body);
+    var body :- Expr.TranslateOptionalStatement(m.Body);
     var req :- Seq.MapResult(ListUtils.ToSeq(m.Req), (ae: C.AttributedExpression) reads * => Expr.TranslateExpression(ae.E));
     var ens :- Seq.MapResult(ListUtils.ToSeq(m.Ens), (ae: C.AttributedExpression) reads * => Expr.TranslateExpression(ae.E));
     var def := if m is C.Constructor then
-                 E.Constructor(req := req, ens := ens, body := Some(body))
+                 E.Constructor(req := req, ens := ens, body := body)
                else
-                 E.Method(req := req, ens := ens, body := Some(body));
+                 E.Method(req := req, ens := ens, body := body);
     var ei :- TranslateMemberEntityInfo(m);
     Success(E.Definition(ei, E.Callable(def)))
   }
@@ -100,12 +99,11 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateFunction(f: C.Function): (d: TranslationResult<E.Entity>)
     reads *
   {
-    // TODO: empty body
-    var body :- Expr.TranslateExpression(f.Body);
+    var body :- Expr.TranslateOptionalExpression(f.Body);
     var req :- Seq.MapResult(ListUtils.ToSeq(f.Req), (ae: C.AttributedExpression) reads * => Expr.TranslateExpression(ae.E));
     var ens :- Seq.MapResult(ListUtils.ToSeq(f.Ens), (ae: C.AttributedExpression) reads * => Expr.TranslateExpression(ae.E));
     var ei :- TranslateMemberEntityInfo(f);
-    Success(E.Definition(ei, E.Callable(E.Function(req := req, ens := ens, body := Some(body)))))
+    Success(E.Definition(ei, E.Callable(E.Function(req := req, ens := ens, body := body))))
   }
 
   function TranslateMemberDecl(md: C.MemberDecl): (d: TranslationResult<E.Entity>)
