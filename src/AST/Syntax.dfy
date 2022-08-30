@@ -200,8 +200,14 @@ module Exprs {
     function method Depth() : nat { 1 }
   }
 
+  datatype PredicateType =
+    | Assert
+    | Assume
+    | Expect
+
   datatype BuiltinFunction =
     | Display(ty: Types.Type)
+    | Predicate(predTy: PredicateType)
     | Print
 
   // DafnyAst.cs handles `f(1)` differently from `(var g := f; g)(1)`, but not us

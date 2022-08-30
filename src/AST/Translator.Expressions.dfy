@@ -522,6 +522,22 @@ module Bootstrap.AST.Translator.Expressions {
     Success(DE.If(cond, thn, els))
   }
 
+  function method TranslatePredicateStmt(p: C.PredicateStmt)
+    : (e: TranslationResult<Expr>)
+    reads *
+  {
+    var predTy :- if p is C.AssertStmt then
+                    Success(DE.Assert)
+                  else if p is C.AssumeStmt then
+                    Success(DE.Assume)
+                  else if p is C.ExpectStmt then
+                    Success(DE.Expect)
+                  else
+                    Failure(UnsupportedStmt(p));
+    var e :- TranslateExpression(p.Expr);
+    Success(DE.Apply(DE.Eager(DE.Builtin(DE.BuiltinFunction.Predicate(predTy))), [e]))
+  }
+
   function method TranslateStatement(s: C.Statement)
     : TranslationResult<Expr>
     reads *
@@ -533,6 +549,8 @@ module Bootstrap.AST.Translator.Expressions {
       TranslateBlockStmt(s as C.BlockStmt)
     else if s is C.IfStmt then
       TranslateIfStmt(s as C.IfStmt)
+    else if s is C.PredicateStmt then
+      TranslatePredicateStmt(s as C.PredicateStmt)
     else Success(DE.Unsupported("Unsupported statement"))
   }
 
