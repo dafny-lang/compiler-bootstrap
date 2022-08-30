@@ -454,6 +454,8 @@ module Bootstrap.AST.Translator.Expressions {
   {
     if c is C.IdentifierExpr then
       TranslateIdentifierExpr(c as C.IdentifierExpr)
+    else if c is C.ConversionExpr then
+      Success(DE.Unsupported("conversion expr"))
     else if c is C.UnaryExpr then
       TranslateUnary(c as C.UnaryExpr)
     else if c is C.BinaryExpr then
