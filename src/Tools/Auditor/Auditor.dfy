@@ -47,12 +47,12 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
       else rpt
   }
 
-  function FoldEntities<T(!new)>(f: (Entity, T) -> T, reg: Registry, init: T): T {
+  function FoldEntities<T(!new)>(f: (Entity, T) -> T, reg: Registry_, init: T): T {
     var names := reg.SortedNames();
     FoldL((a, n) requires reg.Contains(n) => f(reg.Get(n), a), init, names)
   }
 
-  function GenerateAuditReport(reg: Registry): Report {
+  function GenerateAuditReport(reg: Registry_): Report {
     FoldEntities(AddAssumptions, reg, EmptyReport)
   }
 
@@ -65,8 +65,8 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     {
       var res := E.TranslateProgram(p);
       match res {
-        case Success(p') =>
-          var rpt := GenerateAuditReport(p'.registry);
+        case Success(reg) =>
+          var rpt := GenerateAuditReport(reg);
           RenderAuditReportMarkdown(rpt)
         case Failure(err) => err.ToString()
       }

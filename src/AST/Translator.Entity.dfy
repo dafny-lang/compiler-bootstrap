@@ -228,24 +228,38 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
         TranslateTopLevelDecl(tl.1));
     var topDecls' := Seq.Flatten(topDecls);
     var topNames := Seq.Map((d: E.Entity) => d.ei.name, topDecls');
-    :- Need(forall nm <- topNames :: nm.ChildOf(name), Invalid("Malformed name in " + name.ToString()));
+    assume forall nm <- topNames :: nm.ChildOf(name);
+    //:- Need(forall nm <- topNames :: nm.ChildOf(name), Invalid("Malformed name in " + name.ToString()));
     var ei := E.EntityInfo(name, location := loc, attrs := attrs, members := topNames);
     var mod := E.Entity.Module(ei, E.Module.Module());
     Success([mod] + topDecls')
   }
 
-  function TranslateProgram(p: C.Program): (exps: TranslationResult<E.Program>)
+  // TODO: generate a valid program with a validated registry
+  function TranslateProgram(p: C.Program): (exps: TranslationResult<E.Registry_>)
     reads *
   {
     var moduleSigs := DictUtils.DictionaryToSeq(p.ModuleSigs);
     var entities :- Seq.MapResult(moduleSigs,
       (sig: (C.ModuleDefinition, C.ModuleSignature)) reads * => TranslateModule(sig.1));
     var regMap := Seq.FoldL((m:map<N.Name, E.Entity>, e: E.Entity) => m + map[e.ei.name := e], map[], Seq.Flatten(entities));
-    var mainMethodName :- TranslateName(p.MainMethod.FullDafnyName);
+    var mainMethodName :- if p.MainMethod == null then
+                            Success(None)
+                          else
+                            var methodName :- TranslateName(p.MainMethod.FullDafnyName);
+                            Success(Some(methodName));
     var defaultModuleName :- TranslateName(p.DefaultModule.FullDafnyName);
     var reg := E.Registry_.Registry(regMap);
-    :- Need(reg.Validate().Pass?, Invalid("Failed to validate registry"));
-    var prog := E.Program(reg, defaultModule := defaultModuleName, mainMethod := Some(mainMethodName));
-    if prog.Valid?() then Success(prog) else Failure(Invalid("Generated invalid program"))
+    Success(reg)
+    /*
+    match reg.Validate() {
+      case Pass =>
+        var prog := E.Program(reg, defaultModule := defaultModuleName, mainMethod := mainMethodName);
+        if prog.Valid?() then Success(prog) else Failure(Invalid("Generated invalid program"))
+      case Fail(errs) =>
+        var err := Seq.Flatten(Seq.Map((e: E.ValidationError) => e.ToString(), errs));
+        Failure(Invalid("Failed to validate registry: " + err))
+    }
+    */
   }
 }
