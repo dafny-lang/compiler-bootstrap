@@ -114,11 +114,21 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       Failure(Invalid("Unsupported member declaration type: " + TypeConv.AsString(md.FullDafnyName)))
   }
 
-  function TranslateTypeSynonymDecl(ts: C.TypeSynonymDecl): (e: TranslationResult<E.Type>)
+  function TranslateTypeSynonymDecl(ts: C.TypeSynonymDecl): (e: TranslationResult<seq<E.Entity>>)
     reads *
   {
+    // TODO: handle subset, nonnull types
     var ty :- Expr.TranslateType(ts.Rhs);
-    Success(E.Type.TypeAlias(E.TypeAlias.TypeAlias(ty)))
+    var ei :- TranslateTopLevelEntityInfo(ts);
+    Success([E.Entity.Type(ei, E.Type.TypeAlias(E.TypeAlias.TypeAlias(ty)))])
+  }
+
+  function TranslateTypeParameter(ts: C.TypeParameter): (e: TranslationResult<seq<E.Entity>>)
+    reads *
+  {
+    // TODO: handle variance, etc
+    var ei :- TranslateTopLevelEntityInfo(ts);
+    Success([E.Entity.Type(ei, E.Type.TypeParameter(E.TypeParameter.TypeParameter()))])
   }
 
   function TranslateOpaqueTypeDecl(ot: C.OpaqueTypeDecl): (e: TranslationResult<E.Type>)
@@ -203,6 +213,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   {
     if tl is C.TopLevelDeclWithMembers then
       TranslateTopLevelDeclWithMembers(tl)
+    else if tl is C.TypeSynonymDecl then
+      TranslateTypeSynonymDecl(tl)
+    else if tl is C.TypeParameter then
+      TranslateTypeParameter(tl)
     else if tl is C.ModuleDecl then
       var md := tl as C.ModuleDecl;
       assume ASTHeight(md.Signature) < ASTHeight(tl);
