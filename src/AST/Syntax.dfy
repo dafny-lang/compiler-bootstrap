@@ -31,6 +31,7 @@ module Types {
     | Collection(finite: bool, kind: CollectionKind, eltType: Type)
     | Function(args: seq<Type>, ret: Type) // TODO
     | Class(classType: ClassType)
+    | Unsupported(description: string)
   {
     // TODO: remove?
     predicate method NoLeftFunction()
@@ -53,6 +54,7 @@ module Types {
           }
         case Function(args: seq<Type>, ret: Type) => false
         case Class(classType: ClassType) => false
+        case Unsupported(_) => false
       }
     }
 
@@ -85,6 +87,7 @@ module Types {
           && ret.WellFormed()
         case Class(classType: ClassType) =>
           && (forall i | 0 <= i < |classType.typeArgs| :: classType.typeArgs[i].WellFormed())
+        case Unsupported(_) => true
       }
     }
   }

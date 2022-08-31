@@ -72,7 +72,7 @@ module Bootstrap.AST.Translator.Expressions {
       var eltTy :- TranslateType(ty.Arg);
       Success(DT.Collection(true, DT.CollectionKind.Seq, eltTy))
     else
-      Failure(UnsupportedType(ty))
+      Success(DT.Unsupported("Unsupported type"))
   }
 
   const GhostUnaryOps: set<C.UnaryOpExpr__ResolvedOpcode> :=
