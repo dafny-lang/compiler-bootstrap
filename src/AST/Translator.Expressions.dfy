@@ -224,7 +224,7 @@ module Bootstrap.AST.Translator.Expressions {
       else
         Failure(Invalid("LiteralExpr with .Value of type string must be a char or a string."))
     else
-      Failure(UnsupportedExpr(l))
+      Success(DE.Unsupported("Unsupported literal"))
   }
 
   function method TranslateApplyExpr(ae: C.ApplyExpr)
