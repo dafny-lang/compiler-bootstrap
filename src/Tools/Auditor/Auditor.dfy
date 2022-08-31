@@ -21,7 +21,6 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
 
   //// AST traversals ////
 
-  // TODO: can't be implemented yet because there's no representation for `assume`
   predicate IsAssumeStatement(e: Expr) {
     && e.Apply?
     && e.aop.Eager?
