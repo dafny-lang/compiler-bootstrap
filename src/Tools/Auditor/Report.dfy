@@ -70,12 +70,6 @@ module AuditReport {
      if b then [elt] else []
   }
 
-  function method Interleave<T>(t:T, ts: seq<T>): seq<T> {
-    if |ts| == 0 then []
-    else if |ts| == 1 then ts
-    else [ts[0], t] + Interleave(t, ts[1..])
-  }
-
   // TODO: improve these descriptions
   function method AssumptionDescription(ts: set<Tag>): seq<(string, string)> {
     MaybeElt(IsCallable in ts && HasNoBody in ts && IsGhost in ts,
@@ -116,10 +110,10 @@ module AuditReport {
       , BoolYN(!(IsGhost in a.tags))
       , BoolYN(IsExplicitAssumption(a.tags))
       , BoolYN(HasExternAttribute in a.tags)
-      , Flatten(Interleave("<br>", issues))
-      , Flatten(Interleave("<br>", mitigations))
+      , Flatten(Seq.Interleave("<br>", issues))
+      , Flatten(Seq.Interleave("<br>", mitigations))
       ];
-    "| " + Flatten(Interleave(" | ", cells)) + " |"
+    "| " + Flatten(Seq.Interleave(" | ", cells)) + " |"
   }
 
   function method RenderAuditReportMarkdown(r: Report): string {

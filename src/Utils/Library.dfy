@@ -166,6 +166,11 @@ module Utils.Lib.Seq {
     else tss[0] + Flatten(tss[1..])
   }
 
+  function method Interleave<T>(sep:T, ts: seq<T>): seq<T> {
+    if |ts| <= 1 then ts
+    else [ts[0], sep] + Interleave(sep, ts[1..])
+  }
+
   // TODO: Why not use forall directly?
   function method {:opaque} All<T>(P: T ~> bool, ts: seq<T>) : (b: bool)
     reads P.reads
