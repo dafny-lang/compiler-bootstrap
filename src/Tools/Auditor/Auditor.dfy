@@ -77,8 +77,8 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     {
       var res := E.TranslateProgram(p);
       match res {
-        case Success(reg) =>
-          var rpt := GenerateAuditReport(reg);
+        case Success(p') =>
+          var rpt := GenerateAuditReport(p'.registry);
           return RenderAuditReportMarkdown(rpt);
         case Failure(err) =>
           return err.ToString();

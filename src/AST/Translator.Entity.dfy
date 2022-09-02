@@ -59,7 +59,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateMemberEntityInfo(md: C.MemberDecl): (e: TranslationResult<E.EntityInfo>)
     reads *
   {
-    var name :- TranslateName(md.FullDafnyName);
+    var name :- TranslateName(md.FullName);
     var attrs :- TranslateAttributes(md.Attributes);
     var loc := TranslateLocation(md.tok);
     Success(E.EntityInfo(name, location := loc, attrs := attrs, members := []))
@@ -111,7 +111,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     else if md is C.Method then
       TranslateMethod(md)
     else
-      Failure(Invalid("Unsupported member declaration type: " + TypeConv.AsString(md.FullDafnyName)))
+      Failure(Invalid("Unsupported member declaration type: " + TypeConv.AsString(md.FullName)))
   }
 
   function TranslateTypeSynonymDecl(ts: C.TypeSynonymDecl): (e: TranslationResult<seq<E.Entity>>)
@@ -153,7 +153,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     reads *
   {
     var parentTraits :- Seq.MapResult(ListUtils.ToSeq(t.ParentTraits), (t: C.Type) reads * =>
-      TranslateName(t.AsTraitType.FullDafnyName));
+      TranslateName(t.AsTraitType.FullName));
     Success(E.Type.TraitType(E.TraitType.TraitType(parentTraits)))
   }
 
@@ -161,14 +161,14 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     reads *
   {
     var parentTraits :- Seq.MapResult(ListUtils.ToSeq(c.ParentTraits), (t: C.Type) reads * =>
-      TranslateName(t.AsTraitType.FullDafnyName));
+      TranslateName(t.AsTraitType.FullName));
     Success(E.Type.ClassType(E.ClassType.ClassType(parentTraits)))
   }
 
   function TranslateTopLevelEntityInfo(tl: C.TopLevelDecl): (e: TranslationResult<E.EntityInfo>)
     reads *
   {
-    var name :- TranslateName(tl.FullDafnyName);
+    var name :- TranslateName(tl.FullName);
     var attrs :- TranslateAttributes(tl.Attributes);
     var loc := TranslateLocation(tl.tok);
     Success(E.EntityInfo(name, location := loc, attrs := attrs, members := []))
@@ -177,7 +177,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateTopLevelEntityInfoMembers(tl: C.TopLevelDeclWithMembers): (e: TranslationResult<(seq<E.Entity>, E.EntityInfo)>)
     reads *
   {
-    var name :- TranslateName(tl.FullDafnyName);
+    var name :- TranslateName(tl.FullName);
     var attrs :- TranslateAttributes(tl.Attributes);
     var loc := TranslateLocation(tl.tok);
     var memberDecls := ListUtils.ToSeq(tl.Members);
@@ -202,7 +202,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
                else if tl is C.ClassDecl then
                  TranslateClassDecl(tl)
                else
-                 Failure(Invalid("Unsupported top level declaration type for " + TypeConv.AsString(tl.FullDafnyName)));
+                 Failure(Invalid("Unsupported top level declaration type for " + TypeConv.AsString(tl.FullName)));
     var topEntity := E.Entity.Type(ei, top);
     Success([topEntity] + members)
   }
@@ -222,7 +222,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       assume ASTHeight(md.Signature) < ASTHeight(tl);
       TranslateModule(md.Signature)
     else
-      Failure(Invalid("Unsupported top level declaration type for " + TypeConv.AsString(tl.FullDafnyName)))
+      Failure(Invalid("Unsupported top level declaration type for " + TypeConv.AsString(tl.FullName)))
   }
 
   function TranslateModule(sig: C.ModuleSignature): (m: TranslationResult<seq<E.Entity>>)
@@ -230,7 +230,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     decreases ASTHeight(sig), 1
   {
     var def := sig.ModuleDef;
-    var name :- TranslateName(def.FullDafnyName);
+    var name :- TranslateName(def.FullName);
     var attrs :- TranslateAttributes(def.Attributes);
     var loc := TranslateLocation(def.tok);
     var includes := ListUtils.ToSeq(def.Includes);
@@ -242,30 +242,33 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
         TranslateTopLevelDecl(tl.1));
     var topDecls' := Seq.Flatten(topDecls);
     var topNames := Seq.Map((d: E.Entity) => d.ei.name, topDecls');
-    assume forall nm <- topNames :: nm.ChildOf(name);
     //:- Need(forall nm <- topNames :: nm.ChildOf(name), Invalid("Malformed name in " + name.ToString()));
+    assume forall nm <- topNames :: nm.ChildOf(name);
     var ei := E.EntityInfo(name, location := loc, attrs := attrs, members := topNames);
     var mod := E.Entity.Module(ei, E.Module.Module());
     Success([mod] + topDecls')
   }
 
-  // TODO: generate a valid program with a validated registry
-  function TranslateProgram(p: C.Program): (exps: TranslationResult<E.Registry_>)
+  function TranslateProgram(p: C.Program): (exps: TranslationResult<E.Program>)
     reads *
   {
     var moduleSigs := DictUtils.DictionaryToSeq(p.ModuleSigs);
     var entities :- Seq.MapResult(moduleSigs,
       (sig: (C.ModuleDefinition, C.ModuleSignature)) reads * => TranslateModule(sig.1));
-    var regMap := Seq.FoldL((m:map<N.Name, E.Entity>, e: E.Entity) => m + map[e.ei.name := e], map[], Seq.Flatten(entities));
+    var flatEntities := Seq.Flatten(entities);
+    var names := Seq.Map((e: E.Entity) => e.ei.name, flatEntities);
+    var topNames := Seq.Filter(names, (n:N.Name) => n.Name? && n.parent.Anonymous?);
+    :- Need(forall nm <- topNames :: nm.ChildOf(N.Anonymous), Invalid("Malformed name at top level"));
+    var rootEI := E.EntityInfo.EntityInfo(N.Name.Anonymous, location := E.Location.EMPTY(), attrs := [], members := topNames);
+    var root := E.Entity.Module(rootEI, E.Module.Module());
+    var regMap := Seq.FoldL((m:map<N.Name, E.Entity>, e: E.Entity) => m + map[e.ei.name := e], map[], [root] + flatEntities);
     var mainMethodName :- if p.MainMethod == null then
                             Success(None)
                           else
-                            var methodName :- TranslateName(p.MainMethod.FullDafnyName);
+                            var methodName :- TranslateName(p.MainMethod.FullName);
                             Success(Some(methodName));
-    var defaultModuleName :- TranslateName(p.DefaultModule.FullDafnyName);
+    var defaultModuleName :- TranslateName(p.DefaultModule.FullName);
     var reg := E.Registry_.Registry(regMap);
-    Success(reg)
-    /*
     match reg.Validate() {
       case Pass =>
         var prog := E.Program(reg, defaultModule := defaultModuleName, mainMethod := mainMethodName);
@@ -274,6 +277,5 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
         var err := Seq.Flatten(Seq.Map((e: E.ValidationError) => e.ToString(), errs));
         Failure(Invalid("Failed to validate registry: " + err))
     }
-    */
   }
 }
