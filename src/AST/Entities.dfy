@@ -12,6 +12,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 {
   import opened Names
   import opened Syntax.Exprs
+  import opened Syntax.Types
   import ST = Syntax.Types
   import opened Utils.Lib.Datatypes
   import Utils.Lib.SetSort
@@ -29,7 +30,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     Import(localName: Atom, target: Name)
 
   datatype SubsetType =
-    SubsetType(boundVar: string, pred: Expr, witnessExpr: Option<Expr>)
+    SubsetType(boundVar: string, ty: Types.Type, pred: Expr, witnessExpr: Option<Expr>)
 
   datatype TypeParameter =
     TypeParameter()
@@ -44,7 +45,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   datatype DataType =
     DataType()
   datatype NewType =
-    NewType()
+    NewType(boundVar: string, ty: Types.Type, pred: Option<Expr>, witnessExpr: Option<Expr>)
 
   datatype Type =
     | TypeParameter(tp: TypeParameter)

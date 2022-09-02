@@ -117,10 +117,21 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateTypeSynonymDecl(ts: C.TypeSynonymDecl): (e: TranslationResult<seq<E.Entity>>)
     reads *
   {
-    // TODO: handle subset, nonnull types
     var ty :- Expr.TranslateType(ts.Rhs);
     var ei :- TranslateTopLevelEntityInfo(ts);
     Success([E.Entity.Type(ei, E.Type.TypeAlias(E.TypeAlias.TypeAlias(ty)))])
+  }
+
+  function TranslateSubsetTypeDecl(st: C.SubsetTypeDecl): (e: TranslationResult<seq<E.Entity>>)
+    reads *
+  {
+    // TODO: handle nonnull types
+    var x := TypeConv.AsString(st.Var.Name);
+    var ty :- Expr.TranslateType(st.Rhs);
+    var constraint :-Expr.TranslateExpression(st.Constraint);
+    var wit :-Expr.TranslateOptionalExpression(st.Witness);
+    var ei :- TranslateTopLevelEntityInfo(st);
+    Success([E.Entity.Type(ei, E.Type.SubsetType(E.SubsetType.SubsetType(x, ty, constraint, wit)))])
   }
 
   function TranslateTypeParameter(ts: C.TypeParameter): (e: TranslationResult<seq<E.Entity>>)
@@ -140,7 +151,11 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateNewtypeDecl(nt: C.NewtypeDecl): (e: TranslationResult<E.Type>)
     reads *
   {
-    Success(E.Type.NewType(E.NewType.NewType()))
+    var x := TypeConv.AsString(nt.Var.Name);
+    var ty :- Expr.TranslateType(nt.BaseType);
+    var constraint :- Expr.TranslateOptionalExpression(nt.Constraint);
+    var wit :-Expr.TranslateOptionalExpression(nt.Witness);
+    Success(E.Type.NewType(E.NewType.NewType(x, ty, constraint, wit)))
   }
 
   function TranslateDatatypeDecl(dt: C.DatatypeDecl): (e: TranslationResult<E.Type>)
@@ -213,6 +228,8 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   {
     if tl is C.TopLevelDeclWithMembers then
       TranslateTopLevelDeclWithMembers(tl)
+    else if tl is C.SubsetTypeDecl then
+      TranslateSubsetTypeDecl(tl)
     else if tl is C.TypeSynonymDecl then
       TranslateTypeSynonymDecl(tl)
     else if tl is C.TypeParameter then
