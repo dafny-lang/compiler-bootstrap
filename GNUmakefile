@@ -141,6 +141,8 @@ tests: $(cs_tests)
 repl: $(repl_dll) FORCE
 	dotnet exec $<
 
+auditor: $(auditor_dll) FORCE
+
 typecheck:
 	$(dafny_typecheck) $(dfy_entry_points)
 

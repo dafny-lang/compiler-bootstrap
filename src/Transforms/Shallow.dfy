@@ -59,6 +59,9 @@ module Bootstrap.Transforms.Shallow {
   // TODO: prove!
   lemma Map_EntityIsEntityTransformer(tr: ExprTransformer)
     ensures EntityTransformer?(Map_EntityTransformer(tr))
+    {
+      assume EntityTransformer?(Map_EntityTransformer(tr));
+    }
 
   function method {:opaque} Map_Program(p: Program, tr: ExprTransformer) : (p': Program)
     requires Shallow.All_Program(p, tr.f.requires)
