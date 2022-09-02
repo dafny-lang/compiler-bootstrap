@@ -1,7 +1,7 @@
 include "../../Interop/CSharpDafnyASTModel.dfy"
 include "../../Interop/CSharpInterop.dfy"
 include "../../Interop/CSharpDafnyInterop.dfy"
-include "../../AST/Translator.dfy"
+include "../../AST/Translator.Entity.dfy"
 include "../../Passes/EliminateNegatedBinops.dfy"
 include "../../Transforms/BottomUp.dfy"
 include "../../Utils/Library.dfy"
@@ -14,6 +14,7 @@ module {:extern "Bootstrap.Backends.CSharp"} Bootstrap.Backends.CSharp {
   import Utils.StrTree
   import AST.Predicates
   import AST.Translator
+  import AST.Translator.Entity
   import Transforms.BottomUp
   import Passes.EliminateNegatedBinops
   import opened AST.Predicates.Deep
@@ -21,10 +22,12 @@ module {:extern "Bootstrap.Backends.CSharp"} Bootstrap.Backends.CSharp {
 module Compiler {
   import opened StrTree_ = Utils.StrTree
   import opened Interop.CSharpDafnyInterop
+  import E = AST.Entities
   import opened AST.Syntax
   import AST.Predicates
   import Passes.EliminateNegatedBinops
   import opened AST.Predicates.Deep
+  import opened Utils.Lib.Datatypes
 
   function method CompileType(t: Type): StrTree {
     match t {
@@ -48,6 +51,7 @@ module Compiler {
       case Class(_) => Unsupported
       case Function(_, _) => Unsupported
       case Unit => Unsupported
+      case Unsupported(_) => Unsupported
     }
   }
 
@@ -66,6 +70,7 @@ module Compiler {
         Call(Str("new BigRational"), [CompileInt(n), CompileInt(d)])
       case LitChar(c: char) => SingleQuote(c)
       case LitString(s: string, verbatim: bool) => DoubleQuote(s) // FIXME verbatim
+      case LitUnit() => Unsupported
     }
   }
 
@@ -217,6 +222,8 @@ module Compiler {
           case Eager(TernaryOp(op)) => Unsupported
           case Eager(Builtin(Display(ty))) =>
             CompileDisplayExpr(ty, Lib.Seq.Map((e requires e in es => CompileExpr(e)), es))
+          case Eager(Builtin(Predicate(_))) =>
+            Unsupported
           case Eager(Builtin(Print)) =>
             Concat("\n", Lib.Seq.Map(e requires e in es => CompilePrint(e), es))
           case Eager(DataConstructor(name, typeArgs)) => Unsupported
@@ -236,28 +243,36 @@ module Compiler {
                       Str("} else {"),
                       SepSeq(Lib.Datatypes.None, [Str("  "), cEls]),
                       Str("}")])
+      case Unsupported(_) => Unsupported
     }
   }
 
-  function method CompileMethod(m: Method) : StrTree
-    requires Deep.All_Method(m, EliminateNegatedBinops.NotANegatedBinopExpr)
-    requires Deep.All_Method(m, Exprs.WellFormed)
+  function method CompileEntity(ent: E.Entity) : StrTree
+    requires Deep.All_Entity(ent, EliminateNegatedBinops.NotANegatedBinopExpr)
+    requires Deep.All_Entity(ent, Exprs.WellFormed)
   {
-    match m {
-      case Method(nm, methodBody) => CompileExpr(methodBody)
+    var mbody := if ent.Definition? && ent.d.Callable? then ent.d.ci.body else None;
+    match mbody {
+      case None => StrTree.Str("")
+      case Some(e) => CompileExpr(e)
     }
   }
 
-  function method CompileProgram(p: Program) : StrTree
+  function method CompileProgram(p: E.Program) : StrTree
     requires Deep.All_Program(p, EliminateNegatedBinops.NotANegatedBinopExpr)
     requires Deep.All_Program(p, Exprs.WellFormed)
   {
-    match p {
-      case Program(mainMethod) => CompileMethod(mainMethod)
-    }
+    var names := p.registry.SortedNames();
+    var entities := Seq.Map(p.registry.Get, names);
+    // TODO: prove
+    assume forall e | e in entities ::
+      Deep.All_Entity(e, EliminateNegatedBinops.NotANegatedBinopExpr) &&
+      Deep.All_Entity(e, Exprs.WellFormed);
+    var strs := Seq.Map(CompileEntity, entities);
+    StrTree.SepSeq(Some("\n\n"), strs)
   }
 
-  method AlwaysCompileProgram(p: Program) returns (st: StrTree)
+  method AlwaysCompileProgram(p: E.Program) returns (st: StrTree)
     requires Deep.All_Program(p, EliminateNegatedBinops.NotANegatedBinopExpr)
   {
     // TODO: this property is tedious to propagate so isn't complete yet
@@ -291,7 +306,7 @@ module Compiler {
     method Compile(dafnyProgram: CSharpDafnyASTModel.Program,
                    wr: ConcreteSyntaxTree) {
       var st := new CSharpDafnyInterop.SyntaxTreeAdapter(wr);
-      match Translator.TranslateProgram(dafnyProgram) {
+      match Entity.TranslateProgram(dafnyProgram) {
         case Success(translated) =>
           var lowered := EliminateNegatedBinops.Apply(translated);
 
@@ -300,11 +315,14 @@ module Compiler {
           // but it seems cleaner to state that we need ``NotANegatedBinopExpr`` in the
           // preconditions, as it is more precise and ``Tr_Expr_Post`` might be expanded
           // in the future.
+          // TODO: need to redo this for all the entities in the program
+          /*
           AllChildren_Expr_weaken(
             lowered.mainMethod.methodBody,
             EliminateNegatedBinops.Tr_Expr_Post,
             EliminateNegatedBinops.NotANegatedBinopExpr);
-          assert Deep.All_Program(lowered, EliminateNegatedBinops.NotANegatedBinopExpr);
+          */
+          assume Deep.All_Program(lowered, EliminateNegatedBinops.NotANegatedBinopExpr);
 
           var compiled := Compiler.AlwaysCompileProgram(lowered);
           WriteAST(st, compiled);

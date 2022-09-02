@@ -23,6 +23,7 @@ module Bootstrap.Semantics.Interp {
       case TernaryOp(top) => true
       case Builtin(Display(_)) => true
       case Builtin(Print()) => false
+      case Builtin(Predicate(_)) => false
       case FunctionCall() => true
       case DataConstructor(name, typeArgs) => Debug.TODO(false)
     }
@@ -39,6 +40,7 @@ module Bootstrap.Semantics.Interp {
       case Bind(vars, vals, body) => true
       case Block(stmts) => true
       case If(cond, thn, els) => true
+      case Unsupported(_) => false
     }
   }
 

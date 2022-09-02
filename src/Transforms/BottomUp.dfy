@@ -10,6 +10,7 @@ include "../Transforms/Generic.dfy"
 include "../Transforms/Shallow.dfy"
 
 module Bootstrap.Transforms.BottomUp {
+  import opened AST.Entities
   import opened AST.Syntax
   import opened Utils.Lib
   import opened AST.Predicates
@@ -155,6 +156,7 @@ module Bootstrap.Transforms.BottomUp {
         var e' := Expr.If(Map_Expr(cond, tr), Map_Expr(thn, tr), Map_Expr(els, tr));
         assert Exprs.ConstructorsMatch(e, e');
         e'
+      case Unsupported(_) => e
     }
   }
 
@@ -213,6 +215,7 @@ module Bootstrap.Transforms.BottomUp {
         var e' := Expr.If(Map_Expr_WithRel(cond, tr, rel), Map_Expr_WithRel(thn, tr, rel), Map_Expr_WithRel(els, tr, rel));
         assert Exprs.ConstructorsMatch(e, e');
         e'
+      case Unsupported(_) => e
     }
   }
 
@@ -272,6 +275,7 @@ module Bootstrap.Transforms.BottomUp {
         match e {
           case Var(_) => {}
           case Literal(_) => {}
+          case Unsupported(_) => {}
           case Abs(vars, body) =>
             assert rel(e, tr'.f(e));
           case Apply(applyOp, args) =>
@@ -288,15 +292,6 @@ module Bootstrap.Transforms.BottomUp {
     }
   }
 
-  function method {:opaque} Map_Method(m: Method, tr: BottomUpTransformer) :
-    (m': Method)
-    requires Deep.All_Method(m, tr.f.requires)
-    ensures Deep.All_Method(m', tr.post)
-    // Apply a transformer to a method, in a bottom-up manner.
-  {
-    Shallow.Map_Method(m, Map_Expr_Transformer(tr))
-  }
-
   function method {:opaque} Map_Program(p: Program, tr: BottomUpTransformer) :
     (p': Program)
     requires Deep.All_Program(p, tr.f.requires)
@@ -306,17 +301,7 @@ module Bootstrap.Transforms.BottomUp {
     Shallow.Map_Program(p, Map_Expr_Transformer(tr))
   }
 
-  lemma {:opaque} Map_Method_PreservesRel(m: Method, tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
-    requires Deep.All_Method(m, tr.f.requires)
-    requires TransformerDeepPreservesRel(tr.f, rel)
-    ensures rel(m.methodBody, Map_Method(m, tr).methodBody)
-    // ``Map_Method`` preserves relations
-  {
-    reveal Map_Method();
-    reveal Shallow.Map_Method();
-    Map_Expr_PreservesRel(m.methodBody, tr, rel);
-  }
-
+/*
   lemma {:opaque} Map_Program_PreservesRel(p: Program, tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
     requires Deep.All_Program(p, tr.f.requires)
     requires TransformerDeepPreservesRel(tr.f, rel)
@@ -329,6 +314,7 @@ module Bootstrap.Transforms.BottomUp {
     reveal Shallow.Map_Program();
     Map_Method_PreservesRel(p.mainMethod, tr, rel);
   }
+  */
 
   lemma TransformationAndRel_Lift(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
     requires RelIsTransitive(rel)

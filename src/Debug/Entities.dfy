@@ -52,7 +52,7 @@ module {:options "-functionSyntax:4"} Bootstrap.Debug.Entities {
     {
       for i := 0 to |names| {
         var name := names[i];
-        registry.Decreases_TransitiveMembers(names, name);
+        registry.Decreases_TransitiveMembers_Many(names, name);
         DumpEntity(name, indent);
         print "\n";
       }

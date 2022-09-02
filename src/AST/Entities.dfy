@@ -106,6 +106,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     {
       EntityInfo(name, location := Location.EMPTY(), attrs := [], members := [])
     }
+
+    function ToString(): string {
+      name.ToString() + " -> " + Seq.Flatten(Seq.Interleave(", ", Seq.Map((n: Name) => n.ToString(), members)))
+    }
   }
 
   datatype Entity =
@@ -145,11 +149,13 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     }
   }
 
-  ghost predicate EntityTransformer?(f: Entity -> Entity) {
+  ghost predicate EntityTransformer?(f: Entity --> Entity)
+  {
     forall e ::
-      && f(e).kind == e.kind
-      && f(e).ei.name == e.ei.name
-      && f(e).ei.members == e.ei.members
+      f.requires(e) ==>
+        && f(e).kind == e.kind
+        && f(e).ei.name == e.ei.name
+        && f(e).ei.members == e.ei.members
   }
 
   type EntityTransformer = f | EntityTransformer?(f) witness e => e
@@ -343,7 +349,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       if name.Anonymous? then AddRoot(name, entity) else AddMember(name, entity)
     }
 
-    function Map(f: EntityTransformer): Registry requires Valid?() {
+    function Map(f: EntityTransformer): Registry
+      requires Valid?()
+      requires forall e | e in entities.Values :: f.requires(e)
+    {
       Registry(map name | name in entities :: f(entities[name]))
     }
 

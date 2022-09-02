@@ -1,32 +1,47 @@
+include "Entities.dfy"
 include "Syntax.dfy"
 
 module Bootstrap.AST.Predicates {
 module Shallow {
   import opened Utils.Lib
+  import opened Entities
   import opened Syntax
 
-  /*
-  function method All_Method(m: Method, P: Expr -> bool) : bool {
-    match m {
-      case Method(CompileName_, methodBody) => P(methodBody)
+  function method All_OptionalExpr(oe: Datatypes.Option<Expr>, P: Expr -> bool) : bool {
+    match oe {
+      case Some(e) => P(e)
+      case None => true
     }
   }
 
-  function method All_Program(p: Program, P: Expr -> bool) : bool {
-    match p {
-      case Program(mainMethod) => All_Method(mainMethod, P)
+  function method All_Callable(c: Callable, P: Expr -> bool) : bool {
+    && Seq.All(P, c.req)
+    && Seq.All(P, c.ens)
+    && All_OptionalExpr(c.body, P)
+  }
+
+  function method All_Entity(e: Entity, P: Expr -> bool) : bool {
+    match e {
+      case Definition(_, d) => d.Callable? ==> All_Callable(d.ci, P)
+      // TODO: add fields once they contain expressions
+      case _ => true
     }
+  }
+
+  function method All_Program(p: Program, P: Expr -> bool) : (r: bool)
+  {
+    forall e | e in p.registry.entities.Values :: All_Entity(e, P)
   }
 
   function method All(p: Program, P: Expr -> bool) : bool {
     All_Program(p, P)
   }
-  */
 }
 
 module DeepImpl {
 abstract module Base {
   import opened Utils.Lib
+  import opened Entities
   import opened Syntax
   import Shallow
 
@@ -48,15 +63,13 @@ abstract module Base {
     !All_Expr(e, e' => !P(e'))
   }
 
-  /*
-  function method All_Method(m: Method, P: Expr -> bool) : bool {
-    Shallow.All_Method(m, e => All_Expr(e, P))
+  function method All_Entity(ent: Entity, P: Expr -> bool) : bool {
+    Shallow.All_Entity(ent, e => All_Expr(e, P))
   }
 
   function method All_Program(p: Program, P: Expr -> bool) : bool {
     Shallow.All_Program(p, e => All_Expr(e, P))
   }
-  */
 
   //
   // Lemmas

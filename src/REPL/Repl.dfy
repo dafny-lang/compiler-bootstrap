@@ -1,6 +1,6 @@
 include "../Semantics/Interp.dfy"
 include "../AST/Syntax.dfy"
-include "../AST/Translator.dfy"
+include "../AST/Translator.Expressions.dfy"
 include "../Semantics/Printer.dfy"
 include "../Utils/Library.dfy"
 include "../Interop/CSharpInterop.dfy"
@@ -93,7 +93,7 @@ datatype REPLError =
   | StackOverflow()
   | FailedParse(pmsg: string)
   | ResolutionError(rmsg: string)
-  | TranslationError(te: Translator.TranslationError)
+  | TranslationError(te: Translator.Common.TranslationError)
   | InterpError(ie: Interp.InterpError)
   | Unsupported(e: Syntax.Expr)
 {
@@ -186,28 +186,28 @@ class REPL {
   }
 
   function method AbsOfFunction(fn: C.Function)
-    : Result<Syntax.Expr, Translator.TranslationError>
+    : Result<Syntax.Expr, Translator.Common.TranslationError>
     reads *
   {
     var inParams := Lib.Seq.MapFilter(CSharpInterop.ListUtils.ToSeq(fn.Formals), (f: C.Formal) reads * =>
       if f.InParam then Some(TypeConv.AsString(f.Name)) else None);
-    var body :- Translator.TranslateExpression(fn.Body);
+    var body :- Translator.Expressions.TranslateExpression(fn.Body);
     Success(Syntax.Exprs.Abs(inParams, body))
   }
 
   function method TranslateBody(input: REPLInterop.UserInput)
-    : Result<Syntax.Expr, Translator.TranslationError>
+    : Result<Syntax.Expr, Translator.Common.TranslationError>
     reads *
   {
     if input is REPLInterop.MemberDeclInput then
       var ei := input as REPLInterop.MemberDeclInput;
       if ei.Decl is C.ConstantField then
         var cf := ei.Decl as C.ConstantField;
-        Translator.TranslateExpression(cf.Rhs)
+        Translator.Expressions.TranslateExpression(cf.Rhs)
       else if ei.Decl is C.Function then
         AbsOfFunction(ei.Decl as C.Function)
       else
-        Failure(Translator.UnsupportedMember(ei.Decl))
+        Failure(Translator.Common.UnsupportedMember(ei.Decl))
     else
       (input.Sealed();
        Lib.ControlFlow.Unreachable())

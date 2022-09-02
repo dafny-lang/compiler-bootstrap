@@ -37,6 +37,7 @@ module Bootstrap.Semantics.Pure {
               case BinaryOp(_) => true
               case TernaryOp(_) => true
               case Builtin(Display(_)) => true
+              case Builtin(Predicate(_)) => false // TODO(AAT): support this eventually
               case Builtin(Print) => false // For now, we actually don't model the fact that `Print` has side effects
               case FunctionCall() => true // TODO(SMH): ok for now because we only have terminating, pure functions
               case DataConstructor(_, _) => true
@@ -45,6 +46,7 @@ module Bootstrap.Semantics.Pure {
       case Block(_) => true
       case Bind(_, _, _) => true
       case If(_, _, _) => true
+      case Unsupported(_) => false
   }
 
   predicate method {:opaque} IsPure(e: Syntax.Expr) {
@@ -71,6 +73,7 @@ module Bootstrap.Semantics.Pure {
       case Var(v) =>
       case Abs(vars, body) => {}
       case Literal(lit) => {}
+      case Unsupported(_) => {}
       case Apply(Lazy(op), args) =>
         InterpExpr_Lazy_IsPure_SameState(e, env, ctx);
       case Apply(Eager(op), args) =>

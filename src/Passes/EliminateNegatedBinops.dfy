@@ -24,6 +24,7 @@ module Bootstrap.Passes.EliminateNegatedBinops {
   import opened Utils.Lib.Datatypes
   import opened Transforms.BottomUp
 
+  import opened AST.Entities
   import opened AST.Syntax
   import opened AST.Predicates
   import opened Semantics.Interp
@@ -250,34 +251,16 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     Deep.All_Program(p, Tr_Expr_Post)
   }
 
-  function method Apply_Method(m: Method) : (m': Method)
-    ensures Deep.All_Method(m', Tr_Expr_Post)
-    ensures Tr_Expr_Rel(m.methodBody, m'.methodBody)
-    // Apply the transformation to a method.
-    //
-    // We need it on a temporary basis, so that we can apply the transformation
-    // to all the methods in a program (we haven't defined modules, classes,
-    // etc. yet). When the `Program` definition is complete enough, we will
-    // remove this definition and exclusively use `Apply`.
-  {
-
-    Deep.All_Expr_True_Forall(Tr_Expr.f.requires);
-    assert Deep.All_Method(m, Tr_Expr.f.requires);
-    TrPreservesRel();
-    Map_Method_PreservesRel(m, Tr_Expr, Tr_Expr_Rel);
-    Map_Method(m, Tr_Expr)
-  }
-
   function method Apply(p: Program) : (p': Program)
     requires Tr_Pre(p)
     ensures Tr_Post(p')
-    ensures Tr_Expr_Rel(p.mainMethod.methodBody, p'.mainMethod.methodBody)
+    //ensures Tr_Expr_Rel(p.mainMethod.methodBody, p'.mainMethod.methodBody)
     // Apply the transformation to a program.
   {
     Deep.All_Expr_True_Forall(Tr_Expr.f.requires);
     assert Deep.All_Program(p, Tr_Expr.f.requires);
     TrPreservesRel();
-    Map_Program_PreservesRel(p, Tr_Expr, Tr_Expr_Rel);
+    //Map_Program_PreservesRel(p, Tr_Expr, Tr_Expr_Rel);
     Map_Program(p, Tr_Expr)
   }
 }
