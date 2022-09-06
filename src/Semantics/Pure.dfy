@@ -4,8 +4,6 @@ include "../Interop/CSharpDafnyInterop.dfy"
 include "../Interop/CSharpDafnyASTInterop.dfy"
 include "../Utils/Library.dfy"
 include "Interp.dfy"
-include "../Transforms/Generic.dfy"
-include "../Transforms/Shallow.dfy"
 
 module Bootstrap.Semantics.Pure {
   // This module defines a notion of pure expression, and proves properties about it (for instance,
@@ -43,8 +41,17 @@ module Bootstrap.Semantics.Pure {
             }
         }
       case Block(_) => true
+      case VarDecl(_, _) =>
+        // We could allow that, but the proofs are then hard (and stating the purity theorem
+        // is also non-trivial).
+        // The criteria we use here is very local, and we might want to come up with a more
+        // general one, which would compute the "footprint" of an expression (the set of
+        // re-declared variables, updated variables, etc.).
+        false
       case Bind(_, _, _) => true
+      case Update(_, _) => false
       case If(_, _, _) => true
+      case Loop(_, _) => false // We could make it true, but there is no way this terminates if it is pure (unless the guard always evalutes to false)
   }
 
   predicate method {:opaque} IsPure(e: Syntax.Expr) {
@@ -75,12 +82,17 @@ module Bootstrap.Semantics.Pure {
         InterpExpr_Lazy_IsPure_SameState(e, env, ctx);
       case Apply(Eager(op), args) =>
         InterpExpr_Eager_IsPure_SameState(e, env, ctx);
-      case Bind(vars, exprs, body) =>
-        assume false; // TODO: prove
+      case Bind(_, _, _) =>
+        InterpExpr_Bind_IsPure_SameState(e, env, ctx);
+      case VarDecl(vdecls, ovals) =>
       case Block(stmts) =>
         InterpExpr_Block_IsPure_SameState(e, env, ctx);
       case If(cond, thn, els) =>
         InterpExpr_If_IsPure_SameState(e, env, ctx);
+      case Update(_, _) =>
+        assert false; // Impossible branch
+      case Loop(_, _) =>
+        assert false; // Impossible branch
   }
 
   lemma InterpExprWithType_IsPure_SameState(e: PureExpr, ty: Type, env: Environment, ctx: State)
@@ -131,6 +143,34 @@ module Bootstrap.Semantics.Pure {
     InterpExprs_IsPure_SameState(args, env, ctx);
   }
 
+  lemma InterpExpr_Bind_IsPure_SameState(e: PureExpr, env: Environment, ctx: State)
+    requires e.Bind?
+    ensures InterpResultHasState(InterpExpr(e, env, ctx), ctx)
+    decreases e, 0
+  {
+    reveal SupportsInterp();
+    reveal InterpExpr();
+    reveal IsPure();
+    reveal InterpLazy();
+
+    var Bind(bvars, vals, body) := e;
+
+    var vars := VarsToNames(bvars);
+    var ctx1 := StartScope(ctx);
+    var res2 := InterpExprs(vals, env, ctx1);
+
+    if res2.Success? {
+      InterpExprs_IsPure_SameState(vals, env, ctx1);
+      var Return(vals, ctx2) := res2.value;
+
+      reveal SaveToRollback();
+      var ctx3 := SaveToRollback(ctx2, vars);
+      var ctx4 := ctx3.(locals := AugmentContext(ctx3.locals, vars, vals));
+      InterpExpr_IsPure_SameState(body, env, ctx4);
+    }
+    else {}
+  }
+
   lemma InterpExpr_Block_IsPure_SameState(e: PureExpr, env: Environment, ctx: State)
     requires e.Block?
     ensures InterpResultHasState(InterpExpr(e, env, ctx), ctx)
@@ -141,7 +181,8 @@ module Bootstrap.Semantics.Pure {
     reveal IsPure();
     reveal InterpBlock();
 
-    InterpBlock_Exprs_IsPure_SameState(e.stmts, env, ctx);
+    var ctx1 := StartScope(ctx);
+    InterpBlock_Exprs_IsPure_SameState(e.stmts, env, ctx1);
   }
 
   lemma InterpBlock_Exprs_IsPure_SameState(es: seq<PureExpr>, env: Environment, ctx: State)

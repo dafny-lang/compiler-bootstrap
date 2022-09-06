@@ -17,17 +17,19 @@ module Bootstrap.Transforms.BottomUp {
   import opened Generic
   import Shallow
 
+  type Expr = Syntax.Expr
+
   predicate MapChildrenPreservesPre(f: Expr --> Expr, post: Expr -> bool)
-    // This predicate gives us the conditions for which, if we deeply apply `f` to all
-    // the children of an expression, then the resulting expression satisfies the pre
-    // of `f` (i.e., we can call `f` on it).
-    //
-    // Given `e`, `e'`, if:
-    // - `e` and `e'` have the same constructor
-    // - `e` satisfies the pre of `f`
-    // - all the children of `e'` deeply satisfy the post of `f`
-    // Then:
-    // - `e'` satisfies the pre of `f`
+  // This predicate gives us the conditions for which, if we deeply apply `f` to all
+  // the children of an expression, then the resulting expression satisfies the pre
+  // of `f` (i.e., we can call `f` on it).
+  //
+  // Given `e`, `e'`, if:
+  // - `e` and `e'` have the same constructor
+  // - `e` satisfies the pre of `f`
+  // - all the children of `e'` deeply satisfy the post of `f`
+  // Then:
+  // - `e'` satisfies the pre of `f`
   {
     forall e, e' ::
        && Exprs.ConstructorsMatch(e, e')
@@ -37,14 +39,14 @@ module Bootstrap.Transforms.BottomUp {
   }
 
   predicate TransformerMatchesPrePost(f: Expr --> Expr, post: Expr -> bool)
-    // This predicate gives us the conditions for which, if we deeply apply `f` to an
-    // expression, the resulting expression satisfies the postcondition we give for `f`.
-    //
-    // Given `e`, if:
-    // - all the children of `e` deeply satisfy the post of `f`
-    // - `e` satisfies the pre of `f`
-    // Then:
-    // - `f(e)` deeply satisfies the post of `f`
+  // This predicate gives us the conditions for which, if we deeply apply `f` to an
+  // expression, the resulting expression satisfies the postcondition we give for `f`.
+  //
+  // Given `e`, if:
+  // - all the children of `e` deeply satisfy the post of `f`
+  // - `e` satisfies the pre of `f`
+  // Then:
+  // - `f(e)` deeply satisfies the post of `f`
   {
     forall e: Expr | Deep.AllChildren_Expr(e, post) && f.requires(e) ::
       Deep.All_Expr(f(e), post)
@@ -52,15 +54,15 @@ module Bootstrap.Transforms.BottomUp {
 
   // FIXME(CPC) move?
   predicate TransformerShallowPreservesRel(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
-    // `f` relates its input and its output with `rel`.
+  // `f` relates its input and its output with `rel`.
   {
     forall e | f.requires(e) :: rel(e, f(e))
   }
 
   predicate TransformerDeepPreservesRel(f: Expr --> Expr, rel: (Expr, Expr) -> bool)
-    // This predicate is quite general, but is to be used in the following setting:
-    // if we apply `f` on all the children of `e`, leading to an expression `e'`, then we
-    // can relate `e` and `f(e')` with `rel`.
+  // This predicate is quite general, but is to be used in the following setting:
+  // if we apply `f` on all the children of `e`, leading to an expression `e'`, then we
+  // can relate `e` and `f(e')` with `rel`.
   {
     forall e, e' ::
        && Exprs.ConstructorsMatch(e, e')
@@ -70,7 +72,7 @@ module Bootstrap.Transforms.BottomUp {
   }
 
   predicate IsBottomUpTransformer(f: Expr --> Expr, post: Expr -> bool)
-    // Predicate for ``BottomUpTransformer``
+  // Predicate for ``BottomUpTransformer``
   {
     && TransformerMatchesPrePost(f, post)
     && MapChildrenPreservesPre(f, post)
@@ -100,8 +102,8 @@ module Bootstrap.Transforms.BottomUp {
 
   // FIXME(CPC): Move to equivs (use a datatype to make this a member function)
   predicate RelCanBeMapLifted(rel: (Expr, Expr) -> bool)
-    // In many situations, the binary relation between the input and the output is transitive
-    // and can be lifted through the map function.
+  // In many situations, the binary relation between the input and the output is transitive
+  // and can be lifted through the map function.
   {
     forall e, e' ::
        && Exprs.ConstructorsMatch(e, e')
@@ -115,8 +117,6 @@ module Bootstrap.Transforms.BottomUp {
     witness (IdentityMatchesPrePost();
              IdentityPreservesPre();
              IdentityTransformer)
-
-  predicate TODO() { false }
 
   function method MapChildren_Expr(e: Expr, tr: BottomUpTransformer) :
     (e': Expr)
@@ -144,8 +144,18 @@ module Bootstrap.Transforms.BottomUp {
         var e' := Expr.Block(exprs');
         assert Exprs.ConstructorsMatch(e, e');
         e'
+      case VarDecl(vdecls, ovals) =>
+        var ovals' :=
+          match ovals
+            case Some(vals) => Exprs.Some(Seq.Map(e requires e in vals => Map_Expr(e, tr), vals))
+            case None => Exprs.None;
+        var e' := Expr.VarDecl(vdecls, ovals');
+        e'
+      case Update(vars, vals) =>
+        var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
+        var e' := Expr.Update(vars, vals');
+        e'
       case Bind(vars, vals, body) =>
-        assume TODO();
         var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
         var e' := Expr.Bind(vars, vals', Map_Expr(body, tr));
@@ -155,9 +165,14 @@ module Bootstrap.Transforms.BottomUp {
         var e' := Expr.If(Map_Expr(cond, tr), Map_Expr(thn, tr), Map_Expr(els, tr));
         assert Exprs.ConstructorsMatch(e, e');
         e'
+      case Loop(guard, lbody) =>
+        var e' := Expr.Loop(Map_Expr(guard, tr), Map_Expr(lbody, tr));
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
     }
   }
 
+  // Apply a transformer bottom-up on an expression.
   function method Map_Expr(e: Expr, tr: BottomUpTransformer) : (e': Expr)
     decreases e, 1
     requires Deep.All_Expr(e, tr.f.requires)
@@ -201,16 +216,38 @@ module Bootstrap.Transforms.BottomUp {
         var e' := Expr.Block(exprs');
         assert Exprs.ConstructorsMatch(e, e');
         e'
-      case Bind(vars, vals, body) =>
-        assume TODO();
+      case VarDecl(vdecls, ovals) =>
+        var ovals' :=
+          match ovals {
+            case Some(vals) =>
+              Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
+              Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
+              Exprs.Some(Seq.Map(e requires e in vals => Map_Expr(e, tr), vals))
+            case None => Exprs.None
+          };
+        var e' := Expr.VarDecl(vdecls, ovals');
+        e'
+      case Update(vars, vals) =>
         var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
-        var e' := Expr.Bind(vars, vals', Map_Expr_WithRel(body, tr, rel));
+        var e' := Expr.Update(vars, vals');
+        e'
+      case Bind(vars, vals, body) =>
+        var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
+        Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
+        Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
+        var body' := Map_Expr(body, tr);
+        assert body' == Map_Expr_WithRel(body, tr, rel); // We need this
+        var e' := Expr.Bind(vars, vals', body');
         assert Exprs.ConstructorsMatch(e, e');
         e'
       case If(cond, thn, els) =>
         var e' := Expr.If(Map_Expr_WithRel(cond, tr, rel), Map_Expr_WithRel(thn, tr, rel), Map_Expr_WithRel(els, tr, rel));
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
+      case Loop(guard, lbody) =>
+        var e' := Expr.Loop(Map_Expr_WithRel(guard, tr, rel), Map_Expr_WithRel(lbody, tr, rel));
         assert Exprs.ConstructorsMatch(e, e');
         e'
     }
@@ -270,19 +307,24 @@ module Bootstrap.Transforms.BottomUp {
         var e2 := tr'.f(e);
         Map_Expr_PreservesRel(e, tr, rel);
         match e {
-          case Var(_) => {}
-          case Literal(_) => {}
+          case Var(_) =>
+          case Literal(_) =>
           case Abs(vars, body) =>
             assert rel(e, tr'.f(e));
           case Apply(applyOp, args) =>
             assert rel(e, tr'.f(e));
           case Block(stmts) =>
             assert rel(e, tr'.f(e));
+          case VarDecl(vdecls, ovals) =>
+            assert rel(e, tr'.f(e));
+          case Update(vars, vals) =>
+            assert rel(e, tr'.f(e));
           case Bind(vars, vals, body) =>
             assert rel(e, tr'.f(e));
-          case If(cond, thn, els) => {
+          case If(cond, thn, els) =>
             assert rel(e, tr'.f(e));
-          }
+          case Loop(guard, lbody) =>
+            assert rel(e, tr'.f(e));
         }
       }
     }
@@ -355,24 +397,21 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
   import opened Semantics.Values
   import opened Semantics.Equiv
 
-
-  type Expr = Syntax.Expr
+  type Expr = Interp.Expr
   type WV = Interp.Value // FIXME
   type EqWV = Interp.EqWV // FIXME
   type Context = Values.Context
 
-  // TODO: maybe not necessary to make this opaque
-  // FIXME(CPC): Change to Interp.Expr and remove SupportsInterp below
+  // TODO(SMH): maybe not necessary to make this opaque
   predicate {:opaque} EqInterp_CanBeMapLifted_Pre(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
   {
     && EqState(ctx, ctx')
     && Exprs.ConstructorsMatch(e, e')
     && All_Rel_Forall(EqInterp, e.Children(), e'.Children())
-    && SupportsInterp(e) // TODO: remove (`Expr` is now a subset type)
-    && SupportsInterp(e') // TODO: remove (`Expr` is now a subset type)
+    && InterpExpr(e, env, ctx).Success? // We eliminate the failure case, which is trivial
   }
 
-  // TODO: maybe not necessary to make this opaque
+  // TODO(SMH): maybe not necessary to make this opaque
   predicate {:opaque} EqInterp_CanBeMapLifted_Post(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
   {
@@ -383,7 +422,6 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
   lemma EqInterp_Expr_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 1
   {
     // Note that we don't need to reveal ``InterpExpr``: we just match on the first
     // expression and call the appropriate auxiliary lemma.
@@ -415,44 +453,63 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       case If(_, _, _) => {
         EqInterp_Expr_If_CanBeMapLifted(e, e', env, ctx, ctx');
       }
+      case VarDecl(_, _) => {
+        EqInterp_Expr_VarDecl_CanBeMapLifted(e, e', env, ctx, ctx');
+      }
+      case Update(_, _) => {
+        EqInterp_Expr_Update_CanBeMapLifted(e, e', env, ctx, ctx');
+      }
       case Bind(_, _, _) => {
-        assume TODO();
+        EqInterp_Expr_Bind_CanBeMapLifted_Lem(e, e', env, ctx, ctx');
       }
       case Block(_) => {
         EqInterp_Expr_Block_CanBeMapLifted(e, e', env, ctx, ctx');
       }
-      case _ => {
-        // Unsupported branch
-        reveal SupportsInterp(); // We need this to see that some variants are not supported
-        assert false;
+      case Loop(_, _) => {
+        EqInterp_Expr_Loop_CanBeMapLifted(e, e', env, ctx, ctx');
       }
     }
   }
 
-  lemma EqInterp_Expr_Var_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
+  lemma EqInterp_Expr_Var_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires e.Var?
     requires e'.Var?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
 
     reveal InterpExpr();
-    reveal TryGetVariable();
     reveal GEqCtx();
 
-    assume TODO();
+    var v := e.name;
+    assert v == e'.name;
+    
+    var res := InterpVar(v, ctx', env);
+    var res' := InterpVar(v, ctx', env);
+
+    // Start by looking in the local context
+    var res0 := TryGetVariable(ctx.locals, v, UnboundVariable(v));
+    var res0' := TryGetVariable(ctx'.locals, v, UnboundVariable(v));
+
+    if res0.Success? {
+      assert res0.Success?;
+    }
+    else {
+      // Not in the local context: look in the global context
+      if v in env.globals {
+        EqValue_Refl(env.globals[v]);
+      }
+    }
   }
 
-  // FIXME(CPC): Can this lemma and the following ones use Interp.Expr?
-  lemma EqInterp_Expr_Literal_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
+  // FIXME(CPC): Can this lemma and the following ones use Expr?
+  lemma EqInterp_Expr_Literal_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires e.Literal?
     requires e'.Literal?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -461,12 +518,11 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     reveal InterpLiteral();
   }
 
-  lemma EqInterp_Expr_Abs_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State) // TODO: fix
+  lemma EqInterp_Expr_Abs_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires e.Abs?
     requires e'.Abs?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -524,12 +580,11 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     }
   }
 
-  lemma EqInterp_Expr_ApplyLazy_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
+  lemma EqInterp_Expr_ApplyLazy_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires e.Apply? && e.aop.Lazy?
     requires e'.Apply? && e'.aop.Lazy?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -552,33 +607,22 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
 
     // Evaluate the first boolean
     EqInterp_Inst(e0, e0', env, ctx, ctx');
-    var res0 := InterpExprWithType(e0, Type.Bool, env, ctx);
-    var res0' := InterpExprWithType(e0', Type.Bool, env, ctx');
-    assert EqInterpResultValue(res0, res0');
+    var ret0 :- assert InterpExprWithType(e0, Type.Bool, env, ctx);
+    var ret0' :- assert InterpExprWithType(e0', Type.Bool, env, ctx');
+    var Return(v0, ctx0) := ret0;
+    var Return(v0', ctx0') := ret0';
 
-    match res0 {
-      case Success(Return(v0, ctx0)) => {
-        var Return(v0', ctx0') := res0'.value;
-
-        EqInterp_Inst(e1, e1', env, ctx0, ctx0');
-        // The proof fails if we don't introduce res1 and res1'
-        var res1 := InterpExprWithType(e1, Type.Bool, env, ctx0);
-        var res1' := InterpExprWithType(e1', Type.Bool, env, ctx0');
-        assert EqInterpResultValue(res1, res1');
-        assert EqInterpResultValue(res, res');
-      }
-      case Failure(_) => {
-        assert EqInterpResultValue(res, res');
-      }
-    }
+    EqInterp_Inst(e1, e1', env, ctx0, ctx0');
+    // The proof fails if we don't introduce res1 and res1'
+    var res1 := InterpExprWithType(e1, Type.Bool, env, ctx0);
+    var res1' := InterpExprWithType(e1', Type.Bool, env, ctx0');
   }
 
-  lemma EqInterp_Expr_ApplyEager_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
+  lemma EqInterp_Expr_ApplyEager_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires e.Apply? && e.aop.Eager?
     requires e'.Apply? && e'.aop.Eager?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -593,417 +637,143 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     var Apply(Eager(op'), args') := e';
 
     // The arguments evaluate to similar results
-    var res0 := InterpExprs(args, env, ctx);
-    var res0' := InterpExprs(args', env, ctx');
     InterpExprs_EqInterp_Inst(args, args', env, ctx, ctx');
-    assert EqInterpResult(EqSeqValue, res0, res0');
+    var ret0 :- assert InterpExprs(args, env, ctx);
+    var ret0' :- assert InterpExprs(args', env, ctx');
 
-    match (res0, res0') {
-      case (Success(res0), Success(res0')) => {
-        // Dafny crashes if we try to deconstruct the `Return`s in the match.
-        // See: https://github.com/dafny-lang/dafny/issues/2258
-        var Return(argvs, ctx0) := res0;
-        var Return(argvs', ctx0') := res0';
+    var Return(argvs, ctx0) := ret0;
+    var Return(argvs', ctx0') := ret0';
 
-        match (op, op') {
-          case (UnaryOp(op), UnaryOp(op')) => {
-            assert op == op';
-            EqInterp_Expr_UnaryOp_CanBeMapLifted(e, e', op, argvs[0], argvs'[0]);
-            assert EqInterpResultValue(res, res');
-          }
-          case (BinaryOp(bop), BinaryOp(bop')) => {
-            assert bop == bop';
-            EqInterp_Expr_BinaryOp_CanBeMapLifted(e, e', bop, argvs[0], argvs[1], argvs'[0], argvs'[1]);
-            assert EqInterpResultValue(res, res');
-          }
-          case (TernaryOp(top), TernaryOp(top')) => {
-            assert top == top';
-            EqInterp_Expr_TernaryOp_CanBeMapLifted(e, e', top, argvs[0], argvs[1], argvs[2], argvs'[0], argvs'[1], argvs'[2]);
-            assert EqInterpResultValue(res, res');
-          }
-          case (Builtin(Display(ty)), Builtin(Display(ty'))) => {
-            assert ty == ty';
-            EqInterp_Expr_Display_CanBeMapLifted(e, e', ty.kind, argvs, argvs');
-            assert EqInterpResultValue(res, res');
-          }
-          case (FunctionCall(), FunctionCall()) => {
-            EqInterp_Expr_FunctionCall_CanBeMapLifted(e, e', env, argvs[0], argvs'[0], argvs[1..], argvs'[1..]);
-            assert EqInterpResultValue(res, res');
-          }
-          case _ =>
-        }
+    match (op, op') {
+      case (UnaryOp(op), UnaryOp(op')) => {
+        assert op == op';
+        EqInterp_Expr_UnaryOp_CanBeMapLifted(e, e', op, argvs[0], argvs'[0]);
+        assert EqInterpResultValue(res, res');
       }
-      case (Failure(_), Failure(_)) => {
-        assert res.Failure?;
-        assert res'.Failure?;
+      case (BinaryOp(bop), BinaryOp(bop')) => {
+        assert bop == bop';
+        EqInterp_Expr_BinaryOp_CanBeMapLifted(e, e', bop, argvs[0], argvs[1], argvs'[0], argvs'[1]);
+        assert EqInterpResultValue(res, res');
+      }
+      case (TernaryOp(top), TernaryOp(top')) => {
+        assert top == top';
+        EqInterp_Expr_TernaryOp_CanBeMapLifted(e, e', top, argvs[0], argvs[1], argvs[2], argvs'[0], argvs'[1], argvs'[2]);
+        assert EqInterpResultValue(res, res');
+      }
+      case (Builtin(Display(ty)), Builtin(Display(ty'))) => {
+        assert ty == ty';
+        EqInterp_Expr_Display_CanBeMapLifted(e, e', ty.kind, argvs, argvs');
+        assert EqInterpResultValue(res, res');
+      }
+      case (FunctionCall(), FunctionCall()) => {
+        EqInterp_Expr_FunctionCall_CanBeMapLifted(e, e', env, argvs[0], argvs'[0], argvs[1..], argvs'[1..]);
         assert EqInterpResultValue(res, res');
       }
       case _ =>
     }
   }
 
-  // TODO: e and e' should be the same actually
+  // TODO(SMH): e and e' should be the same actually
   lemma EqInterp_Expr_UnaryOp_CanBeMapLifted(
-    e: Interp.Expr, e': Interp.Expr, op: UnaryOp, v: WV, v': WV
+    e: Expr, e': Expr, op: UnaryOp, v: WV, v': WV
   )
     requires !op.MemberSelect?
     requires EqValue(v, v')
+    requires InterpUnaryOp(e, op, v).Success?
     ensures EqPureInterpResultValue(InterpUnaryOp(e, op, v), InterpUnaryOp(e', op, v'))
   {
     reveal InterpUnaryOp();
 
-    var res := InterpUnaryOp(e, op, v);
-    var res' := InterpUnaryOp(e', op, v');
+    var ret :- assert InterpUnaryOp(e, op, v);
+    var ret' :- assert InterpUnaryOp(e', op, v');
 
-    // We make a case disjunction on the final result so as to get
-    // information from the fact that the calls to ``Need`` succeeded.
-    // The Failure case is trivial.
-    if res.Success? {
-      match op {
-        case BVNot => {
-          assert v.BitVector?;
-          assert v'.BitVector?;
-        }
-        case BoolNot => {
-          assert v.Bool?;
-          assert v'.Bool?;
-        }
-        case SeqLength => {
-          assert v.Seq?;
-          assert v'.Seq?;
-          assert |v.sq| == |v'.sq|;
-        }
-        case SetCard => {
-          assert v.Set?;
-          assert v'.Set?;
-          assert |v.st| == |v'.st|;
-        }
-        case MultisetCard => {
-          assert v.Multiset?;
-          assert v'.Multiset?;
-          assert |v.ms| == |v'.ms|;
-        }
-        case MapCard => {
-          assert v.Map?;
-          assert v'.Map?;
-          assert |v.m| == |v'.m|;
-        }
-        case _ => {
-          // Impossible branch
-          assert false;
-        }
+    match op {
+      case BVNot => {
+        assert v.BitVector?;
+        assert v'.BitVector?;
       }
-    }
-    else {
-      assert EqPureInterpResultValue(res, res');
+      case BoolNot => {
+        assert v.Bool?;
+        assert v'.Bool?;
+      }
+      case SeqLength => {
+        assert v.Seq?;
+        assert v'.Seq?;
+        assert |v.sq| == |v'.sq|;
+      }
+      case SetCard => {
+        assert v.Set?;
+        assert v'.Set?;
+        assert |v.st| == |v'.st|;
+      }
+      case MultisetCard => {
+        assert v.Multiset?;
+        assert v'.Multiset?;
+        assert |v.ms| == |v'.ms|;
+      }
+      case MapCard => {
+        assert v.Map?;
+        assert v'.Map?;
+        assert |v.m| == |v'.m|;
+      }
+      case _ => {
+        // Impossible branch
+        assert false;
+      }
     }
   }
 
-  // TODO: we could split this lemma, whose proof is big (though straightforward),
-  // but it is a bit annoying to do...
-  // TODO: e and e' should be the same actually
   lemma EqInterp_Expr_BinaryOp_CanBeMapLifted(
-    e: Interp.Expr, e': Interp.Expr, bop: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
+    e: Expr, e': Expr, bop: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
   )
     requires !bop.BV? && !bop.Datatypes?
     requires EqValue(v0, v0')
     requires EqValue(v1, v1')
+    requires InterpBinaryOp(e, bop, v0, v1).Success?
     ensures EqPureInterpResultValue(InterpBinaryOp(e, bop, v0, v1), InterpBinaryOp(e', bop, v0', v1'))
   {
-    reveal InterpBinaryOp();
-
-    var res := InterpBinaryOp(e, bop, v0, v1);
-    var res' := InterpBinaryOp(e', bop, v0', v1');
-
-    // Below: for the proofs about binary operations involving collections (Set, Map...),
-    // see the Set case, which gives the general strategy.
-    match bop {
-      case Numeric(op) => {
-        assert EqPureInterpResultValue(res, res');
-      }
-      case Logical(op) => {
-        assert EqPureInterpResultValue(res, res');
-      }
-      case Eq(op) => {
-        // The proof strategy is similar to the Set case.
-        EqValue_HasEqValue_Eq(v0, v0');
-        EqValue_HasEqValue_Eq(v1, v1');
-
-        // If the evaluation succeeded, it means the calls to ``Need``
-        // succeeded, from which we can derive information.
-        if res.Success? {
-          assert EqPureInterpResultValue(res, res');
-        }
-        else {
-          // trivial
-        }
-      }
-      case Char(op) => {
-        assert EqPureInterpResultValue(res, res');
-      }
-      case Sets(op) => {
-        // We make a case disjunction between the "trivial" operations,
-        // and the others. We treat the "difficult" operations first.
-        // In the case of sets, the trivial operations are those which
-        // take two sets as parameters (they are trivial, because if
-        // two set values are equivalent according to ``EqValue``, then
-        // they are actually equal for ``==``).
-        if op.InSet? || op.NotInSet? {
-          // The trick is that:
-          // - either v0 and v0' have a decidable equality, in which case
-          //   the evaluation succeeds, and we actually have that v0 == v0'.
-          // - or they don't, in which case the evaluation fails.
-          // Of course, we need to prove that v0 has a decidable equality
-          // iff v0' has one. The important results are given by the lemma below.
-          EqValue_HasEqValue_Eq(v0, v0');
-
-          if res.Success? {
-            assert res'.Success?;
-
-            // If the evaluation succeeded, it means the calls to ``Need``
-            // succeeded, from which we can derive information, in particular
-            // information about the equality between values, which allows us
-            // to prove the goal.
-            assert HasEqValue(v0);
-            assert HasEqValue(v0');
-            assert v0 == v0';
-
-            assert v1.Set?;
-            assert v1'.Set?;
-            assert v1 == v1';
-
-            assert EqPureInterpResultValue(res, res');
-          }
-          else {
-            // This is trivial
-          }
-        }
-        else {
-          // All the remaining operations are performed between sets.
-          // ``EqValue`` is true on sets iff they are equal, so
-          // this proof is trivial.
-
-          // We enumerate all the cases on purpose, so that this assertion fails
-          // if we add more cases, making debugging easier.
-          assert || op.SetEq? || op.SetNeq? || op.Subset? || op.Superset? || op.ProperSubset?
-                 || op.ProperSuperset? || op.Disjoint? || op.Union? || op.Intersection?
-                 || op.SetDifference?;
-          assert EqPureInterpResultValue(res, res');
-        }
-      }
-      case Multisets(op) => {
-        // Rk.: this proof is similar to the one for Sets
-        if op.InMultiset? || op.NotInMultiset? {
-          EqValue_HasEqValue_Eq(v0, v0');
-        }
-        else if op.MultisetSelect? {
-          // Rk.: this proof is similar to the one for Sets
-          EqValue_HasEqValue_Eq(v1, v1');
-        }
-        else {
-          // All the remaining operations are performed between multisets.
-          // ``EqValue`` is true on sets iff they are equal, so
-          // this proof is trivial.
-
-          // Same as for Sets: we enumerate all the cases on purpose
-          assert || op.MultisetEq? || op.MultisetNeq? || op.MultiSubset? || op.MultiSuperset?
-                 || op.ProperMultiSubset? || op.ProperMultiSuperset? || op.MultisetDisjoint?
-                 || op.MultisetUnion? || op.MultisetIntersection? || op.MultisetDifference?;
-
-          assert EqPureInterpResultValue(res, res');
-        }
-      }
-      case Sequences(op) => {
-        // Rk.: the proof strategy is given by the Sets case
-        EqValue_HasEqValue_Eq(v0, v0');
-        EqValue_HasEqValue_Eq(v1, v1');
-
-        if op.SeqDrop? || op.SeqTake? {
-          if res.Success? {
-            assert res'.Success?;
-
-            var len := |v0.sq|;
-            // Doesn't work without this assertion
-            assert forall i | 0 <= i < len :: EqValue(v0.sq[i], v0'.sq[i]);
-            assert EqPureInterpResultValue(res, res');
-          }
-          else {
-            // Trivial
-          }
-        }
-        else {
-          // Same as for Sets: we enumerate all the cases on purpose
-          assert || op.SeqEq? || op.SeqNeq? || op.Prefix? || op.ProperPrefix? || op.Concat?
-                 || op.InSeq? || op.NotInSeq? || op.SeqSelect?;
-
-          assert EqPureInterpResultValue(res, res');
-        }
-      }
-      case Maps(op) => {
-        // Rk.: the proof strategy is given by the Sets case
-        EqValue_HasEqValue_Eq(v0, v0');
-        EqValue_HasEqValue_Eq(v1, v1');
-
-        if op.MapEq? || op.MapNeq? || op.InMap? || op.NotInMap? || op.MapSelect? {
-          assert EqPureInterpResultValue(res, res');
-        }
-        else {
-          assert op.MapMerge? || op.MapSubtraction?;
-
-          // Z3 needs a bit of help to prove the equivalence between the maps
-
-          if res.Success? {
-            assert res'.Success?;
-
-            // The evaluation succeeds, and returns a map
-            var m1 := res.value.m;
-            var m1' := res'.value.m;
-
-            // Prove that: |m1| == |m1'|
-            assert m1.Keys == m1'.Keys;
-            assert |m1| == |m1.Keys|; // This is necessary
-            assert |m1'| == |m1'.Keys|; // This is necessary
-
-            assert EqPureInterpResultValue(res, res');
-          }
-          else {
-            // Trivial
-          }
-        }
-      }
-    }
+    InterpBinaryOp_Eq(e, e', bop, v0, v1, v0', v1');
   }
 
-  // TODO: e and e' should be the same actually
   lemma EqInterp_Expr_TernaryOp_CanBeMapLifted(
-    e: Interp.Expr, e': Interp.Expr, top: TernaryOp, v0: WV, v1: WV, v2: WV, v0': WV, v1': WV, v2': WV
+    e: Expr, e': Expr, top: TernaryOp, v0: WV, v1: WV, v2: WV, v0': WV, v1': WV, v2': WV
   )
     requires EqValue(v0, v0')
     requires EqValue(v1, v1')
     requires EqValue(v2, v2')
+    requires InterpTernaryOp(e, top, v0, v1, v2).Success?
     ensures EqPureInterpResultValue(InterpTernaryOp(e, top, v0, v1, v2), InterpTernaryOp(e', top, v0', v1', v2'))
   {
-    reveal InterpTernaryOp();
-
-    var res := InterpTernaryOp(e, top, v0, v1, v2);
-    var res' := InterpTernaryOp(e', top, v0', v1', v2');
-
-    match top {
-      case Sequences(op) => {}
-      case Multisets(op) => {
-        EqValue_HasEqValue_Eq(v1, v1');
-      }
-      case Maps(op) => {
-        EqValue_HasEqValue_Eq(v1, v1');
-      }
-    }
+    InterpTernaryOp_Eq(e, e', top, v0, v1, v2, v0', v1', v2');
   }
 
   lemma EqInterp_Expr_Display_CanBeMapLifted(
-    e: Interp.Expr, e': Interp.Expr, kind: Types.CollectionKind, vs: seq<WV>, vs': seq<WV>
+    e: Expr, e': Expr, kind: Types.CollectionKind, vs: seq<WV>, vs': seq<WV>
   )
     requires EqSeqValue(vs, vs')
+    requires InterpDisplay(e, kind, vs).Success?
     ensures EqPureInterpResultValue(InterpDisplay(e, kind, vs), InterpDisplay(e', kind, vs'))
   {
-    reveal InterpDisplay();
-
-    var res := InterpDisplay(e, kind, vs);
-    var res' := InterpDisplay(e', kind, vs');
-
-    match kind {
-      case Map(_) => {
-        InterpMapDisplay_EqArgs(e, e', vs, vs');
-        assert EqPureInterpResultValue(res, res');
-      }
-      case Multiset => {
-        EqValue_HasEqValue_Eq_Forall();
-        if res.Success? {
-          assert res'.Success?;
-          assert (forall i | 0 <= i < |vs| :: HasEqValue(vs[i]));
-          assert (forall i | 0 <= i < |vs| :: HasEqValue(vs'[i]));
-          assert (forall i | 0 <= i < |vs| :: EqValue(vs[i], vs'[i]));
-          assert vs == vs';
-          assert EqPureInterpResultValue(res, res');
-        }
-        else {}
-      }
-      case Seq => {
-        assert EqPureInterpResultValue(res, res');
-      }
-      case Set => {
-        EqValue_HasEqValue_Eq_Forall();
-        assert EqPureInterpResultValue(res, res');
-      }
-    }
-  }
-
-  lemma InterpCallFunctionBody_Eq_InterpFunctionCall(e: Interp.Expr, env: Environment, fn: WV, argvs: seq<WV>)
-    requires env.fuel > 0
-    requires fn.Closure?
-    requires |fn.vars| == |argvs|
-    ensures InterpFunctionCall(e, env, fn, argvs) == InterpCallFunctionBody(fn, env.(fuel := env.fuel - 1), argvs)
-    // We do need this lemma, though the reason why we need it is strange: the result is trivial by definition
-  {
-    reveal InterpFunctionCall();
-    reveal InterpCallFunctionBody();
-    reveal BuildCallState();
+    Interp_Apply_Display_EqValue(e, e', kind, vs, vs');
   }
 
   lemma EqInterp_Expr_FunctionCall_CanBeMapLifted(
-    e: Interp.Expr, e': Interp.Expr, env: Environment, f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>
+    e: Expr, e': Expr, env: Environment, f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>
   )
     requires EqValue(f, f')
     requires EqSeqValue(argvs, argvs')
+    requires InterpFunctionCall(e, env, f, argvs).Success?
     ensures EqPureInterpResultValue(InterpFunctionCall(e, env, f, argvs),
                                     InterpFunctionCall(e', env, f', argvs'))
   {
-    var res := InterpFunctionCall(e, env, f, argvs);
-    var res' := InterpFunctionCall(e', env, f', argvs');
-
-    if res.Success? || res'.Success? {
-      reveal InterpFunctionCall();
-      var Closure(ctx, vars, body) := f;
-      var Closure(ctx', vars', body') := f';
-
-      assert |vars| == |vars'| == |argvs| == |argvs'| by {
-        reveal EqValue_Closure();
-      }
-
-      var res0 := InterpCallFunctionBody(f, env.(fuel := env.fuel - 1), argvs);
-      var res0' := InterpCallFunctionBody(f', env.(fuel := env.fuel - 1), argvs');
-
-      // This comes from EqValue_Closure
-      assert EqPureInterpResultValue(res0, res0') by {
-        // We have restrictions on the arguments on which we can apply the equivalence relation
-        // captured by ``EqValue_Closure``. We do the assumption that, if one of the calls succeedeed,
-        // then the arguments are "not too big" and we can apply the equivalence. This would be true
-        // if the program was successfully type-checked.
-        assume (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs[i]) < ValueTypeHeight(f));
-        assume (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs'[i]) < ValueTypeHeight(f'));
-        EqValue_Closure_EqInterp_FunctionCall(f, f', argvs, argvs', env.(fuel := env.fuel - 1));
-      }
-
-      // By definition
-      assert res0 == res by {
-        InterpCallFunctionBody_Eq_InterpFunctionCall(e, env, f, argvs);
-      }
-      assert res0' == res' by {
-        InterpCallFunctionBody_Eq_InterpFunctionCall(e', env, f', argvs');
-      }
-
-      assert EqPureInterpResultValue(res, res');
-    }
-    else {
-      assert res.Failure? && res'.Failure?;
-    }
+    InterpFunctionCall_EqState(e, e', env, f, f', argvs, argvs');
   }
 
-  lemma EqInterp_Expr_If_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
+  lemma EqInterp_Expr_If_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires e.If?
     requires e'.If?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -1017,6 +787,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     var If(cond, thn, els) := e;
     var If(cond', thn', els') := e';
 
+    // Of course, proof fails without those (forall quantifier instantiation)...
     assert cond == e.Children()[0];
     assert thn == e.Children()[1];
     assert els == e.Children()[2];
@@ -1037,27 +808,20 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     EqInterp_Inst(cond, cond', env, ctx, ctx');
     assert EqInterpResultValue(res0, res0');
 
-    if res0.Success? {
-      var Return(condv, ctx0) := res0.value;
-      var Return(condv', ctx0') := res0'.value;
+    var Return(condv, ctx0) := res0.value;
+    var Return(condv', ctx0') := res0'.value;
 
-      EqInterp_Inst(thn, thn', env, ctx0, ctx0'); // Proof fails without this
-      EqInterp_Inst(els, els', env, ctx0, ctx0'); // Proof fails without this
-    }
-    else {
-      // Trivial
-    }
+    EqInterp_Inst(thn, thn', env, ctx0, ctx0'); // Proof fails without this
+    EqInterp_Inst(els, els', env, ctx0, ctx0'); // Proof fails without this
   }
 
-  // We can't use the type `seq<Interp.Expr>` for `es` and `es'`, because then Dafny is unable to
+  // We can't use the type `seq<Expr>` for `es` and `es'`, because then Dafny is unable to
   // prove the requires clauses.
-  lemma EqInterp_Expr_BlockExprs_CanBeMapLifted(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, ctx: State, ctx': State)
+  lemma EqInterp_Expr_BlockExprs_CanBeMapLifted(es: seq<Expr>, es': seq<Expr>, env: Environment, ctx: State, ctx': State)
     requires EqState(ctx, ctx')
-    requires All_Rel_Forall(EqInterp, es, es')
-    requires forall e | e in es :: SupportsInterp(e)
-    requires forall e | e in es' :: SupportsInterp(e)
+    requires All_Rel_Forall<Exprs.T, Exprs.T>(EqInterp, es, es')
+    requires InterpBlock_Exprs(es, env, ctx).Success?
     ensures EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es', env, ctx'))
-    decreases es, env, 0
     // Auxiliary lifting lemma for the ``Block`` case
   {
     reveal EqInterp_CanBeMapLifted_Pre();
@@ -1087,30 +851,24 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       EqInterp_Inst(es[0], es'[0], env, ctx, ctx');
 
       // Evaluate the remaining expressions
-      if res0.Success? && res0.value.ret == V.Unit {
-        var Return(_, ctx0) := res0.value;
-        var Return(_, ctx0') := res0'.value;
+      var Return(_, ctx0) := res0.value;
+      var Return(_, ctx0') := res0'.value;
 
-        var res1 := InterpBlock_Exprs(es[1..], env, ctx0);
-        var res1' := InterpBlock_Exprs(es'[1..], env, ctx0');
+      var res1 := InterpBlock_Exprs(es[1..], env, ctx0);
+      var res1' := InterpBlock_Exprs(es'[1..], env, ctx0');
 
-        assert res1 == res;
-        assert res1' == res';
+      assert res1 == res;
+      assert res1' == res';
 
-        EqInterp_Expr_BlockExprs_CanBeMapLifted(es[1..], es'[1..], env, ctx0, ctx0');
-      }
-      else {
-        // Trivial
-      }
+      EqInterp_Expr_BlockExprs_CanBeMapLifted(es[1..], es'[1..], env, ctx0, ctx0');
     }
   }
 
-  lemma EqInterp_Expr_Block_CanBeMapLifted(e: Interp.Expr, e': Interp.Expr, env: Environment, ctx: State, ctx': State)
+  lemma EqInterp_Expr_Block_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires e.Block?
     requires e'.Block?
     requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
     ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
-    decreases e, env, 0
   {
     reveal EqInterp_CanBeMapLifted_Pre();
     reveal EqInterp_CanBeMapLifted_Post();
@@ -1119,16 +877,222 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     reveal InterpBlock();
     reveal SupportsInterp();
 
+    var res := InterpExpr(e, env, ctx);
+    var res' := InterpExpr(e', env, ctx');
+
+    var ctx1 := ctx.(rollback := map []);
+    var ctx1' := ctx'.(rollback := map []);
+
+    assert EqState(ctx1, ctx1') by { reveal GEqCtx(); }
+
     var es := e.stmts;
     var es' := e'.stmts;
-    EqInterp_Expr_BlockExprs_CanBeMapLifted(es, es', env, ctx, ctx');
+    // Doesn't work without those assertions, for some reason (probably a problem of fuel)
+    assert res == InterpBlock(es, env, ctx);
+    assert res' == InterpBlock(es', env, ctx');
+
+    var res0 := InterpBlock_Exprs(es, env, ctx1);
+    var res0' := InterpBlock_Exprs(es', env, ctx1');
+    EqInterp_Expr_BlockExprs_CanBeMapLifted(es, es', env, ctx1, ctx1');
+    assert EqInterpResultValue(res0, res0');
+    
+    reveal GEqCtx();
+  }
+  
+  lemma EqInterp_Expr_Loop_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
+    requires e.Loop?
+    requires e'.Loop?
+    requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
+    ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
+    decreases env.fuel
+  {
+    reveal EqInterp_CanBeMapLifted_Pre();
+    reveal EqInterp_CanBeMapLifted_Post();
+
+    reveal InterpExpr();
+    reveal SupportsInterp();
+
+    var Loop(guard, lbody) := e;
+    var Loop(guard', lbody') := e';
 
     var res := InterpExpr(e, env, ctx);
     var res' := InterpExpr(e', env, ctx');
 
-    // Doesn't work without those assertions, for some reason
-    assert res == InterpBlock(es, env, ctx);
-    assert res' == InterpBlock(es', env, ctx');
+    var children := e.Children();
+    var children' := e'.Children();
+    // We need those assertions
+    assert guard == children[0];
+    assert guard' == children'[0];
+    assert lbody == children[1];
+    assert lbody' == children'[1];
+
+    assert EqInterp(guard, guard');
+    assert EqInterp(lbody, lbody');
+    EqInterp_Inst(guard, guard', env, ctx, ctx');
+    var Return(bv, ctx1) := InterpExpr(guard, env, ctx).value;
+    var Return(bv', ctx1') := InterpExpr(guard', env, ctx').value;
+
+    assert bv.Bool? && bv == bv';
+
+    if !bv.b {}
+    else {
+      EqInterp_Inst(lbody, lbody', env, ctx1, ctx1');
+      var Return(v, ctx2) := InterpExpr(lbody, env, ctx1).value;
+      var Return(v', ctx2') := InterpExpr(lbody', env, ctx1').value;
+
+      var env' := env.(fuel := env.fuel - 1);
+      EqInterp_Expr_Loop_CanBeMapLifted(e, e', env', ctx2, ctx2');
+    }
+  }
+
+  lemma EqInterp_Expr_VarDecl_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
+    requires e.VarDecl?
+    requires e'.VarDecl?
+    requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
+    ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
+  {
+    reveal EqInterp_CanBeMapLifted_Pre();
+    reveal EqInterp_CanBeMapLifted_Post();
+    reveal InterpExpr();
+
+    var VarDecl(vdecls, ovals) := e;
+    var VarDecl(vdecls', ovals') := e';
+
+    var res := InterpExpr(e, env, ctx);
+    var res' := InterpExpr(e', env, ctx');
+
+    var vars := Seq.Map((v: Exprs.TypedVar) => v.name, vdecls);
+
+    assert vdecls == vdecls';
+
+    if ovals.Some? {
+      reveal SupportsInterp();
+      var res0 := InterpExprs(ovals.value, env, ctx);
+      var res0' := InterpExprs(ovals'.value, env, ctx');
+
+      InterpExprs_EqInterp_Inst(ovals.value, ovals'.value, env, ctx, ctx');
+      assert EqInterpResult(EqSeqValue, res0, res0');
+
+      var Return(vals, ctx0) := res0.value;
+      var Return(vals', ctx0') := res0'.value;
+
+      var ctx1 := SaveToRollback(ctx0, vars);
+      var ctx1' := SaveToRollback(ctx0', vars);
+      SaveToRollback_Equiv(ctx0, ctx0', vars);
+      assert EqState(ctx1, ctx1');
+
+      var ctx2 := ctx1.(locals := AugmentContext(ctx1.locals, vars, vals));
+      var ctx2' := ctx1'.(locals := AugmentContext(ctx1'.locals, vars, vals'));
+      AugmentContext_Equiv(ctx1.locals, ctx1'.locals, vars, vals, vals');
+      assert EqState(ctx2, ctx2');
+
+      assert res == Success(Return(Unit, ctx2)) by { reveal InterpExpr(); }
+      assert res' == Success(Return(Unit, ctx2')) by { reveal InterpExpr(); }
+    }
+    else {
+      SaveToRollback_Equiv(ctx, ctx', vars);
+      var ctx1 := SaveToRollback(ctx, vars);
+      var ctx1' := SaveToRollback(ctx', vars);
+      assert EqState(ctx1, ctx1');
+    }
+  }
+
+  lemma EqInterp_Expr_Update_CanBeMapLifted(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
+    requires e.Update?
+    requires e'.Update?
+    requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
+    ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
+  {      
+    reveal EqInterp_CanBeMapLifted_Pre();
+    reveal EqInterp_CanBeMapLifted_Post();
+
+    reveal InterpExpr();
+    reveal SupportsInterp();
+
+    var res := InterpExpr(e, env, ctx);
+    var res' := InterpExpr(e', env, ctx');
+
+    var Update(vars, vals) := e;
+    var Update(vars', vals') := e';
+    assert vars' == vars;
+
+    // The rhs evaluate to similar results
+    var res0 := InterpExprs(vals, env, ctx);
+    var res0' := InterpExprs(vals', env, ctx');
+    InterpExprs_EqInterp_Inst(vals, vals', env, ctx, ctx');
+    assert EqInterpResult(EqSeqValue, res0, res0');
+
+    // Dafny crashes if we try to deconstruct the `Return`s in the match.
+    // See: https://github.com/dafny-lang/dafny/issues/2258
+    var Return(valsvs, ctx0) := res0.value;
+    var Return(valsvs', ctx0') := res0'.value;
+
+    AugmentContext_Equiv(ctx0.locals, ctx0'.locals, vars, valsvs, valsvs');
+    var ctx1 := ctx0.(locals := AugmentContext(ctx0.locals, vars, valsvs));
+    var ctx1' := ctx0'.(locals := AugmentContext(ctx0'.locals, vars, valsvs'));
+    assert EqState(ctx1, ctx1');
+
+    assert res == Success(Return(Unit, ctx1));
+    assert res' == Success(Return(Unit, ctx1'));
+  }
+
+  lemma EqInterp_Expr_Bind_CanBeMapLifted_Lem(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
+    requires e.Bind?
+    requires e'.Bind?
+    requires EqInterp_CanBeMapLifted_Pre(e, e', env, ctx, ctx')
+    ensures EqInterp_CanBeMapLifted_Post(e, e', env, ctx, ctx')
+  {
+    reveal EqInterp_CanBeMapLifted_Pre();
+    reveal EqInterp_CanBeMapLifted_Post();
+
+    reveal InterpExpr();
+    reveal SupportsInterp();
+
+    var res := InterpExpr(e, env, ctx);
+    var res' := InterpExpr(e', env, ctx');
+
+    var Bind(bvars, vals, body) := e;
+    var Bind(bvars', vals', body') := e';
+    assert bvars == bvars';
+
+    var vars := VarsToNames(bvars);
+
+    var ctx1 := StartScope(ctx);
+    var ctx1' := StartScope(ctx');
+    assert EqState(ctx1, ctx1') by { reveal GEqCtx(); }
+
+    assert All_Rel_Forall(EqInterp, vals, vals') by {
+      forall i:nat | i < |vals| ensures EqInterp(vals[i], vals'[i]) {
+        assert vals[i] == e.Children()[i];
+        assert vals'[i] == e'.Children()[i];
+      }
+    }
+    assert EqInterp(body, body') by {
+      assert body == e.Children()[|vals|];
+      assert body' == e'.Children()[|vals|];
+    }
+
+    // The rhs evaluate to similar results
+    var res2 := InterpExprs(vals, env, ctx1);
+    var res2' := InterpExprs(vals', env, ctx1');
+    InterpExprs_EqInterp_Inst(vals, vals', env, ctx1, ctx1');
+    assert EqInterpResultSeqValue(res2, res2');
+    var Return(valsvs, ctx2) := res2.value;
+    var Return(valsvs', ctx2') := res2'.value;
+
+    var ctx3 := SaveToRollback(ctx2, vars);
+    var ctx3' := SaveToRollback(ctx2', vars);
+    SaveToRollback_Equiv(ctx2, ctx2', vars);
+    assert EqState(ctx3, ctx3');
+
+    AugmentContext_Equiv(ctx3.locals, ctx3'.locals, vars, valsvs, valsvs');
+    var ctx4 := ctx3.(locals := AugmentContext(ctx3.locals, vars, valsvs));
+    var ctx4' := ctx3'.(locals := AugmentContext(ctx3'.locals, vars, valsvs'));
+    assert EqState(ctx4, ctx4');
+
+    EqInterp_Inst(body, body', env, ctx4, ctx4');
+
+    reveal GEqCtx();
   }
 
   lemma EqInterp_CanBeMapLifted()
@@ -1150,7 +1114,12 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
             EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e', env, ctx')) {
             reveal EqInterp_CanBeMapLifted_Pre();
             reveal EqInterp_CanBeMapLifted_Post();
-            EqInterp_Expr_CanBeMapLifted(e, e', env, ctx, ctx');
+            if InterpExpr(e, env, ctx).Success? {
+              EqInterp_Expr_CanBeMapLifted(e, e', env, ctx, ctx');
+            }
+            else {
+              // Trivial
+            }
           }
         }
         else {}
@@ -1158,23 +1127,8 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       else {}
     }
   }
-  
-  // TODO(SMH): move? (or even remove?)
-  lemma EqInterp_CanBeComposed(f: Expr --> Expr, g: Expr --> Expr)
-    requires TransformerShallowPreservesRel(f, EqInterp)
-    requires TransformerShallowPreservesRel(g, EqInterp)
-    requires forall x | f.requires(x) :: g.requires(f(x))
-    ensures TransformerShallowPreservesRel(Comp(f, g), EqInterp)
-  {
-    forall e | f.requires(e) ensures EqInterp(e, g(f(e)))
-    {
-      assert EqInterp(e, f(e));
-      assert EqInterp(f(e), g(f(e)));
-      EqInterp_Trans(e, f(e), g(f(e)));
-    }
-  }
 
-  lemma EqInterp_Lift(f: Expr --> Expr)
+  lemma EqInterp_Lift(f: Exprs.T --> Exprs.T)
     requires TransformerShallowPreservesRel(f, EqInterp)
     ensures TransformerDeepPreservesRel(f, EqInterp)
     // It is enough to prove that `f` links its input and output with ``EqInterp``

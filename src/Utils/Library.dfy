@@ -220,6 +220,18 @@ module Seq {
     else [(ts[0], qs[0])] + Zip(ts[1..], qs[1..])
   }
 
+  function method {:opaque} Unzip<T, Q>(s: seq<(T,Q)>)
+    : (s': (seq<T>, seq<Q>))
+    ensures |s| == |s'.0| == |s'.1|
+    ensures forall i | 0 <= i < |s| :: s[i] == (s'.0[i], s'.1[i])
+    ensures forall x | x in s :: x.0 in s'.0 && x.1 in s'.1
+  {
+    if s == [] then ([],[])
+    else
+      var (ts, qs) := Unzip(s[1..]);
+      ([s[0].0] + ts, [s[0].1] + qs)
+  }
+
   // TODO: Merge.  Removed unnecessary trigger and strengthened postcondition
   function method {:opaque} Filter<T>(s: seq<T>, f: (T ~> bool)): (result: seq<T>)
     requires forall i | 0 <= i < |s| :: f.requires(s[i])

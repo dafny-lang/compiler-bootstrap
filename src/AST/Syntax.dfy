@@ -31,63 +31,6 @@ module Types {
     | Collection(finite: bool, kind: CollectionKind, eltType: Type)
     | Function(args: seq<Type>, ret: Type) // TODO
     | Class(classType: ClassType)
-  {
-    // TODO: remove?
-    predicate method NoLeftFunction()
-    {
-      match this {
-        case Unit => true
-        case Bool => true
-        case Char => true
-        case Int => true
-        case Real => true
-        case BigOrdinal => true
-        case BitVector(width: nat) => true
-        case Collection(finite: bool, kind: CollectionKind, eltType: Type) =>
-          && eltType.NoLeftFunction()
-          && match kind {
-            case Seq => true
-            case Set => true
-            case Multiset => true
-            case Map(kt) => kt.NoLeftFunction()
-          }
-        case Function(args: seq<Type>, ret: Type) => false
-        case Class(classType: ClassType) => false
-      }
-    }
-
-    // TODO: remove?
-    predicate method WellFormed() {
-      match this {
-        case Unit => true
-        case Bool => true
-        case Char => true
-        case Int => true
-        case Real => true
-        case BigOrdinal => true
-        case BitVector(width: nat) => true
-        case Collection(finite: bool, kind: CollectionKind, eltType: Type) =>
-          && eltType.WellFormed()
-          // This condition is overly restrictive: we will do the general case later.
-          // For instance, maps can contain keys which don't have a decidable equality,
-          // and sequences can contain elements which also don't have a decidable equality
-          // (in which case we don't have a decidable equality over the sequences, but it
-          // is fine).
-          && eltType.NoLeftFunction()
-          && match kind {
-            case Seq => true
-            case Set => eltType.NoLeftFunction()
-            case Multiset => eltType.NoLeftFunction()
-            case Map(kt) => kt.WellFormed() && kt.NoLeftFunction()
-          }
-        case Function(args: seq<Type>, ret: Type) =>
-          && (forall i | 0 <= i < |args| :: args[i].WellFormed())
-          && ret.WellFormed()
-        case Class(classType: ClassType) =>
-          && (forall i | 0 <= i < |classType.typeArgs| :: classType.typeArgs[i].WellFormed())
-      }
-    }
-  }
 
   type T(!new,00,==) = Type
 }
@@ -181,6 +124,7 @@ module UnaryOps {
 module Exprs {
   import Utils.Lib.Math
   import Utils.Lib.Seq
+  import opened Utils.Lib.Datatypes  
 
   import Types
   import UnaryOps
@@ -242,14 +186,33 @@ module Exprs {
 /// caller's context. (In most cases, though, variables passed into an ``Abs``
 /// are not mutated at all, because dafny lambdas are pure).
 
+  datatype TypedVar = TypedVar(name: string, ty: Types.Type)
+
+  // DISCUSS: if we use `Option<seq<Expr>>` in the `Expr.VarDecl` variant instead of introducing
+  // this auxiliary datatype, Dafny fails to prove termination of simple functions like ``Depth``.
+  datatype OptExprs =
+    | Some(value: seq<Expr>)
+    | None
+
   datatype Expr =
     | Var(name: string)
     | Literal(lit: Literal)
     | Abs(vars: seq<string>, body: Expr)
     | Apply(aop: ApplyOp, args: seq<Expr>)
     | Block(stmts: seq<Expr>)
-    | Bind(vars: seq<string>, vals: seq<Expr>, body: Expr)
+    | Bind(bvars: seq<TypedVar>, bvals: seq<Expr>, bbody: Expr)
+    | VarDecl(vdecls: seq<TypedVar>, ovals: OptExprs)
+    // DISCUSS: `ovals` may make `VarDecl` slightly redundant with `Update` (i.e., we
+    // can always decompose `VarDecl` with initialization expressions as `VarDecl` followed
+    // by `Update`). It is however useful for pretty printing purposes, and in the definition
+    // of ``Pure``: a variable declaration is pure, while an update isn't. This is useful
+    // because we desugar let-bindings to a scope containing an initialized variable declaration.
+    // We could make ``Pure1`` pattern match on `VarDecl` followed by `Update` operating on the
+    // same variables, but then we couldn't use the `Predicates.Deep.All_Expr` function to lift
+    // this definition.
+    | Update(vars: seq<string>, vals: seq<Expr>)
     | If(cond: Expr, thn: Expr, els: Expr) // DISCUSS: Lazy op node?
+    | Loop(guard: Expr, lbody: Expr)
   {
     function method Depth() : nat {
       1 + match this {
@@ -268,8 +231,18 @@ module Exprs {
             Seq.MaxF(var f := (e: Expr) requires e in vals => e.Depth(); f, vals, 0),
             body.Depth()
           )
+        case VarDecl(vdecls, ovals) =>
+          match ovals {
+            case Some(vals) =>
+              Seq.MaxF(var f := (e: Expr) requires e in ovals.value => e.Depth(); f, vals, 0)
+            case None => 0
+          }
+        case Update(vars, vals) =>
+          Seq.MaxF(var f := (e: Expr) requires e in vals => e.Depth(); f, vals, 0)
         case If(cond, thn, els) =>
           Math.Max(cond.Depth(), Math.Max(thn.Depth(), els.Depth()))
+        case Loop(guard, lbody) =>
+          Math.Max(guard.Depth(), lbody.Depth())
       }
     }
 
@@ -283,10 +256,78 @@ module Exprs {
         case Apply(aop, exprs) => exprs
         case Block(exprs) => exprs
         case Bind(vars, vals, body) => vals + [body]
+        case VarDecl(vdecls, ovals) =>
+          match ovals {
+            case Some(vals) => vals
+            case None => []
+          }
+        case Update(vars, vals) => vals
         case If(cond, thn, els) => [cond, thn, els]
+        case Loop(guard, lbody) => [guard, lbody]
+      }
+    }
+
+    function method Size() : nat
+      decreases this.Depth(), 0
+    {
+      1 + match this {
+        case Var(_) => 0
+        case Literal(lit) => 0
+        case Abs(vars, body) => body.Size()
+        case Apply(_, args) => Exprs_Size(args)
+        case Block(stmts) => Exprs_Size(stmts)
+        case Bind(vars, vals, body) => Exprs_Size(vals) + body.Size()
+        case VarDecl(vdecls, ovals) =>
+          match ovals {
+            case Some(vals) => Exprs_Size(vals)
+            case None => 0
+          }
+        case Update(vars, vals) => Exprs_Size(vals)
+        case If(cond, thn, els) => cond.Size() + thn.Size() + els.Size()
+        case Loop(guard, lbody) => guard.Size() + lbody.Size()
+      }
+    }
+
+    static function method MaxDepth(es: seq<Expr>) : nat {
+      Seq.MaxF((e: Expr) => e.Depth(), es, 0)
+    }
+
+    static function method Exprs_Size(es: seq<Expr>): nat
+      decreases MaxDepth(es), 1, |es|
+    {
+      // Proofs work better if we don't use FoldL
+      if es == [] then 0
+      else
+        assert es[0] in es;
+        es[0].Size() + Exprs_Size(es[1..])
+    }
+
+    static lemma Exprs_Size_Append(es: seq<Expr>, es': seq<Expr>)
+      ensures Exprs_Size(es + es') == Exprs_Size(es) + Exprs_Size(es')
+    {
+      if es == [] {
+        assert es + es' == es';
+        assert Exprs_Size(es) == 0;
+      }
+      else {
+        assert es + es' == [es[0]] + (es[1..] + es');
+        Exprs_Size_Append(es[1..], es');
+      }
+    }
+
+    static lemma Exprs_Size_Index(es: seq<Expr>, i: nat)
+      requires i < |es|
+      ensures es[i].Size() <= Exprs_Size(es)
+    {
+      if i == 0 {}
+      else {
+        assert es[i] == es[1..][i - 1];
+        Exprs_Size_Index(es[1..], i - 1);
       }
     }
   }
+
+  const Exprs_Size := Expr.Exprs_Size
 
   function method WellFormed(e: Expr): bool {
     match e {
@@ -303,6 +344,10 @@ module Exprs {
       case Apply(Eager(Builtin(Display(ty))), es) =>
         ty.Collection? && ty.finite
       case Bind(vars, vals, _) =>
+        |vars| == |vals|
+      case VarDecl(vdecls, ovals) =>
+        ovals.Some? ==> |vdecls| == |ovals.value|
+      case Update(vars, vals) =>
         |vars| == |vals|
       case _ => true
     }
@@ -322,8 +367,17 @@ module Exprs {
         e'.Block? && |stmts| == |e'.stmts|
       case If(cond, thn, els) =>
         e'.If?
-      case Bind(vars, vals, body) =>
-        e'.Bind? && |vars| == |e'.vars| && |vals| == |e'.vals|
+      case Bind(bvars, bvals, bbody) =>
+        e'.Bind? && bvars == e'.bvars && |bvals| == |e'.bvals|
+      case VarDecl(vdecls, ovals) =>
+        // TODO(SMH): we might want not to check that the variable types are equal (there
+        // may be aliases)
+        e'.VarDecl? && vdecls == e'.vdecls && ovals.Some? == e'.ovals.Some? &&
+        (ovals.Some? ==> |ovals.value| == |e'.ovals.value|)
+      case Update(vars, vals) =>
+        e'.Update? && vars == e'.vars && |vals| == |e'.vals|
+      case Loop(guard, lbody) =>
+        e'.Loop?
     }
   }
 

@@ -2,6 +2,8 @@ include "../../Interop/CSharpDafnyASTModel.dfy"
 include "../../Interop/CSharpInterop.dfy"
 include "../../Interop/CSharpDafnyInterop.dfy"
 include "../../AST/Translator.dfy"
+include "../../Passes/BindToVarDecl.dfy"
+include "../../Passes/SimplifyEmptyBlocks.dfy"
 include "../../Passes/EliminateNegatedBinops.dfy"
 include "../../Transforms/BottomUp.dfy"
 include "../../Utils/Library.dfy"
@@ -15,6 +17,8 @@ module {:extern "Bootstrap.Backends.CSharp"} Bootstrap.Backends.CSharp {
   import AST.Predicates
   import AST.Translator
   import Transforms.BottomUp
+  import Passes.BindToVarDecl
+  import Passes.SimplifyEmptyBlocks
   import Passes.EliminateNegatedBinops
   import opened AST.Predicates.Deep
 
@@ -58,6 +62,7 @@ module Compiler {
 
   function method CompileLiteralExpr(l: Exprs.Literal) : StrTree {
     match l {
+      case LitUnit => Unsupported
       case LitBool(b: bool) => Str(if b then "true" else "false")
       case LitInt(i: int) => CompileInt(i)
       case LitReal(r: real) =>
@@ -224,7 +229,11 @@ module Compiler {
         }
       case Block(exprs) =>
         Concat("\n", Lib.Seq.Map(e requires e in exprs => CompileExpr(e), exprs))
-      case Bind(vars, vals, body) =>
+      case VarDecl(vdecls, ovals) =>
+        Unsupported
+      case Update(vars, vals) =>
+        Unsupported
+      case Bind(_, _, _) =>
         Unsupported
       case If(cond, thn, els) =>
         var cCond := CompileExpr(cond);
@@ -236,6 +245,8 @@ module Compiler {
                       Str("} else {"),
                       SepSeq(Lib.Datatypes.None, [Str("  "), cEls]),
                       Str("}")])
+      case Loop(guard, lbody) =>
+        Unsupported
     }
   }
 
@@ -293,7 +304,9 @@ module Compiler {
       var st := new CSharpDafnyInterop.SyntaxTreeAdapter(wr);
       match Translator.TranslateProgram(dafnyProgram) {
         case Success(translated) =>
-          var lowered := EliminateNegatedBinops.Apply(translated);
+          var lowered := BindToVarDecl.Apply(translated);
+          lowered := SimplifyEmptyBlocks.Simplify.Apply(translated);
+          lowered := EliminateNegatedBinops.Apply(lowered);
 
           // Because of the imprecise encoding of functions, we need to call a weakening
           // lemma. We could also use ``EliminateNegatedBinops.Tr_Expr_Post`` everywhere,

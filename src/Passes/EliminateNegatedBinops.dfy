@@ -53,7 +53,6 @@ module Bootstrap.Passes.EliminateNegatedBinops {
       case _ => op
   }
 
-  // TODO(SMH): add a "_Single" prefix
   function method FlipNegatedBinop(op: BinaryOps.BinaryOp)
     : (op': BinaryOps.BinaryOp)
     ensures !IsNegatedBinop(op')
@@ -123,8 +122,8 @@ module Bootstrap.Passes.EliminateNegatedBinops {
           false)
   {
     reveal InterpBinaryOp();
-    EqValue_HasEqValue_Eq(v0, v0');
-    EqValue_HasEqValue_Eq(v1, v1');
+    EqValue_ValueHasEq_Eq(v0, v0');
+    EqValue_ValueHasEq_Eq(v1, v1');
   }
 
   lemma FlipNegatedBinop_Single_Rel(op: BinaryOp, args: seq<Expr>)
@@ -143,7 +142,6 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     var bop' := Exprs.BinaryOp(FlipNegatedBinop(op));
     var e := Exprs.Apply(Exprs.Eager(bop), args);
     var e' := FlipNegatedBinop_Single(op, args);
-    reveal SupportsInterp(); // TODO: remove?
 
     if SupportsInterp(e) {
       assert SupportsInterp(e');

@@ -10,8 +10,6 @@ include "../Transforms/Shallow.dfy"
 module Bootstrap.Semantics.Equiv {
   // This module introduces the relations we use to describe values and expressions
   // as equivalent, and which we use to state that our compilation passes are sound.
-  //
-  // TODO(SMH): use ``Expr`` instead of ``Exprs.T`` and remove the requirements about ``SupportsInterp``?
 
   import Utils.Lib
   import Utils.Lib.Debug
@@ -22,17 +20,10 @@ module Bootstrap.Semantics.Equiv {
   import opened Interp
   import opened Values
 
-  type Expr = Syntax.Expr
+  type Expr = Interp.Expr
   type WV = Interp.Value // FIXME
   type EqWV = Interp.EqWV // FIXME
   type Context = Values.Context
-
-  // TODO(SMH): move
-  // TODO(SMH): it should be equivalent to use ``Seq.All`` instead, but doing so breaks proofs.
-  predicate Seq_All<T>(f: T -> bool, s: seq<T>)
-  {
-    forall x | x in s :: f(x)
-  }
 
   // We introduce ``Equivs`` because in some situations we want to make ``EqValue``
   // and ``EqState`` opaque, and we can't (at least ``EqValue`` - see the comments for
@@ -43,7 +34,7 @@ module Bootstrap.Semantics.Equiv {
   datatype Equivs =
     EQ(eq_value: (WV, WV) -> bool, eq_state: (State, State) -> bool)
 
-  // TODO: not sure it was worth making this opaque
+  // TODO(SMH): not sure it was worth making this opaque
   predicate {:opaque} GEqCtx(
     eq_value: (WV,WV) -> bool, ctx: Context, ctx': Context
   )
@@ -57,7 +48,19 @@ module Bootstrap.Semantics.Equiv {
   predicate GEqState(
     eq_value: (WV,WV) -> bool, ctx: State, ctx': State)
   {
-    GEqCtx(eq_value, ctx.locals, ctx'.locals)
+    // Rem.(SMH): at some point I tried a slightly weaker condition on the rollbacks:
+    // `ctx.locals + ctx.rollback ~= ctx'.locals + ctx'.rollback`
+    // (instead of `ctx.rollback ~= ctx'.rollback).
+    // However, with this condition we can't prove reflexivity of `EqInterp`:
+    // ```
+    // // locals: [x -> 0], rollback: [x -> 0]          locals' [x -> 0], rollback': []
+    // // Invariant is satisfied
+    // x := 1;
+    // // locals: [x -> 1], rollback: [x -> 0]          locals' [x -> 1], rollback': []
+    // // Invariant is broken!
+    // ```
+    && GEqCtx(eq_value, ctx.locals, ctx'.locals)
+    && GEqCtx(eq_value, ctx.rollback, ctx'.rollback)
   }
 
   function Mk_EqState(eq_value: (WV,WV) -> bool): (State,State) -> bool
@@ -89,7 +92,7 @@ module Bootstrap.Semantics.Equiv {
     // TODO(SMH): we might want to be more precise in the `OutOfFuel` case, especially because
     // we might want to verify non-terminating functions.
     //
-    // Rk.: whenever this function is updated, don't forget to update:
+    // Rem.: whenever this function is updated, don't forget to update:
     // - ``EqValue_Closure``
     // - ``EqPureInterpResult``
     // - ``EqInterpResultSeq1Value``
@@ -119,7 +122,7 @@ module Bootstrap.Semantics.Equiv {
     Success(val)
   }
 
-  lemma InterpCallFunctionBody_Eq_InterpFunctionCall(e: Interp.Expr, env: Environment, fn: WV, argvs: seq<WV>)
+  lemma InterpCallFunctionBody_Eq_InterpFunctionCall(e: Expr, env: Environment, fn: WV, argvs: seq<WV>)
     requires env.fuel > 0
     requires fn.Closure?
     requires |fn.vars| == |argvs|
@@ -140,62 +143,73 @@ module Bootstrap.Semantics.Equiv {
     // - they are not closures and are equal/have equivalent children values
     // - they are closures and, when applied to equivalent inputs, they return equivalent outputs
     //
-    // Rk.: we could write the predicate in a simpler manner by using `==` in case the values are not
+    // Rem.: we could write the predicate in a simpler manner by using `==` in case the values are not
     // closures, but we prepare the terrain for a more general handling of collections.
     //
-    // Rk.: for now, we assume the termination. This function terminates because the size of the
+    // Rem.: for now, we assume the termination. This function terminates because the size of the
     // type of the values decreases, the interesting case being the closures (see ``EqValue_Closure``).
     // Whenever we find a closure `fn_ty = (ty_0, ..., ty_n) -> ret_ty`, we need to call ``EqValue``
     // on valid inputs (with types `ty_i < fn_ty`) and on its output (with type `ret_ty < fn_ty`).
     //
-    // Rk.: I initially wanted to make the definition opaque to prevent context saturation, because
+    // Rem.(SMH): I initially wanted to make the definition opaque to prevent context saturation, because
     // in most situations we don't need to know the content of EqValue.
     // However it made me run into the following issue:
     // BUG(https://github.com/dafny-lang/dafny/issues/2260)
     // As ``EqValue`` appears a lot in foralls, using the `reveal` trick seemed too cumbersome
     // to be a valid option.
+    //
+    // Rem.: we initially wrote this definition with a match on the pair `(v, v')`:
+    // ```
+    // match (v, v') {
+    //   case (Unit, Unit) => true
+    //   case (Bool(b), Bool(b')) => b == b'
+    //   ...
+    // ```
+    // This caused problems for two reasons:
+    // - as we wanted exhaustivity checking, we had to write cases like the following at the end
+    //   of the match:
+    //  ```
+    //  case (Unit, _) => false
+    //  case (Bool(b), _) => false
+    //  ...
+    //  ```
+    // - worst, it lead to a combinatorial explosion in the generated Boogie file. In the specific
+    //   case of ``InterpTernaryOp_Eq``, calling this lemma somewhere caused stack overflows
+    //   because of the three `EqValue(...)` preconditions.
   {
-    match (v, v') {
-      case (Unit, Unit) => true
-      case (Bool(b), Bool(b')) => b == b'
-      case (Char(c), Char(c')) => c == c'
-      case (Int(i), Int(i')) => i == i'
-      case (Real(r), Real(r')) => r == r'
-      case (BigOrdinal(o), BigOrdinal(o')) => o == o'
-      case (BitVector(width, value), BitVector(width', value')) =>
-        && width == width'
-        && value == value'
-      case (Map(m), Map(m')) =>
-        ValueTypeHeight_Children_Lem(v); // For termination
-        ValueTypeHeight_Children_Lem(v'); // For termination
-        && m.Keys == m'.Keys
-        && |m| == |m'| // We *do* need this
-        && (forall x | x in m :: EqValue(m[x], m'[x]))
-      case (Multiset(ms), Multiset(ms')) =>
-        ms == ms'
-      case (Seq(sq), Seq(sq')) =>
-        ValueTypeHeight_Children_Lem(v); // For termination
-        ValueTypeHeight_Children_Lem(v'); // For termination
-        && |sq| == |sq'|
-        && (forall i | 0 <= i < |sq| :: EqValue(sq[i], sq'[i]))
-      case (Set(st), Set(st')) =>
-        && st == st'
-      case (Closure(ctx, vars, body), Closure(ctx', vars', body')) =>
-        EqValue_Closure(v, v')
-
-      // DISCUSS: Better way to write this?  Need exhaustivity checking
-      case (Unit, _) => false
-      case (Bool(b), _) => false
-      case (Char(c), _) => false
-      case (Int(i), _) => false
-      case (Real(r), _) => false
-      case (BigOrdinal(o), _) => false
-      case (BitVector(width, value), _) => false
-      case (Map(m), _) => false
-      case (Multiset(ms), _) => false
-      case (Seq(sq), _) => false
-      case (Set(st), _) => false
-      case (Closure(ctx, vars, body), _) => false
+    match v {
+      case Unit => v'.Unit?
+      case Bool(b) => v'.Bool? && b == v'.b
+      case Char(c) => v'.Char? && c == v'.c
+      case Int(i) =>  v'.Int?  && i == v'.i
+      case Real(r) => v'.Real? && r == v'.r
+      case BigOrdinal(o) => v'.BigOrdinal? && o == v'.o
+      case BitVector(width, value) =>
+        && v'.BitVector?
+        && width == v'.width
+        && value == v'.value
+      case Map(m) =>
+        && v'.Map?
+        && (ValueTypeHeight_Children_Lem(v); // For termination
+           ValueTypeHeight_Children_Lem(v'); // For termination
+           && m.Keys == v'.m.Keys
+           && |m| == |v'.m| // We *do* need this
+           && (forall x | x in m :: EqValue(m[x], v'.m[x])))
+      case Multiset(ms) =>
+        && v'.Multiset?
+        && ms == v'.ms
+      case Seq(sq) =>
+        && v'.Seq?
+        && (ValueTypeHeight_Children_Lem(v); // For termination
+           ValueTypeHeight_Children_Lem(v'); // For termination
+           && |sq| == |v'.sq|
+           && (forall i | 0 <= i < |sq| :: EqValue(sq[i], v'.sq[i])))
+      case Set(st) =>
+        && v'.Set?
+        && st == v'.st
+      case Closure(_, _, _) =>
+        && v'.Closure?
+        && EqValue_Closure(v, v')
     }
   }
 
@@ -207,12 +221,17 @@ module Bootstrap.Semantics.Equiv {
     //
     // See ``EqValue``.
     //
-    // Rk.: contrary to ``EqValue``, it seems ok to make ``EqValue_Closure`` opaque.
+    // Rem.: contrary to ``EqValue``, it seems ok to make ``EqValue_Closure`` opaque.
   {
     var Closure(ctx, vars, body) := v;
     var Closure(ctx', vars', body') := v';
     && |vars| == |vars'|
     && (
+    // TODO(SMH): we should actually quantify over a pair of equivalent environments (and propagate
+    // that everywhere: all lemmas should take two environments as inputs). Note that the
+    // proof of reflexivity will probably require some step indexing, because the environments
+    // should be initialized as the set containing the external functions and the program we are
+    // about to run.
     forall env: Environment, argvs: seq<WV>, argvs': seq<WV> |
       && |argvs| == |argvs'| == |vars| // no partial applications are allowed in Dafny
       // We need the argument types to be smaller than the closure types, to prove termination.\
@@ -266,6 +285,15 @@ module Bootstrap.Semantics.Equiv {
     GEqCtx(EqValue, ctx, ctx')
   }
 
+  predicate {:opaque} EqSubCtx(keys: set<string>, ctx: Context, ctx': Context)
+    requires WellFormedContext(ctx)
+    requires WellFormedContext(ctx')
+  {
+    && keys <= ctx.Keys
+    && keys <= ctx'.Keys
+    && forall x | x in keys :: EqValue(ctx[x], ctx'[x])
+  }
+
   predicate EqInterpResult<T(0)>(
     eq_value: (T,T) -> bool, res: InterpResult<T>, res': InterpResult<T>)
   {
@@ -274,8 +302,8 @@ module Bootstrap.Semantics.Equiv {
 
   lemma EqValueHasEq(v: WV, v': WV)
     requires EqValue(v,v')
-    requires HasEqValue(v)
-    requires HasEqValue(v')
+    requires ValueHasEq(v)
+    requires ValueHasEq(v')
     ensures v == v'
     // If values are equivalent and have a decidable equality, they are necessarily equal.
   {
@@ -283,21 +311,21 @@ module Bootstrap.Semantics.Equiv {
   }
 
   lemma EqValueHasEq_Forall()
-    ensures forall v: WV, v': WV | EqValue(v,v') && HasEqValue(v) && HasEqValue(v') :: v == v'
+    ensures forall v: WV, v': WV | EqValue(v,v') && ValueHasEq(v) && ValueHasEq(v') :: v == v'
   {
-    forall v: WV, v': WV | EqValue(v,v') && HasEqValue(v) && HasEqValue(v') ensures v == v' {
+    forall v: WV, v': WV | EqValue(v,v') && ValueHasEq(v) && ValueHasEq(v') ensures v == v' {
       EqValueHasEq(v, v');
     }
   }
 
-  lemma EqInterp_Expr_EqState(e: Exprs.T, env: Environment, ctx: State, ctx': State)
-    requires SupportsInterp(e)
+  // TODO(SMH): this should be moved to EqInterp_Refl.dfy, but is needed for the proof of EqValue_Refl,
+  // which is then used in the proof of EqInterp_Refl. See the comments there about the termination
+  // issues.
+  lemma InterpExpr_Refl(e: Expr, env: Environment, ctx: State, ctx': State)
     requires EqState(ctx, ctx')
     ensures EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e, env, ctx'))
   {
-    // The proof should be similar to ``EqInterp_Expr_CanBeMapLifted`` (and actually
-    // simpler), but I'm not sure how to efficiently factorize the two.
-    assume false; // TODO: prove
+    assume false; // TODO(SMH): prove
   }
 
   lemma EqValue_Refl(v: WV)
@@ -391,7 +419,7 @@ module Bootstrap.Semantics.Equiv {
         assert EqState(ctx1, ctx1');
 
         reveal InterpCallFunctionBody();
-        EqInterp_Expr_EqState(body, env, ctx1, ctx1');
+        InterpExpr_Refl(body, env, ctx1, ctx1');
         assert EqPureInterpResultValue(res, res');
     }
     reveal EqValue_Closure();
@@ -495,34 +523,34 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
-  lemma {:induction v, v'} EqValue_HasEqValue(v: WV, v': WV)
+  lemma {:induction v, v'} EqValue_ValueHasEq(v: WV, v': WV)
     requires EqValue(v, v')
-    ensures HasEqValue(v) == HasEqValue(v')
+    ensures ValueHasEq(v) == ValueHasEq(v')
   {}
 
-  lemma EqValue_HasEqValue_Forall()
-    ensures forall v: WV, v': WV | EqValue(v, v') :: HasEqValue(v) == HasEqValue(v')
+  lemma EqValue_ValueHasEq_Forall()
+    ensures forall v: WV, v': WV | EqValue(v, v') :: ValueHasEq(v) == ValueHasEq(v')
   {
-    forall v: WV, v': WV | EqValue(v, v') ensures HasEqValue(v) == HasEqValue(v') {
-      EqValue_HasEqValue(v, v');
+    forall v: WV, v': WV | EqValue(v, v') ensures ValueHasEq(v) == ValueHasEq(v') {
+      EqValue_ValueHasEq(v, v');
     }
   }
 
-  lemma EqValue_HasEqValue_Eq(v: WV, v': WV)
+  lemma EqValue_ValueHasEq_Eq(v: WV, v': WV)
     requires EqValue(v, v')
-    ensures HasEqValue(v) == HasEqValue(v')
-    ensures HasEqValue(v) ==> v == v'
+    ensures ValueHasEq(v) == ValueHasEq(v')
+    ensures ValueHasEq(v) ==> v == v'
   {
-    EqValue_HasEqValue(v, v');
-    if HasEqValue(v) || HasEqValue(v') {
+    EqValue_ValueHasEq(v, v');
+    if ValueHasEq(v) || ValueHasEq(v') {
       EqValueHasEq(v, v');
     }
   }
 
-  lemma EqValue_HasEqValue_Eq_Forall()
+  lemma EqValue_ValueHasEq_Eq_Forall()
     ensures forall v:WV, v':WV | EqValue(v, v') ::
-      && (HasEqValue(v) == HasEqValue(v'))
-      && (HasEqValue(v) ==> v == v')
+      && (ValueHasEq(v) == ValueHasEq(v'))
+      && (ValueHasEq(v) ==> v == v')
     // This is one of the important lemmas for the proofs of equivalence.
     // The reason is that the interpreter often checks that some values
     // have a decidable equality (for instance, before inserting a value in
@@ -534,9 +562,9 @@ module Bootstrap.Semantics.Equiv {
   {
     forall v:WV, v':WV | EqValue(v, v')
       ensures
-      && (HasEqValue(v) == HasEqValue(v'))
-      && (HasEqValue(v) ==> v == v') {
-        EqValue_HasEqValue_Eq(v, v');
+      && (ValueHasEq(v) == ValueHasEq(v'))
+      && (ValueHasEq(v) ==> v == v') {
+        EqValue_ValueHasEq_Eq(v, v');
     }
   }
 
@@ -559,6 +587,9 @@ module Bootstrap.Semantics.Equiv {
     reveal GEqCtx();
     forall x | x in ctx0.locals.Keys ensures EqValue(ctx0.locals[x], ctx2.locals[x]) {
       EqValue_Trans(ctx0.locals[x], ctx1.locals[x], ctx2.locals[x]);
+    }
+    forall x | x in ctx0.rollback.Keys ensures EqValue(ctx0.rollback[x], ctx2.rollback[x]) {
+      EqValue_Trans(ctx0.rollback[x], ctx1.rollback[x], ctx2.rollback[x]);
     }
   }
 
@@ -660,8 +691,8 @@ module Bootstrap.Semantics.Equiv {
       case (Success(Return(v,ctx)), Success(Return(v',ctx'))) =>
         && v == v'
         && ctx == ctx'
-      case (Failure(err), Failure(err')) =>
-        err == err'
+      case (Failure(_), Failure(_)) =>
+        true // We don't request the errors to be equal
       case _ =>
         false
     }
@@ -694,7 +725,7 @@ module Bootstrap.Semantics.Equiv {
                        InterpExpr(e', env, ctx')))
   }
 
-  function Mk_EqInterp(eq: Equivs): (Expr, Expr) -> bool {
+  function Mk_EqInterp(eq: Equivs): (Exprs.T, Exprs.T) -> bool {
     (e, e') => GEqInterp(eq, e, e')
   }
 
@@ -703,17 +734,6 @@ module Bootstrap.Semantics.Equiv {
     // The important equivalence relation over expressions.
   {
     GEqInterp(EQ(EqValue, Mk_EqState(EqValue)), e, e')
-  }
-
-  // TODO(SMH): make opaque?
-  predicate EqInterpBlockExprs(es: seq<Exprs.T>, es': seq<Exprs.T>)
-  {
-    Seq_All(SupportsInterp, es) ==>
-    (&& Seq_All(SupportsInterp, es')
-     && forall env, ctx, ctx' | EqState(ctx, ctx') ::
-       EqInterpResultValue(
-                      InterpBlock_Exprs(es, env, ctx),
-                      InterpBlock_Exprs(es', env, ctx')))
   }
 
   lemma EqInterp_Refl(e: Exprs.T)
@@ -726,17 +746,10 @@ module Bootstrap.Semantics.Equiv {
                        InterpExpr(e, env, ctx),
                        InterpExpr(e, env, ctx'))
       {
-        EqInterp_Expr_EqState(e, env, ctx, ctx');
+        InterpExpr_Refl(e, env, ctx, ctx');
       }
     }
   }
-
-  lemma EqInterpBlockExprs_Inst(es: seq<Exprs.T>, es': seq<Exprs.T>, env: Environment, ctx: State, ctx': State)
-    requires EqInterpBlockExprs(es, es')
-    requires Seq_All(SupportsInterp, es)
-    requires EqState(ctx, ctx')
-    ensures  EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es', env, ctx'))
-  {}
 
   predicate All_Rel_Forall<A, B>(rel: (A,B) -> bool, xs: seq<A>, ys: seq<B>)
   {
@@ -792,7 +805,6 @@ module Bootstrap.Semantics.Equiv {
   }
 
   lemma InterpExprs1_Strong_Eq(e: Expr, env: Environment, ctx: State)
-    requires SupportsInterp(e)
     ensures forall e' | e' in [e] :: SupportsInterp(e')
     ensures EqInterpResultSeq1Value_Strong(InterpExpr(e, env, ctx), InterpExprs([e], env, ctx))
     // Auxiliary lemma: evaluating a sequence of one expression is equivalent to evaluating
@@ -817,48 +829,17 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
-  lemma InterpBlock_Exprs_Refl(es: seq<Expr>, env: Environment, ctx: State, ctx': State)
-    requires Seq_All(SupportsInterp, es)
-    requires EqState(ctx, ctx')
-    ensures EqInterpResultValue(InterpBlock_Exprs(es, env, ctx), InterpBlock_Exprs(es, env, ctx'))
-  {
-    reveal InterpBlock_Exprs();
-    if es == [] {}
-    else {
-       // Evaluate the first expression
-      var res0 := InterpExprWithType(es[0], Types.Unit, env, ctx);
-      var res0' := InterpExprWithType(es[0], Types.Unit, env, ctx');
-      EqInterp_Refl(es[0]);
-      EqInterp_Inst(es[0], es[0], env, ctx, ctx');
-
-      // Evaluate the remaining expressions
-      if res0.Success? && res0.value.ret == V.Unit {
-        var Return(_, ctx0) := res0.value;
-        var Return(_, ctx0') := res0'.value;
-
-        InterpBlock_Exprs_Refl(es[1..], env, ctx0, ctx0');
-      }
-      else {
-        // Trivial
-      }
-    }
-  }
-
-  lemma EqInterp_Inst(e: Exprs.T, e': Exprs.T, env: Environment, ctx: State, ctx': State)
-    requires SupportsInterp(e)
+  lemma EqInterp_Inst(e: Expr, e': Expr, env: Environment, ctx: State, ctx': State)
     requires EqInterp(e, e')
     requires EqState(ctx, ctx')
-    ensures SupportsInterp(e')
     ensures EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e', env, ctx'))
   // We use this lemma because sometimes quantifiers are are not triggered.
   {}
 
   lemma InterpExprs_GEqInterp_Inst(
     eq: Equivs, es: seq<Expr>, es': seq<Expr>, env: Environment, ctx: State, ctx': State)
-    requires forall e | e in es :: SupportsInterp(e)
     requires All_Rel_Forall(Mk_EqInterp(eq), es, es')
     requires eq.eq_state(ctx, ctx')
-    ensures forall e | e in es' :: SupportsInterp(e)
     ensures GEqInterpResultSeq(eq, InterpExprs(es, env, ctx), InterpExprs(es', env, ctx'))
   // Auxiliary lemma: if two sequences contain equivalent expressions, evaluating those two
   // sequences in equivalent contexts leads to equivalent results.
@@ -883,7 +864,7 @@ module Bootstrap.Semantics.Equiv {
 
       match res1 {
         case Success(Return(v, ctx1)) => {
-          // TODO: the following statement generates an error.
+          // TODO(SMH): the following statement generates an error.
           // See: https://github.com/dafny-lang/dafny/issues/2258
           //var Success(Return(v', ctx1')) := res1;
           var Return(v', ctx1') := res1'.value;
@@ -913,10 +894,8 @@ module Bootstrap.Semantics.Equiv {
   }
 
   lemma InterpExprs_EqInterp_Inst(es: seq<Expr>, es': seq<Expr>, env: Environment, ctx: State, ctx': State)
-    requires forall e | e in es :: SupportsInterp(e)
-    requires All_Rel_Forall(EqInterp, es, es')
+    requires All_Rel_Forall<Exprs.T, Exprs.T>(EqInterp, es, es')
     requires EqState(ctx, ctx')
-    ensures forall e | e in es' :: SupportsInterp(e)
     ensures EqInterpResultSeqValue(InterpExprs(es, env, ctx), InterpExprs(es', env, ctx'))
   // Auxiliary lemma: if two sequences contain equivalent expressions, evaluating those two
   // sequences in equivalent contexts leads to equivalent results.
@@ -924,7 +903,7 @@ module Bootstrap.Semantics.Equiv {
     InterpExprs_GEqInterp_Inst(EQ(EqValue, EqState), es, es', env, ctx, ctx');
   }
 
-  lemma Map_PairOfMapDisplaySeq(e: Interp.Expr, e': Interp.Expr, argvs: seq<WV>, argvs': seq<WV>)
+  lemma Map_PairOfMapDisplaySeq(e: Expr, e': Expr, argvs: seq<WV>, argvs': seq<WV>)
     requires EqSeqValue(argvs, argvs')
     ensures EqPureInterpResult(EqSeqPairEqValueValue,
                                Seq.MapResult(argvs, argv => PairOfMapDisplaySeq(e, argv)),
@@ -940,7 +919,7 @@ module Bootstrap.Semantics.Equiv {
       var res0 := PairOfMapDisplaySeq(e, argv);
       var res0' := PairOfMapDisplaySeq(e', argv');
 
-      EqValue_HasEqValue_Eq_Forall();
+      EqValue_ValueHasEq_Eq_Forall();
       if res0.Success? {
         assert res0'.Success?;
         assert EqPureInterpResult(EqPairEqValueValue, res0, res0');
@@ -966,14 +945,14 @@ module Bootstrap.Semantics.Equiv {
     }
   }
 
-  lemma InterpMapDisplay_EqArgs(e: Interp.Expr, e': Interp.Expr, argvs: seq<WV>, argvs': seq<WV>)
+  lemma InterpMapDisplay_EqArgs(e: Expr, e': Expr, argvs: seq<WV>, argvs': seq<WV>)
     requires EqSeqValue(argvs, argvs')
     ensures EqPureInterpResult(EqMapValue, InterpMapDisplay(e, argvs), InterpMapDisplay(e', argvs')) {
     var res0 := Seq.MapResult(argvs, argv => PairOfMapDisplaySeq(e, argv));
     var res0' := Seq.MapResult(argvs', argv => PairOfMapDisplaySeq(e', argv));
 
     Map_PairOfMapDisplaySeq(e, e', argvs, argvs');
-    EqValue_HasEqValue_Eq_Forall();
+    EqValue_ValueHasEq_Eq_Forall();
 
     match res0 {
       case Success(pairs) => {
@@ -1013,7 +992,7 @@ module Bootstrap.Semantics.Equiv {
   lemma {:vcs_split_on_every_assert}
   MapOfPairs_SeqZip_EqCtx(vars: seq<string>, argvs: seq<WV>, argvs': seq<WV>)
     requires |argvs| == |argvs'| == |vars|
-    requires (forall i | 0 <= i < |vars| :: EqValue(argvs[i], argvs'[i]))
+    requires (forall i | 0 <= i < |vars| :: EqValue(argvs[i], argvs'[i])) // TODO(SMH): use All_Rel_Forall
     ensures
       var m := MapOfPairs(Seq.Zip(vars, argvs));
       var m' := MapOfPairs(Seq.Zip(vars, argvs'));
@@ -1030,68 +1009,377 @@ module Bootstrap.Semantics.Equiv {
     MapOfPairs_EqCtx(pl, pl');
   }
 
-  lemma InterpBlock_Exprs_Eq_Append(e: Expr, e': Expr, tl: seq<Expr>, tl': seq<Expr>, env: Environment, ctx: State, ctx': State)
-    requires SupportsInterp(e)
-    requires SupportsInterp(e')
-    requires Seq_All(SupportsInterp, tl)
-    requires Seq_All(SupportsInterp, tl')
-    requires EqState(ctx, ctx')
-    requires EqInterp(e, e')
-    requires EqInterpBlockExprs(tl, tl')
-    requires |tl| > 0
-    ensures EqInterpResultValue(InterpBlock_Exprs([e] + tl, env, ctx), InterpBlock_Exprs([e'] + tl', env, ctx'))
-    // Auxiliary lemma for the proofs about transformations operating on blocks. This is especially
-    // useful when those transformations might update the length of the sequence of expressions
-    // in the blocks. The proof is a bit tricky, because the case where the sequence has length 1
-    // is a special case in the definition of ``EqInterpBlock_Exprs``.
+  lemma CtxUnion_Eq(ctx: Context, add: Context, ctx': Context, add': Context)
+    requires WellFormedContext(ctx)
+    requires WellFormedContext(ctx')
+    requires WellFormedContext(add)
+    requires WellFormedContext(add')
+    requires EqCtx(ctx, ctx')
+    requires EqCtx(add, add')
+    ensures WellFormedContext(ctx + add)
+    ensures WellFormedContext(ctx' + add')
+    ensures EqCtx(ctx + add, ctx' + add')
   {
-    var es := [e] + tl;
-    var es' := [e'] + tl';
-    assert e == es[0];
+    reveal GEqCtx();
+  }
 
+  lemma AugmentContext_Equiv(base: Context, base': Context, vars: seq<string>, vals: seq<WV>, vals': seq<WV>)
+    requires WellFormedContext(base)
+    requires WellFormedContext(base')
+    requires |vars| == |vals| == |vals'|
+    requires EqCtx(base, base')
+    requires All_Rel_Forall(EqValue, vals, vals')
+    ensures (EqCtx(AugmentContext(base, vars, vals), AugmentContext(base', vars, vals')))
+  {
+    var m := MapOfPairs(Seq.Zip(vars, vals));
+    var m' := MapOfPairs(Seq.Zip(vars, vals'));
+    MapOfPairs_SeqZip_EqCtx(vars, vals, vals');
+    assert EqCtx(m, m');
+    var ctx := base + m;
+    var ctx' := base' + m';
+    CtxUnion_Eq(base, m, base', m');
+    assert EqCtx(ctx, ctx');
+  }
+
+  lemma SaveToRollback_Equiv(ctx: State, ctx': State, varseq: seq<string>)
+    requires EqState(ctx, ctx')
+    ensures EqState(SaveToRollback(ctx, varseq), SaveToRollback(ctx', varseq))
+  {
+    var vars := set x | x in varseq;
+    var save := map x | x in (vars * ctx.locals.Keys) - ctx.rollback.Keys :: ctx.locals[x];
+    var save' := map x | x in (vars * ctx'.locals.Keys) - ctx'.rollback.Keys :: ctx'.locals[x];
+
+    var ctx1 := ctx.(locals := ctx.locals - vars, rollback := ctx.rollback + save);
+    var ctx1' := ctx'.(locals := ctx'.locals - vars, rollback := ctx'.rollback + save');
+
+    assert ctx1 == SaveToRollback(ctx, varseq) by { reveal SaveToRollback(); }
+    assert ctx1' == SaveToRollback(ctx', varseq) by { reveal SaveToRollback(); }
+
+    assert EqCtx(ctx.rollback, ctx'.rollback);
+
+    assert EqCtx(save, save') by { reveal GEqCtx(); }
+    assert EqCtx(ctx1.locals, ctx1'.locals) by { reveal GEqCtx(); }
+    assert EqCtx(ctx1.rollback, ctx1'.rollback) by { reveal GEqCtx(); }
+
+    reveal SaveToRollback();
+  }
+
+  // TODO(SMH): we could split this lemma, whose proof is big (though straightforward),
+  // but it is a bit annoying to do...
+  lemma InterpBinaryOp_Eq(
+    e: Expr, e': Expr, bop: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
+  )
+    requires !bop.BV? && !bop.Datatypes?
+    requires EqValue(v0, v0')
+    requires EqValue(v1, v1')
+    requires InterpBinaryOp(e, bop, v0, v1).Success?
+    ensures EqPureInterpResultValue(InterpBinaryOp(e, bop, v0, v1), InterpBinaryOp(e', bop, v0', v1'))
+  {
+    reveal InterpBinaryOp();
+
+    var retv :- assert InterpBinaryOp(e, bop, v0, v1);
+    var res' := InterpBinaryOp(e', bop, v0', v1');
+
+    // Below: for the proofs about binary operations involving collections (Set, Map...),
+    // see the Set case, which gives the general strategy.
+    match bop {
+      case Numeric(op) =>
+      case Logical(op) =>
+      case Eq(op) => {
+        // The proof strategy is similar to the Set case.
+        EqValue_ValueHasEq_Eq(v0, v0');
+        EqValue_ValueHasEq_Eq(v1, v1');
+      }
+      case Char(op) =>
+      case Sets(op) => {
+        // We make a case disjunction between the "trivial" operations,
+        // and the others. We treat the "difficult" operations first.
+        // In the case of sets, the trivial operations are those which
+        // take two sets as parameters (they are trivial, because if
+        // two set values are equivalent according to ``EqValue``, then
+        // they are actually equal for ``==``).
+        if op.InSet? || op.NotInSet? {
+          // The trick is that:
+          // - either v0 and v0' have a decidable equality, in which case
+          //   the evaluation succeeds, and we actually have that v0 == v0'.
+          // - or they don't, in which case the evaluation fails.
+          // Of course, we need to prove that v0 has a decidable equality
+          // iff v0' has one. The important results are given by the lemma below.
+          EqValue_ValueHasEq_Eq(v0, v0');
+          var retv' := res'.value;
+
+          // As we assume the evaluation succeeded in the precondition, necessarily the
+          // calls to ``Need`` succeeded, from which we can derive information, in particular
+          // information about the equality between values, which allows us to prove the goal.
+          assert ValueHasEq(v0);
+          assert ValueHasEq(v0');
+          assert v0 == v0';
+
+          assert v1.Set?;
+          assert v1'.Set?;
+          assert v1 == v1';
+
+          assert EqValue(retv, retv');
+        }
+        else {
+          // All the remaining operations are performed between sets.
+          // ``EqValue`` is true on sets iff they are equal, so
+          // this proof is trivial.
+
+          var retv' := res'.value;
+
+          // We enumerate all the cases on purpose, so that this assertion fails
+          // if we add more cases, making debugging easier.
+          assert || op.SetEq? || op.SetNeq? || op.Subset? || op.Superset? || op.ProperSubset?
+                 || op.ProperSuperset? || op.Disjoint? || op.Union? || op.Intersection?
+                 || op.SetDifference?;
+
+          assert EqValue(retv, retv');
+        }
+      }
+      case Multisets(op) => {
+        // Rem.: this proof is similar to the one for Sets
+        if op.InMultiset? || op.NotInMultiset? {
+          EqValue_ValueHasEq_Eq(v0, v0');
+        }
+        else if op.MultisetSelect? {
+          // Rem.: this proof is similar to the one for Sets
+          EqValue_ValueHasEq_Eq(v1, v1');
+        }
+        else {
+          // All the remaining operations are performed between multisets.
+          // ``EqValue`` is true on sets iff they are equal, so
+          // this proof is trivial.
+
+          // Same as for Sets: we enumerate all the cases on purpose
+          assert || op.MultisetEq? || op.MultisetNeq? || op.MultiSubset? || op.MultiSuperset?
+                 || op.ProperMultiSubset? || op.ProperMultiSuperset? || op.MultisetDisjoint?
+                 || op.MultisetUnion? || op.MultisetIntersection? || op.MultisetDifference?;
+
+
+          var retv' := res'.value;
+          assert EqValue(retv, retv');
+        }
+      }
+      case Sequences(op) => {
+        // Rem.: the proof strategy is given by the Sets case
+        EqValue_ValueHasEq_Eq(v0, v0');
+        EqValue_ValueHasEq_Eq(v1, v1');
+        var retv' := res'.value;
+
+        if op.SeqDrop? || op.SeqTake? {
+          var len := |v0.sq|;
+          // Doesn't work without this assertion
+          assert forall i | 0 <= i < len :: EqValue(v0.sq[i], v0'.sq[i]);
+        }
+        else {
+          // Same as for Sets: we enumerate all the cases on purpose
+          assert || op.SeqEq? || op.SeqNeq? || op.Prefix? || op.ProperPrefix? || op.Concat?
+                 || op.InSeq? || op.NotInSeq? || op.SeqSelect?;
+
+          assert EqValue(retv, retv');
+        }
+      }
+      case Maps(op) => {
+        // Rem.: the proof strategy is given by the Sets case
+        EqValue_ValueHasEq_Eq(v0, v0');
+        EqValue_ValueHasEq_Eq(v1, v1');
+
+        var retv' := res'.value;
+
+        if op.MapEq? || op.MapNeq? || op.InMap? || op.NotInMap? || op.MapSelect? {
+          assert EqValue(retv, retv');
+        }
+        else {
+          assert op.MapMerge? || op.MapSubtraction?;
+
+          // Z3 needs a bit of help to prove the equivalence between the maps
+          // The evaluation succeeds, and returns a map
+          var m1 := retv.m;
+          var m1' := retv'.m;
+
+          // Prove that: |m1| == |m1'|
+          assert m1.Keys == m1'.Keys;
+          assert |m1| == |m1.Keys|; // This is necessary
+          assert |m1'| == |m1'.Keys|; // This is necessary
+
+          assert EqValue(retv, retv');
+        }
+      }
+    }
+  }
+
+  // TODO(SMH): this proof takes ~1 minute
+  lemma {:timeLimit 120} InterpTernaryOp_Eq(
+    e: Expr, e': Expr, top: TernaryOp, v0: WV, v1: WV, v2: WV, v0': WV, v1': WV, v2': WV
+  )
+    requires EqValue(v0, v0')
+    requires EqValue(v1, v1')
+    requires EqValue(v2, v2')
+    ensures EqPureInterpResultValue(InterpTernaryOp(e, top, v0, v1, v2), InterpTernaryOp(e', top, v0', v1', v2'))
+  {
+    reveal InterpTernaryOp();
+
+    var res := InterpTernaryOp(e, top, v0, v1, v2);
+    var res' := InterpTernaryOp(e', top, v0', v1', v2');
+
+    match top {
+      case Sequences(op) => {}
+      case Multisets(op) => {
+        EqValue_ValueHasEq_Eq(v1, v1');
+      }
+      case Maps(op) => {
+        EqValue_ValueHasEq_Eq(v1, v1');
+      }
+    }
+  }
+
+  lemma Interp_Apply_Display_EqValue(
+    e: Expr, e': Expr, kind: Types.CollectionKind, vs: seq<WV>, vs': seq<WV>
+  )
+    requires EqSeqValue(vs, vs')
+    requires InterpDisplay(e, kind, vs).Success?
+    ensures EqPureInterpResultValue(InterpDisplay(e, kind, vs), InterpDisplay(e', kind, vs'))
+  {
+    reveal InterpDisplay();
+
+    var res := InterpDisplay(e, kind, vs);
+    var res' := InterpDisplay(e', kind, vs');
+
+    match kind {
+      case Map(_) => {
+        InterpMapDisplay_EqArgs(e, e', vs, vs');
+        assert EqPureInterpResultValue(res, res');
+      }
+      case Multiset => {
+        EqValue_ValueHasEq_Eq_Forall();
+        assert (forall i | 0 <= i < |vs| :: ValueHasEq(vs[i]));
+        assert (forall i | 0 <= i < |vs| :: ValueHasEq(vs'[i]));
+        assert (forall i | 0 <= i < |vs| :: EqValue(vs[i], vs'[i]));
+        assert vs == vs';
+        assert EqPureInterpResultValue(res, res');
+      }
+      case Seq => {
+        assert EqPureInterpResultValue(res, res');
+      }
+      case Set => {
+        EqValue_ValueHasEq_Eq_Forall();
+        assert EqPureInterpResultValue(res, res');
+      }
+    }
+  }
+
+  lemma InterpFunctionCall_EqState(
+    e: Expr, e': Expr, env: Environment, f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>)
+    requires EqValue(f, f')
+    requires EqSeqValue(argvs, argvs')
+    requires InterpFunctionCall(e, env, f, argvs).Success?
+    ensures EqPureInterpResultValue(InterpFunctionCall(e, env, f, argvs),
+                                    InterpFunctionCall(e', env, f', argvs'))
+  {
+    var res := InterpFunctionCall(e, env, f, argvs);
+    var res' := InterpFunctionCall(e', env, f', argvs');
+
+    reveal InterpFunctionCall();
+    var Closure(ctx, vars, body) := f;
+    var Closure(ctx', vars', body') := f';
+
+    assert |vars| == |vars'| == |argvs| == |argvs'| by {
+      reveal EqValue_Closure();
+    }
+
+    var res0 := InterpCallFunctionBody(f, env.(fuel := env.fuel - 1), argvs);
+    var res0' := InterpCallFunctionBody(f', env.(fuel := env.fuel - 1), argvs');
+
+    // This comes from EqValue_Closure
+    assert EqPureInterpResultValue(res0, res0') by {
+      // We have restrictions on the arguments on which we can apply the equivalence relation
+      // captured by ``EqValue_Closure``. We do the assumption that, if one of the calls succeedeed,
+      // then the arguments are "not too big" and we can apply the equivalence. This would be true
+      // if the program was successfully type-checked.
+      assume (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs[i]) < ValueTypeHeight(f));
+      assume (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs'[i]) < ValueTypeHeight(f'));
+      EqValue_Closure_EqInterp_FunctionCall(f, f', argvs, argvs', env.(fuel := env.fuel - 1));
+    }
+
+    // By definition
+    assert res0 == res by {
+      InterpCallFunctionBody_Eq_InterpFunctionCall(e, env, f, argvs);
+    }
+    assert res0' == res' by {
+      InterpCallFunctionBody_Eq_InterpFunctionCall(e', env, f', argvs');
+    }
+
+    assert EqPureInterpResultValue(res, res');
+  }
+
+  lemma InterpExprs_Block_Equiv_Strong(stmts: seq<Expr>, env: Environment, ctx: State)
+    // TODO(SMH): at some point I used ``EqInterpResultValue_Strong`` in the ensures (which is
+    // just ``EqInterpResultValue_Strong`` specialized and inlined) but it made the `InductBlock_Succ`
+    // case fail in `EqInterpRefl.dfy` and `EqInterpScopes.dfy`, for no apparent reason.
+    ensures
+//      EqInterpResultValue_Strong(InterpBlock_Exprs(stmts, env, ctx), InterpExprs_Block(stmts, env, ctx))
+      match (InterpBlock_Exprs(stmts, env, ctx), InterpExprs_Block(stmts, env, ctx))
+        case (Success(Return(v, ctx1)), Success(Return(v', ctx1'))) => v == v' && ctx1 == ctx1'
+        case (Failure(_), Failure(_)) => true
+        case _ => false
+    // The utility function ``InterpExprs_Block`` is equivalent to ``InterpBlock_Exprs``.
+    // Note that here the equivalence is quite strong (for instance, both fail exactly at the same
+    // time).
+  {
     reveal InterpBlock_Exprs();
+    reveal InterpExprs_Block();
+    reveal InterpExprs();
 
-    // Evaluate the first expression
-    var res0 := InterpExprWithType(e, Types.Unit, env, ctx);
-    var res0' := InterpExprWithType(e', Types.Unit, env, ctx');
-    EqInterp_Inst(e, e', env, ctx, ctx');
+    var res := InterpBlock_Exprs(stmts, env, ctx);
+    var res' := InterpExprs_Block(stmts, env, ctx);
 
-    // We need to make a case disjunction on whether the length of the concatenated sequences is
-    // > 1 or not
-    if |tl'| >= 1 {
-      // The "regular" case
+    if stmts == [] {}
+    else if |stmts| == 1 {
+      var e := stmts[0];
+      assert stmts == [e];
 
-      // Evaluate the remaining expressions
-      if res0.Success? && res0.value.ret == V.Unit {
-        var Return(_, ctx0) := res0.value;
-        var Return(_, ctx0') := res0'.value;
+      var res1 := InterpExpr(e, env, ctx);
 
-        var res1 := InterpBlock_Exprs(tl, env, ctx0);
-        var res1' := InterpBlock_Exprs(tl', env, ctx0');
+      if res1.Success? {
+        var Return(v, ctx1) := res1.value;
 
-        EqInterpBlockExprs_Inst(tl, tl', env, ctx0, ctx0');
+        assert InterpExprs([], env, ctx1) == Success(Return([], ctx1));
+        assert InterpExprs(stmts, env, ctx) == Success(Return([v] + [], ctx1));
+
+        var vs := [v];
+        assert vs == [v] + [];
+
+        assert Seq.All((v: Interp.Value) => v.HasType(Types.Unit), vs[0..(|vs|-1)]);
+        assert vs[|vs| - 1] == v;
+
+        assert res == res1;
+        assert res' == res1;
       }
       else {
         // Trivial
       }
     }
     else {
-      // Degenerate case
-      assert |tl'| == 0;
+      var e := stmts[0];
+      var stmts' := stmts[1..];
 
-      if res0.Success? {
-        var Return(v, ctx0) := res0.value;
-        var Return(v', ctx0') := res0'.value;
+      var res1 := InterpExpr(e, env, ctx);
+      if res1.Success? {
+        var Return(v, ctx1) := res1.value;
 
-        if v == V.Unit {
-          assert v' == V.Unit;
-          EqInterpBlockExprs_Inst(tl, tl', env, ctx0, ctx0');
+        InterpExprs_Block_Equiv_Strong(stmts', env, ctx1);
+
+        var res2 := InterpExprs(stmts', env, ctx1);
+        if res2.Success? {
+          var Return(vs, ctx2) := res2.value;
+          
+          var vs' := [v] + vs;
+          assert vs == vs'[1..];
+          assert v == vs'[0];
         }
         else {
-          // Trivial case:
-          assert v' != V.Unit;
-          var res := InterpBlock_Exprs([e] + tl, env, ctx);
-          assert res.Failure?;
+          // Trivial
         }
       }
       else {
