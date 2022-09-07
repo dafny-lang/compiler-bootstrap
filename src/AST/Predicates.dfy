@@ -126,7 +126,7 @@ abstract module Base {
           && All_Expr(body, P)
         case If(cond, thn, els) =>
           All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
-        case Unsupported(_) => true
+        case Unsupported(_, _) => true
       }
     }
 
@@ -144,7 +144,7 @@ abstract module Base {
           && All_Expr(body, P)
         case If(cond, thn, els) =>
           All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
-        case Unsupported(_) => true
+        case Unsupported(_, _) => true
       }
     }
 

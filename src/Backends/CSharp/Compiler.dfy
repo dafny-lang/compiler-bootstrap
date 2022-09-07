@@ -243,7 +243,7 @@ module Compiler {
                       Str("} else {"),
                       SepSeq(Lib.Datatypes.None, [Str("  "), cEls]),
                       Str("}")])
-      case Unsupported(_) => Unsupported
+      case Unsupported(_, _) => Unsupported
     }
   }
 

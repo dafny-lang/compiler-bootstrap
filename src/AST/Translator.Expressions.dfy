@@ -206,6 +206,7 @@ module Bootstrap.AST.Translator.Expressions {
   function method TranslateLiteral(l: C.LiteralExpr)
     : (e: TranslationResult<Expr>)
     reads *
+    decreases ASTHeight(l), 1
   {
     if l.Value is Boolean then
       Success(DE.Literal(DE.LitBool(TypeConv.AsBool(l.Value))))
@@ -224,7 +225,7 @@ module Bootstrap.AST.Translator.Expressions {
       else
         Failure(Invalid("LiteralExpr with .Value of type string must be a char or a string."))
     else
-      Success(DE.Unsupported("Unsupported literal"))
+      TranslateUnsupportedExpression(l)
   }
 
   function method TranslateApplyExpr(ae: C.ApplyExpr)
@@ -455,7 +456,7 @@ module Bootstrap.AST.Translator.Expressions {
     if c is C.IdentifierExpr then
       TranslateIdentifierExpr(c as C.IdentifierExpr)
     else if c is C.ConversionExpr then
-      Success(DE.Unsupported("conversion expr"))
+      TranslateUnsupportedExpression(c)
     else if c is C.UnaryExpr then
       TranslateUnary(c as C.UnaryExpr)
     else if c is C.BinaryExpr then
@@ -486,7 +487,18 @@ module Bootstrap.AST.Translator.Expressions {
       TranslateITEExpr(c as C.ITEExpr)
     else if c is C.ConcreteSyntaxExpression then
       TranslateConcreteSyntaxExpression(c as C.ConcreteSyntaxExpression)
-    else Success(DE.Unsupported("Unsupported expression"))
+    else TranslateUnsupportedExpression(c)
+  }
+
+  function method TranslateUnsupportedExpression(ue: C.Expression)
+    : (e: TranslationResult<Expr>)
+    reads *
+    decreases ASTHeight(ue), 0
+  {
+    var children := []; // TODO: ListUtils.ToSeq(ue.SubExpressions);
+    var children' :- Seq.MapResult(children, e requires e in children reads * =>
+      assume Decreases(e, ue); TranslateExpression(e));
+    Success(DE.Unsupported("Unsupported expression", children'))
   }
 
   // TODO: adapt auto-generated AST to include some nullable fields
@@ -546,7 +558,7 @@ module Bootstrap.AST.Translator.Expressions {
                   else if p is C.ExpectStmt then
                     Success(DE.Expect)
                   else
-                    Failure(UnsupportedStmt(p));
+                    Failure(Invalid("Unsupported predicate statement type"));
     var e :- TranslateExpression(p.Expr);
     Success(DE.Apply(DE.Eager(DE.Builtin(DE.BuiltinFunction.Predicate(predTy))), [e]))
   }
@@ -564,8 +576,24 @@ module Bootstrap.AST.Translator.Expressions {
       TranslateIfStmt(s as C.IfStmt)
     else if s is C.PredicateStmt then
       TranslatePredicateStmt(s as C.PredicateStmt)
-    else Success(DE.Unsupported("Unsupported statement"))
+    else
+      TranslateUnsupportedStatement(s)
   }
+
+  function method TranslateUnsupportedStatement(us: C.Statement)
+    : (e: TranslationResult<Expr>)
+    reads *
+    decreases ASTHeight(us), 0
+  {
+    var subexprs := []; // TODO: ListUtils.ToSeq(ue.SubExpressions);
+    var substmts := []; // TODO: ListUtils.ToSeq(ue.SubStatements);
+    var subexprs' :- Seq.MapResult(subexprs, e requires e in subexprs reads * =>
+      assume Decreases(e, us); TranslateExpression(e));
+    var substmts' :- Seq.MapResult(substmts, s requires s in substmts reads * =>
+      assume Decreases(s, us); TranslateStatement(s));
+    Success(DE.Unsupported("Unsupported expression", subexprs' + substmts'))
+  }
+
 
   // TODO: adapt auto-generated AST to include some nullable fields
   function method TranslateOptionalStatement(s: C.Statement): TranslationResult<Option<Expr>>

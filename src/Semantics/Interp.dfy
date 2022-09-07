@@ -40,7 +40,7 @@ module Bootstrap.Semantics.Interp {
       case Bind(vars, vals, body) => true
       case Block(stmts) => true
       case If(cond, thn, els) => true
-      case Unsupported(_) => false
+      case Unsupported(_, _) => false
     }
   }
 
