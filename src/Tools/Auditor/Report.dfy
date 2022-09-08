@@ -49,7 +49,8 @@ module AuditReport {
   //// Tag categorization ////
 
   predicate method IsAssumption(ts: set<Tag>) {
-    || (IsSubsetType in ts && HasNoWitness in ts)
+    // This seems to be of little value at the moment
+    // || (IsSubsetType in ts && HasNoWitness in ts)
     || HasAxiomAttribute in ts
     || (&& IsCallable in ts
         && (|| (HasEnsuresClause in ts && (HasNoBody in ts || HasExternAttribute in ts))
@@ -84,9 +85,11 @@ module AuditReport {
     MaybeElt(HasExternAttribute in ts && HasEnsuresClause in ts,
       ("Extern symbol with postcondition.",
        "Provide a model or a test case, or both.")) +
+       /*
     MaybeElt(IsSubsetType in ts && HasNoWitness in ts,
       ("Subset type has no witness and could be empty.",
        "Provide a witness.")) +
+       */
     MaybeElt(HasAxiomAttribute in ts,
       ("Has explicit `{:axiom}` attribute.",
        "Attempt to provide a proof or model.")) +
