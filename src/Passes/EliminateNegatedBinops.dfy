@@ -1,4 +1,4 @@
-include "../Interop/CSharpDafnyASTModel.dfy"
+  include "../Interop/CSharpDafnyASTModel.dfy"
 include "../Interop/CSharpInterop.dfy"
 include "../Interop/CSharpDafnyInterop.dfy"
 include "../Interop/CSharpDafnyASTInterop.dfy"
@@ -41,16 +41,16 @@ module Bootstrap.Passes.EliminateNegatedBinops {
     // FlipNegatedBinop and the body of ``IsNegatedBinop``.
   {
     match op
-      case Eq(NeqCommon) => BinaryOps.Eq(BinaryOps.EqCommon)
-      case Sequences(SeqNeq) => BinaryOps.Sequences(BinaryOps.SeqEq)
-      case Sequences(NotInSeq) => BinaryOps.Sequences(BinaryOps.InSeq)
-      case Sets(SetNeq) => BinaryOps.Sets(BinaryOps.SetEq)
-      case Sets(NotInSet) => BinaryOps.Sets(BinaryOps.InSet)
-      case Multisets(MultisetNeq) => BinaryOps.Multisets(BinaryOps.MultisetEq)
-      case Multisets(NotInMultiset) => BinaryOps.Multisets(BinaryOps.InMultiset)
-      case Maps(MapNeq) => BinaryOps.Maps(BinaryOps.MapEq)
-      case Maps(NotInMap) => BinaryOps.Maps(BinaryOps.InMap)
-      case _ => op
+    case Eq(NeqCommon) => BinaryOps.Eq(BinaryOps.EqCommon)
+    case Sequences(SeqNeq) => BinaryOps.Sequences(BinaryOps.SeqEq)
+    case Sequences(NotInSeq) => BinaryOps.Sequences(BinaryOps.InSeq)
+    case Sets(SetNeq) => BinaryOps.Sets(BinaryOps.SetEq)
+    case Sets(NotInSet) => BinaryOps.Sets(BinaryOps.InSet)
+    case Multisets(MultisetNeq) => BinaryOps.Multisets(BinaryOps.MultisetEq)
+    case Multisets(NotInMultiset) => BinaryOps.Multisets(BinaryOps.InMultiset)
+    case Maps(MapNeq) => BinaryOps.Maps(BinaryOps.MapEq)
+    case Maps(NotInMap) => BinaryOps.Maps(BinaryOps.InMap)
+    case _ => op
   }
 
   // TODO(SMH): add a "_Single" prefix
@@ -105,22 +105,22 @@ module Bootstrap.Passes.EliminateNegatedBinops {
   }
 
   lemma FlipNegatedBinop_Binop_Rel(
-    e: Interp.Expr, e': Interp.Expr, op: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
-  )
+      e: Interp.Expr, e': Interp.Expr, op: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
+    )
     requires IsNegatedBinop(op)
     requires EagerOpSupportsInterp(Exprs.BinaryOp(op))
     requires EqValue(v0, v0')
     requires EqValue(v1, v1')
     ensures (
-      match (InterpBinaryOp(e, op, v0, v1), InterpBinaryOp(e', FlipNegatedBinop(op), v0', v1'))
-        case (Success(b), Success(b')) =>
-          && b.Bool?
-          && b'.Bool?
-          && b.b == ! b'.b
-        case (Failure(_), Failure(_)) =>
-          true
-        case _ =>
-          false)
+              match (InterpBinaryOp(e, op, v0, v1), InterpBinaryOp(e', FlipNegatedBinop(op), v0', v1'))
+              case (Success(b), Success(b')) =>
+                && b.Bool?
+                && b'.Bool?
+                && b.b == ! b'.b
+              case (Failure(_), Failure(_)) =>
+                true
+              case _ =>
+                false)
   {
     reveal InterpBinaryOp();
     EqValue_HasEqValue_Eq(v0, v0');
@@ -130,10 +130,10 @@ module Bootstrap.Passes.EliminateNegatedBinops {
   lemma FlipNegatedBinop_Single_Rel(op: BinaryOp, args: seq<Expr>)
     requires IsNegatedBinop(op)
     ensures (
-      var e := Exprs.Apply(Exprs.Eager(Exprs.BinaryOp(op)), args);
-      var e' := FlipNegatedBinop_Single(op, args);
-      Tr_Expr_Rel(e, e')
-    )
+              var e := Exprs.Apply(Exprs.Eager(Exprs.BinaryOp(op)), args);
+              var e' := FlipNegatedBinop_Single(op, args);
+              Tr_Expr_Rel(e, e')
+            )
   {
     reveal InterpExpr();
     reveal InterpFunctionCall();

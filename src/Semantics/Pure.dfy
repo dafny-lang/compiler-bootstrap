@@ -1,4 +1,4 @@
-include "../Interop/CSharpDafnyASTModel.dfy"
+  include "../Interop/CSharpDafnyASTModel.dfy"
 include "../Interop/CSharpInterop.dfy"
 include "../Interop/CSharpDafnyInterop.dfy"
 include "../Interop/CSharpDafnyASTInterop.dfy"
@@ -25,26 +25,26 @@ module Bootstrap.Semantics.Pure {
   predicate method IsPure_Single(e: Syntax.Expr)
   {
     match e
-      case Var(_) => true
-      case Literal(_) => true
-      case Abs(_, _) => true
-      case Apply(aop, _) =>
-        match aop {
-          case Lazy(lOp) => true
-          case Eager(eOp) =>
-            match eOp {
-              case UnaryOp(_) => true
-              case BinaryOp(_) => true
-              case TernaryOp(_) => true
-              case Builtin(Display(_)) => true
-              case Builtin(Print) => false // For now, we actually don't model the fact that `Print` has side effects
-              case FunctionCall() => true // TODO(SMH): ok for now because we only have terminating, pure functions
-              case DataConstructor(_, _) => true
-            }
-        }
-      case Block(_) => true
-      case Bind(_, _, _) => true
-      case If(_, _, _) => true
+    case Var(_) => true
+    case Literal(_) => true
+    case Abs(_, _) => true
+    case Apply(aop, _) =>
+      match aop {
+        case Lazy(lOp) => true
+        case Eager(eOp) =>
+          match eOp {
+            case UnaryOp(_) => true
+            case BinaryOp(_) => true
+            case TernaryOp(_) => true
+            case Builtin(Display(_)) => true
+            case Builtin(Print) => false // For now, we actually don't model the fact that `Print` has side effects
+            case FunctionCall() => true // TODO(SMH): ok for now because we only have terminating, pure functions
+            case DataConstructor(_, _) => true
+          }
+      }
+    case Block(_) => true
+    case Bind(_, _, _) => true
+    case If(_, _, _) => true
   }
 
   predicate method {:opaque} IsPure(e: Syntax.Expr) {
@@ -68,19 +68,19 @@ module Bootstrap.Semantics.Pure {
     reveal IsPure();
     reveal InterpExpr();
     match e
-      case Var(v) =>
-      case Abs(vars, body) => {}
-      case Literal(lit) => {}
-      case Apply(Lazy(op), args) =>
-        InterpExpr_Lazy_IsPure_SameState(e, env, ctx);
-      case Apply(Eager(op), args) =>
-        InterpExpr_Eager_IsPure_SameState(e, env, ctx);
-      case Bind(vars, exprs, body) =>
-        assume false; // TODO: prove
-      case Block(stmts) =>
-        InterpExpr_Block_IsPure_SameState(e, env, ctx);
-      case If(cond, thn, els) =>
-        InterpExpr_If_IsPure_SameState(e, env, ctx);
+    case Var(v) =>
+    case Abs(vars, body) => {}
+    case Literal(lit) => {}
+    case Apply(Lazy(op), args) =>
+      InterpExpr_Lazy_IsPure_SameState(e, env, ctx);
+    case Apply(Eager(op), args) =>
+      InterpExpr_Eager_IsPure_SameState(e, env, ctx);
+    case Bind(vars, exprs, body) =>
+      assume false; // TODO: prove
+    case Block(stmts) =>
+      InterpExpr_Block_IsPure_SameState(e, env, ctx);
+    case If(cond, thn, els) =>
+      InterpExpr_If_IsPure_SameState(e, env, ctx);
   }
 
   lemma InterpExprWithType_IsPure_SameState(e: PureExpr, ty: Type, env: Environment, ctx: State)
@@ -103,7 +103,7 @@ module Bootstrap.Semantics.Pure {
     reveal InterpExpr();
     reveal IsPure();
     reveal InterpLazy();
-    
+
     var op, e0, e1 := e.aop.lOp, e.args[0], e.args[1];
     var res0 := InterpExprWithType(e0, Type.Bool, env, ctx);
     if res0.Success? {

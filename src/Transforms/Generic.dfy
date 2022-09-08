@@ -1,4 +1,4 @@
-include "../AST/Syntax.dfy"
+  include "../AST/Syntax.dfy"
 
 module Bootstrap.Transforms.Generic {
   import opened AST.Syntax

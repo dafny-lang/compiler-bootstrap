@@ -1,4 +1,4 @@
-include "../Interop/CSharpDafnyASTModel.dfy"
+  include "../Interop/CSharpDafnyASTModel.dfy"
 include "../Interop/CSharpInterop.dfy"
 include "../Interop/CSharpDafnyInterop.dfy"
 include "../Interop/CSharpDafnyASTInterop.dfy"
@@ -30,10 +30,10 @@ module Bootstrap.Transforms.BottomUp {
     // - `e'` satisfies the pre of `f`
   {
     forall e, e' ::
-       && Exprs.ConstructorsMatch(e, e')
-       && f.requires(e)
-       && Deep.AllChildren_Expr(e', post)
-       ==> f.requires(e')
+    && Exprs.ConstructorsMatch(e, e')
+    && f.requires(e)
+    && Deep.AllChildren_Expr(e', post)
+    ==> f.requires(e')
   }
 
   predicate TransformerMatchesPrePost(f: Expr --> Expr, post: Expr -> bool)
@@ -47,7 +47,7 @@ module Bootstrap.Transforms.BottomUp {
     // - `f(e)` deeply satisfies the post of `f`
   {
     forall e: Expr | Deep.AllChildren_Expr(e, post) && f.requires(e) ::
-      Deep.All_Expr(f(e), post)
+                                                       Deep.All_Expr(f(e), post)
   }
 
   // FIXME(CPC) move?
@@ -63,10 +63,10 @@ module Bootstrap.Transforms.BottomUp {
     // can relate `e` and `f(e')` with `rel`.
   {
     forall e, e' ::
-       && Exprs.ConstructorsMatch(e, e')
-       && f.requires(e')
-       && All_Rel_Forall(rel, e.Children(), e'.Children())
-       ==> rel(e, f(e'))
+    && Exprs.ConstructorsMatch(e, e')
+    && f.requires(e')
+    && All_Rel_Forall(rel, e.Children(), e'.Children())
+    ==> rel(e, f(e'))
   }
 
   predicate IsBottomUpTransformer(f: Expr --> Expr, post: Expr -> bool)
@@ -104,9 +104,9 @@ module Bootstrap.Transforms.BottomUp {
     // and can be lifted through the map function.
   {
     forall e, e' ::
-       && Exprs.ConstructorsMatch(e, e')
-       && All_Rel_Forall(rel, e.Children(), e'.Children())
-       ==> rel(e, e')
+    && Exprs.ConstructorsMatch(e, e')
+    && All_Rel_Forall(rel, e.Children(), e'.Children())
+    ==> rel(e, e')
   }
 
   // A bottom-up transformer, i.e.: a transformer we can recursively apply bottom-up to
@@ -507,9 +507,9 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     requires EqCtx(cv.ctx, cv'.ctx)
     requires EqInterp(cv.body, cv'.body)
     ensures
-        var res := InterpCallFunctionBody(cv, env, argvs);
-        var res' := InterpCallFunctionBody(cv', env, argvs');
-        EqPureInterpResultValue(res, res')
+      var res := InterpCallFunctionBody(cv, env, argvs);
+      var res' := InterpCallFunctionBody(cv', env, argvs');
+      EqPureInterpResultValue(res, res')
   {
     var res := InterpCallFunctionBody(cv, env, argvs);
     var res' := InterpCallFunctionBody(cv', env, argvs');
@@ -644,8 +644,8 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
 
   // TODO: e and e' should be the same actually
   lemma EqInterp_Expr_UnaryOp_CanBeMapLifted(
-    e: Interp.Expr, e': Interp.Expr, op: UnaryOp, v: WV, v': WV
-  )
+      e: Interp.Expr, e': Interp.Expr, op: UnaryOp, v: WV, v': WV
+    )
     requires !op.MemberSelect?
     requires EqValue(v, v')
     ensures EqPureInterpResultValue(InterpUnaryOp(e, op, v), InterpUnaryOp(e', op, v'))
@@ -703,8 +703,8 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
   // but it is a bit annoying to do...
   // TODO: e and e' should be the same actually
   lemma EqInterp_Expr_BinaryOp_CanBeMapLifted(
-    e: Interp.Expr, e': Interp.Expr, bop: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
-  )
+      e: Interp.Expr, e': Interp.Expr, bop: BinaryOp, v0: WV, v1: WV, v0': WV, v1': WV
+    )
     requires !bop.BV? && !bop.Datatypes?
     requires EqValue(v0, v0')
     requires EqValue(v1, v1')
@@ -876,8 +876,8 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
 
   // TODO: e and e' should be the same actually
   lemma EqInterp_Expr_TernaryOp_CanBeMapLifted(
-    e: Interp.Expr, e': Interp.Expr, top: TernaryOp, v0: WV, v1: WV, v2: WV, v0': WV, v1': WV, v2': WV
-  )
+      e: Interp.Expr, e': Interp.Expr, top: TernaryOp, v0: WV, v1: WV, v2: WV, v0': WV, v1': WV, v2': WV
+    )
     requires EqValue(v0, v0')
     requires EqValue(v1, v1')
     requires EqValue(v2, v2')
@@ -900,8 +900,8 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
   }
 
   lemma EqInterp_Expr_Display_CanBeMapLifted(
-    e: Interp.Expr, e': Interp.Expr, kind: Types.CollectionKind, vs: seq<WV>, vs': seq<WV>
-  )
+      e: Interp.Expr, e': Interp.Expr, kind: Types.CollectionKind, vs: seq<WV>, vs': seq<WV>
+    )
     requires EqSeqValue(vs, vs')
     ensures EqPureInterpResultValue(InterpDisplay(e, kind, vs), InterpDisplay(e', kind, vs'))
   {
@@ -950,8 +950,8 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
   }
 
   lemma EqInterp_Expr_FunctionCall_CanBeMapLifted(
-    e: Interp.Expr, e': Interp.Expr, env: Environment, f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>
-  )
+      e: Interp.Expr, e': Interp.Expr, env: Environment, f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>
+    )
     requires EqValue(f, f')
     requires EqSeqValue(argvs, argvs')
     ensures EqPureInterpResultValue(InterpFunctionCall(e, env, f, argvs),
@@ -1070,7 +1070,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     var res' := InterpBlock_Exprs(es', env, ctx');
 
     if es == [] {
-      // Trivial 
+      // Trivial
     }
     else if |es| == 1 {
       assert es == [es[0]];
@@ -1136,9 +1136,9 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
   {
     forall e, e'
       ensures
-         (&& Exprs.ConstructorsMatch(e, e')
-          && All_Rel_Forall(EqInterp, e.Children(), e'.Children()))
-          ==> EqInterp(e, e')
+        (&& Exprs.ConstructorsMatch(e, e')
+         && All_Rel_Forall(EqInterp, e.Children(), e'.Children()))
+        ==> EqInterp(e, e')
     {
       if && Exprs.ConstructorsMatch(e, e')
          && All_Rel_Forall(EqInterp, e.Children(), e'.Children()) {
@@ -1147,7 +1147,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
           assert SupportsInterp(e');
 
           forall env, ctx, ctx' | EqState(ctx, ctx') ensures
-            EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e', env, ctx')) {
+              EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e', env, ctx')) {
             reveal EqInterp_CanBeMapLifted_Pre();
             reveal EqInterp_CanBeMapLifted_Post();
             EqInterp_Expr_CanBeMapLifted(e, e', env, ctx, ctx');
@@ -1158,7 +1158,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
       else {}
     }
   }
-  
+
   // TODO(SMH): move? (or even remove?)
   lemma EqInterp_CanBeComposed(f: Expr --> Expr, g: Expr --> Expr)
     requires TransformerShallowPreservesRel(f, EqInterp)
@@ -1180,8 +1180,8 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     // It is enough to prove that `f` links its input and output with ``EqInterp``
     // to be able to lift it through map.
   {
-     EqInterp_IsTransitive();
-     EqInterp_CanBeMapLifted();
-     TransformationAndRel_Lift(f, EqInterp); 
+    EqInterp_IsTransitive();
+    EqInterp_CanBeMapLifted();
+    TransformationAndRel_Lift(f, EqInterp);
   }
 }

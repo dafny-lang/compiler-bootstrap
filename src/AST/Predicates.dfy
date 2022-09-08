@@ -1,213 +1,213 @@
 include "Syntax.dfy"
 
 module Bootstrap.AST.Predicates {
-module Shallow {
-  import opened Utils.Lib
-  import opened Syntax
+  module Shallow {
+    import opened Utils.Lib
+    import opened Syntax
 
-  function method All_Method(m: Method, P: Expr -> bool) : bool {
-    match m {
-      case Method(CompileName_, methodBody) => P(methodBody)
+    function method All_Method(m: Method, P: Expr -> bool) : bool {
+      match m {
+        case Method(CompileName_, methodBody) => P(methodBody)
+      }
+    }
+
+    function method All_Program(p: Program, P: Expr -> bool) : bool {
+      match p {
+        case Program(mainMethod) => All_Method(mainMethod, P)
+      }
+    }
+
+    function method All(p: Program, P: Expr -> bool) : bool {
+      All_Program(p, P)
     }
   }
 
-  function method All_Program(p: Program, P: Expr -> bool) : bool {
-    match p {
-      case Program(mainMethod) => All_Method(mainMethod, P)
+  module DeepImpl {
+    abstract module Base {
+      import opened Utils.Lib
+      import opened Syntax
+      import Shallow
+
+      //
+      // Functions
+      //
+
+      function method AllChildren_Expr(e: Expr, P: Expr -> bool) : bool
+        decreases e.Depth(), 0
+
+      function method All_Expr(e: Expr, P: Expr -> bool)
+        : (b: bool)
+        decreases e.Depth(), 1
+
+      function method All_Method(m: Method, P: Expr -> bool) : bool {
+        Shallow.All_Method(m, e => All_Expr(e, P))
+      }
+
+      function method All_Program(p: Program, P: Expr -> bool) : bool {
+        Shallow.All_Program(p, e => All_Expr(e, P))
+      }
+
+      //
+      // Lemmas
+      //
+
+      // This lemma allows callers to force one level of unfolding of All_Expr
+      lemma AllImpliesChildren(e: Expr, p: Expr -> bool)
+        requires All_Expr(e, p)
+        ensures AllChildren_Expr(e, p)
+
+      lemma AllChildren_Expr_weaken(e: Exprs.T, P: Exprs.T -> bool, Q: Exprs.T -> bool)
+        requires AllChildren_Expr(e, P)
+        requires forall e' :: P(e') ==> Q(e')
+        decreases e, 0
+        ensures AllChildren_Expr(e, Q)
+
+      lemma All_Expr_weaken(e: Exprs.T, P: Exprs.T -> bool, Q: Exprs.T -> bool)
+        requires All_Expr(e, P)
+        requires forall e' :: P(e') ==> Q(e')
+        decreases e, 1
+        ensures All_Expr(e, Q)
+
+      lemma All_Expr_True(e: Expr, f: Expr -> bool)
+        requires forall e :: f(e)
+        ensures All_Expr(e, f)
+        decreases e, 1
+
+      lemma AllChildren_Expr_True(e: Expr, f: Expr -> bool)
+        requires forall e :: f(e)
+        ensures AllChildren_Expr(e, f)
+        decreases e, 0
+
+      lemma All_Expr_True_Forall(f: Expr -> bool)
+        requires forall e :: f(e)
+        ensures forall e :: All_Expr(e, f)
     }
-  }
 
-  function method All(p: Program, P: Expr -> bool) : bool {
-    All_Program(p, P)
-  }
-}
+    module Rec refines Base { // DISCUSS
+      function method All_Expr(e: Expr, P: Expr -> bool) : (b: bool) {
+        P(e) &&
+        // BUG(https://github.com/dafny-lang/dafny/issues/2107)
+        // BUG(https://github.com/dafny-lang/dafny/issues/2109)
+        // Duplicated to avoid mutual recursion with AllChildren_Expr
+        match e {
+          case Var(_) => true
+          case Literal(lit) => true
+          case Abs(vars, body) => All_Expr(body, P)
+          case Apply(_, exprs) =>
+            Seq.All(e requires e in exprs => All_Expr(e, P), exprs)
+          case Block(exprs) =>
+            Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
+          case Bind(vars, vals, body) =>
+            && Seq.All((e requires e in vals => All_Expr(e, P)), vals)
+            && All_Expr(body, P)
+          case If(cond, thn, els) =>
+            All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
+        }
+      }
 
-module DeepImpl {
-abstract module Base {
-  import opened Utils.Lib
-  import opened Syntax
-  import Shallow
+      function method AllChildren_Expr(e: Expr, P: Expr -> bool) : bool {
+        match e {
+          case Var(_) => true
+          case Literal(lit) => true
+          case Abs(vars, body) => All_Expr(body, P)
+          case Apply(_, exprs) =>
+            Seq.All(e requires e in exprs => All_Expr(e, P), exprs)
+          case Block(exprs) =>
+            Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
+          case Bind(vars, vals, body) =>
+            && Seq.All((e requires e in vals => All_Expr(e, P)), vals)
+            && All_Expr(body, P)
+          case If(cond, thn, els) =>
+            All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
+        }
+      }
 
-  //
-  // Functions
-  //
+      lemma AllImpliesChildren ... {}
 
-  function method AllChildren_Expr(e: Expr, P: Expr -> bool) : bool
-    decreases e.Depth(), 0
+      lemma All_Expr_weaken ... {
+        AllChildren_Expr_weaken(e, P, Q);
+      }
 
-  function method All_Expr(e: Expr, P: Expr -> bool)
-    : (b: bool)
-    decreases e.Depth(), 1
+      lemma AllChildren_Expr_weaken ... { // NEAT
+        forall e' | e' in e.Children() { All_Expr_weaken(e', P, Q); }
+      }
 
-  function method All_Method(m: Method, P: Expr -> bool) : bool {
-    Shallow.All_Method(m, e => All_Expr(e, P))
-  }
+      lemma All_Expr_True ... {
+        AllChildren_Expr_True(e, f);
+      }
 
-  function method All_Program(p: Program, P: Expr -> bool) : bool {
-    Shallow.All_Program(p, e => All_Expr(e, P))
-  }
+      lemma AllChildren_Expr_True ... {
+        forall e' | e' in e.Children() { All_Expr_True(e', f); }
+      }
 
-  //
-  // Lemmas
-  //
+      lemma All_Expr_True_Forall ... {
+        forall e ensures All_Expr(e, f) {
+          All_Expr_True(e, f);
+        }
+      }
 
-  // This lemma allows callers to force one level of unfolding of All_Expr
-  lemma AllImpliesChildren(e: Expr, p: Expr -> bool)
-    requires All_Expr(e, p)
-    ensures AllChildren_Expr(e, p)
+    }
 
-  lemma AllChildren_Expr_weaken(e: Exprs.T, P: Exprs.T -> bool, Q: Exprs.T -> bool)
-    requires AllChildren_Expr(e, P)
-    requires forall e' :: P(e') ==> Q(e')
-    decreases e, 0
-    ensures AllChildren_Expr(e, Q)
-
-  lemma All_Expr_weaken(e: Exprs.T, P: Exprs.T -> bool, Q: Exprs.T -> bool)
-    requires All_Expr(e, P)
-    requires forall e' :: P(e') ==> Q(e')
-    decreases e, 1
-    ensures All_Expr(e, Q)
-
-  lemma All_Expr_True(e: Expr, f: Expr -> bool)
-    requires forall e :: f(e)
-    ensures All_Expr(e, f)
-    decreases e, 1
-
-  lemma AllChildren_Expr_True(e: Expr, f: Expr -> bool)
-    requires forall e :: f(e)
-    ensures AllChildren_Expr(e, f)
-    decreases e, 0
-
-  lemma All_Expr_True_Forall(f: Expr -> bool)
-    requires forall e :: f(e)
-    ensures forall e :: All_Expr(e, f)
-}
-
-  module Rec refines Base { // DISCUSS
-    function method All_Expr(e: Expr, P: Expr -> bool) : (b: bool) {
-      P(e) &&
+    module NonRec refines Base {
       // BUG(https://github.com/dafny-lang/dafny/issues/2107)
       // BUG(https://github.com/dafny-lang/dafny/issues/2109)
-      // Duplicated to avoid mutual recursion with AllChildren_Expr
-      match e {
-        case Var(_) => true
-        case Literal(lit) => true
-        case Abs(vars, body) => All_Expr(body, P)
-        case Apply(_, exprs) =>
-          Seq.All(e requires e in exprs => All_Expr(e, P), exprs)
-        case Block(exprs) =>
-          Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
-        case Bind(vars, vals, body) =>
-          && Seq.All((e requires e in vals => All_Expr(e, P)), vals)
-          && All_Expr(body, P)
-        case If(cond, thn, els) =>
-          All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
+      function method All_Expr(e: Expr, P: Expr -> bool) : (b: bool) {
+        P(e) && forall e' | e' in e.Children() :: All_Expr(e', P)
+      }
+
+      function method AllChildren_Expr(e: Expr, P: Expr -> bool) : bool {
+        forall e' | e' in e.Children() :: All_Expr(e', P)
+      }
+
+      lemma AllImpliesChildren ... {}
+
+      lemma AllChildren_Expr_weaken ... {
+        forall e' | e' in e.Children() { All_Expr_weaken(e', P, Q); }
+      }
+
+      lemma All_Expr_weaken ... {
+        AllChildren_Expr_weaken(e, P, Q);
+      }
+
+      lemma All_Expr_True ... {
+        AllChildren_Expr_True(e, f);
+      }
+
+      lemma AllChildren_Expr_True ... {
+        forall e' | e' in e.Children() { All_Expr_True(e', f); }
+      }
+
+      lemma All_Expr_True_Forall ... {
+        forall e ensures All_Expr(e, f) {
+          All_Expr_True(e, f);
+        }
+      }
+
+    }
+
+    module Equiv {
+      import Rec
+      import NonRec
+      import opened Syntax
+
+      lemma AllChildren_Expr(e: Expr, P: Expr -> bool)
+        decreases e.Depth(), 0
+        ensures Rec.AllChildren_Expr(e, P) == NonRec.AllChildren_Expr(e, P)
+      {
+        forall e' | e' in e.Children() { All_Expr(e', P); }
+      }
+
+      lemma All_Expr(e: Expr, P: Expr -> bool)
+        decreases e.Depth(), 1
+        ensures Rec.All_Expr(e, P) == NonRec.All_Expr(e, P)
+      {
+        AllChildren_Expr(e, P);
       }
     }
-
-    function method AllChildren_Expr(e: Expr, P: Expr -> bool) : bool {
-      match e {
-        case Var(_) => true
-        case Literal(lit) => true
-        case Abs(vars, body) => All_Expr(body, P)
-        case Apply(_, exprs) =>
-          Seq.All(e requires e in exprs => All_Expr(e, P), exprs)
-        case Block(exprs) =>
-          Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
-        case Bind(vars, vals, body) =>
-          && Seq.All((e requires e in vals => All_Expr(e, P)), vals)
-          && All_Expr(body, P)
-        case If(cond, thn, els) =>
-          All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
-      }
-    }
-
-    lemma AllImpliesChildren ... {}
-
-    lemma All_Expr_weaken ... {
-      AllChildren_Expr_weaken(e, P, Q);
-    }
-
-    lemma AllChildren_Expr_weaken ... { // NEAT
-      forall e' | e' in e.Children() { All_Expr_weaken(e', P, Q); }
-    }
-
-    lemma All_Expr_True ... {
-      AllChildren_Expr_True(e, f);
-    }
-
-    lemma AllChildren_Expr_True ... {
-      forall e' | e' in e.Children() { All_Expr_True(e', f); }
-    }
-
-    lemma All_Expr_True_Forall ... {
-      forall e ensures All_Expr(e, f) {
-        All_Expr_True(e, f);
-      }
-    }
-
   }
-
-module NonRec refines Base {
-  // BUG(https://github.com/dafny-lang/dafny/issues/2107)
-  // BUG(https://github.com/dafny-lang/dafny/issues/2109)
-  function method All_Expr(e: Expr, P: Expr -> bool) : (b: bool) {
-    P(e) && forall e' | e' in e.Children() :: All_Expr(e', P)
-  }
-
-  function method AllChildren_Expr(e: Expr, P: Expr -> bool) : bool {
-    forall e' | e' in e.Children() :: All_Expr(e', P)
-  }
-
-  lemma AllImpliesChildren ... {}
-
-  lemma AllChildren_Expr_weaken ... {
-    forall e' | e' in e.Children() { All_Expr_weaken(e', P, Q); }
-  }
-
-  lemma All_Expr_weaken ... {
-    AllChildren_Expr_weaken(e, P, Q);
-  }
-
-  lemma All_Expr_True ... {
-    AllChildren_Expr_True(e, f);
-  }
-
-  lemma AllChildren_Expr_True ... {
-    forall e' | e' in e.Children() { All_Expr_True(e', f); }
-  }
-
-  lemma All_Expr_True_Forall ... {
-    forall e ensures All_Expr(e, f) {
-      All_Expr_True(e, f);
-    }
-  }
-
-}
-
-module Equiv {
-  import Rec
-  import NonRec
-  import opened Syntax
-
-  lemma AllChildren_Expr(e: Expr, P: Expr -> bool)
-    decreases e.Depth(), 0
-    ensures Rec.AllChildren_Expr(e, P) == NonRec.AllChildren_Expr(e, P)
-  {
-    forall e' | e' in e.Children() { All_Expr(e', P); }
-  }
-
-  lemma All_Expr(e: Expr, P: Expr -> bool)
-    decreases e.Depth(), 1
-    ensures Rec.All_Expr(e, P) == NonRec.All_Expr(e, P)
-  {
-    AllChildren_Expr(e, P);
-  }
-}
-}
 
   // Both implementations of Deep should work, but NonRec can be somewhat
   // simpler to work with.  If needed, use ``DeepImpl.Equiv.All_Expr`` to
   // switch between implementations.
-module Deep refines DeepImpl.NonRec {}
+  module Deep refines DeepImpl.NonRec {}
 }

@@ -1,4 +1,4 @@
-include "../Interop/CSharpDafnyASTModel.dfy"
+  include "../Interop/CSharpDafnyASTModel.dfy"
 include "../Interop/CSharpInterop.dfy"
 include "../Interop/CSharpDafnyInterop.dfy"
 include "../Interop/CSharpDafnyASTInterop.dfy"
@@ -45,8 +45,8 @@ module Bootstrap.Semantics.Equiv {
 
   // TODO: not sure it was worth making this opaque
   predicate {:opaque} GEqCtx(
-    eq_value: (WV,WV) -> bool, ctx: Context, ctx': Context
-  )
+      eq_value: (WV,WV) -> bool, ctx: Context, ctx': Context
+    )
     requires WellFormedContext(ctx)
     requires WellFormedContext(ctx')
   {
@@ -55,7 +55,7 @@ module Bootstrap.Semantics.Equiv {
   }
 
   predicate GEqState(
-    eq_value: (WV,WV) -> bool, ctx: State, ctx': State)
+      eq_value: (WV,WV) -> bool, ctx: State, ctx': State)
   {
     GEqCtx(eq_value, ctx.locals, ctx'.locals)
   }
@@ -66,7 +66,7 @@ module Bootstrap.Semantics.Equiv {
   }
 
   predicate GEqInterpResult<T(0)>(
-    eq_ctx: (State,State) -> bool, eq_value: (T,T) -> bool, res: InterpResult<T>, res': InterpResult<T>)
+      eq_ctx: (State,State) -> bool, eq_value: (T,T) -> bool, res: InterpResult<T>, res': InterpResult<T>)
     // Interpretation results are equivalent.
     // "G" stands for "generic".
     //
@@ -213,31 +213,31 @@ module Bootstrap.Semantics.Equiv {
     var Closure(ctx', vars', body') := v';
     && |vars| == |vars'|
     && (
-    forall env: Environment, argvs: seq<WV>, argvs': seq<WV> |
-      && |argvs| == |argvs'| == |vars| // no partial applications are allowed in Dafny
-      // We need the argument types to be smaller than the closure types, to prove termination.\
-      // In effect, the arguments types should be given by the closure's input types.
-      && (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs[i]) < ValueTypeHeight(v))
-      && (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs'[i]) < ValueTypeHeight(v'))
-      && (forall i | 0 <= i < |vars| :: EqValue(argvs[i], argvs'[i])) ::
-      var res := InterpCallFunctionBody(v, env, argvs);
-      var res' := InterpCallFunctionBody(v', env, argvs');
-      // We can't use naked functions in recursive setting: this forces us to write the expanded
-      // match rather than using an auxiliary function like `EqPureInterpResult`.
-      match (res, res') {
-        case (Success(ov), Success(ov')) =>
-          // We need to assume those assertions to prove termination: the value returned by a closure
-          // has a type which is smaller than the closure type (its type is given by the closure return
-          // type)
-          assume ValueTypeHeight(ov) < ValueTypeHeight(v);
-          assume ValueTypeHeight(ov') < ValueTypeHeight(v');
-          EqValue(ov, ov')
-        case (Failure(_), _) =>
-          true
-        case _ =>
-          false
-      }
-    )
+         forall env: Environment, argvs: seq<WV>, argvs': seq<WV> |
+         && |argvs| == |argvs'| == |vars| // no partial applications are allowed in Dafny
+            // We need the argument types to be smaller than the closure types, to prove termination.\
+            // In effect, the arguments types should be given by the closure's input types.
+         && (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs[i]) < ValueTypeHeight(v))
+         && (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs'[i]) < ValueTypeHeight(v'))
+         && (forall i | 0 <= i < |vars| :: EqValue(argvs[i], argvs'[i])) ::
+            var res := InterpCallFunctionBody(v, env, argvs);
+            var res' := InterpCallFunctionBody(v', env, argvs');
+            // We can't use naked functions in recursive setting: this forces us to write the expanded
+            // match rather than using an auxiliary function like `EqPureInterpResult`.
+            match (res, res') {
+              case (Success(ov), Success(ov')) =>
+                // We need to assume those assertions to prove termination: the value returned by a closure
+                // has a type which is smaller than the closure type (its type is given by the closure return
+                // type)
+                assume ValueTypeHeight(ov) < ValueTypeHeight(v);
+                assume ValueTypeHeight(ov') < ValueTypeHeight(v');
+                EqValue(ov, ov')
+              case (Failure(_), _) =>
+                true
+              case _ =>
+                false
+            }
+       )
   }
 
   lemma EqValue_Closure_EqInterp_FunctionCall(f: WV, f': WV, argvs: seq<WV>, argvs': seq<WV>, env: Environment)
@@ -267,7 +267,7 @@ module Bootstrap.Semantics.Equiv {
   }
 
   predicate EqInterpResult<T(0)>(
-    eq_value: (T,T) -> bool, res: InterpResult<T>, res': InterpResult<T>)
+      eq_value: (T,T) -> bool, res: InterpResult<T>, res': InterpResult<T>)
   {
     GEqInterpResult(Mk_EqState(EqValue), eq_value, res, res')
   }
@@ -371,28 +371,28 @@ module Bootstrap.Semantics.Equiv {
         var res' := InterpCallFunctionBody(v, env, argvs');
         EqPureInterpResultValue(res, res')
     {
-        var res := InterpCallFunctionBody(v, env, argvs);
-        var res' := InterpCallFunctionBody(v, env, argvs');
+      var res := InterpCallFunctionBody(v, env, argvs);
+      var res' := InterpCallFunctionBody(v, env, argvs');
 
-        assert EqCtx(ctx, ctx) by {
-          // It would be difficult to call a lemma like ``EqState_Refl`` here, because
-          // of termination issues. However, we have that the values in the closure context
-          // are smaller than the closure value itself, which allows us to recursively call
-          // ``EqValue``.
-          forall x | x in ctx ensures EqValue(ctx[x], ctx[x]) {
-            EqValue_Refl(ctx[x]);
-          }
-          reveal GEqCtx();
+      assert EqCtx(ctx, ctx) by {
+        // It would be difficult to call a lemma like ``EqState_Refl`` here, because
+        // of termination issues. However, we have that the values in the closure context
+        // are smaller than the closure value itself, which allows us to recursively call
+        // ``EqValue``.
+        forall x | x in ctx ensures EqValue(ctx[x], ctx[x]) {
+          EqValue_Refl(ctx[x]);
         }
+        reveal GEqCtx();
+      }
 
-        var ctx1 := BuildCallState(ctx, vars, argvs);
-        var ctx1' := BuildCallState(ctx, vars, argvs');
-        BuildCallState_EqState(ctx, ctx, vars, argvs, argvs');
-        assert EqState(ctx1, ctx1');
+      var ctx1 := BuildCallState(ctx, vars, argvs);
+      var ctx1' := BuildCallState(ctx, vars, argvs');
+      BuildCallState_EqState(ctx, ctx, vars, argvs, argvs');
+      assert EqState(ctx1, ctx1');
 
-        reveal InterpCallFunctionBody();
-        EqInterp_Expr_EqState(body, env, ctx1, ctx1');
-        assert EqPureInterpResultValue(res, res');
+      reveal InterpCallFunctionBody();
+      EqInterp_Expr_EqState(body, env, ctx1, ctx1');
+      assert EqPureInterpResultValue(res, res');
     }
     reveal EqValue_Closure();
   }
@@ -460,38 +460,38 @@ module Bootstrap.Semantics.Equiv {
         var res2 := InterpCallFunctionBody(v2, env, argvs2);
         EqPureInterpResultValue(res0, res2)
     {
-        var res0 := InterpCallFunctionBody(v0, env, argvs0);
-        var res2 := InterpCallFunctionBody(v2, env, argvs2);
+      var res0 := InterpCallFunctionBody(v0, env, argvs0);
+      var res2 := InterpCallFunctionBody(v2, env, argvs2);
 
-        // Termination issue: we need to assume that the arguments' types have the
-        // proper height. In practice, if the program is properly type checked, we
-        // have:
-        // - `TypeOf(v0) == TypeOf(v1) == TypeOf(v2)`
-        // - `forall i, TypeOf(argvs0[i]) == TypeOf(argvs2[i])1
-        // so the assumption is trivially true.
-        assume (forall i | 0 <= i < |vars0| :: ValueTypeHeight(argvs0[i]) < ValueTypeHeight(v1));
+      // Termination issue: we need to assume that the arguments' types have the
+      // proper height. In practice, if the program is properly type checked, we
+      // have:
+      // - `TypeOf(v0) == TypeOf(v1) == TypeOf(v2)`
+      // - `forall i, TypeOf(argvs0[i]) == TypeOf(argvs2[i])1
+      // so the assumption is trivially true.
+      assume (forall i | 0 <= i < |vars0| :: ValueTypeHeight(argvs0[i]) < ValueTypeHeight(v1));
 
-        forall i | 0 <= i < |vars0| ensures EqValue(argvs0[i], argvs0[i]) {
-          EqValue_Refl(argvs0[i]);
-        }
+      forall i | 0 <= i < |vars0| ensures EqValue(argvs0[i], argvs0[i]) {
+        EqValue_Refl(argvs0[i]);
+      }
 
-        var res1 := InterpCallFunctionBody(v1, env, argvs0);
-        if res0.Success? {
-          var ov0 := res0.value;
-          var ov1 := res1.value;
-          var ov2 := res2.value;
+      var res1 := InterpCallFunctionBody(v1, env, argvs0);
+      if res0.Success? {
+        var ov0 := res0.value;
+        var ov1 := res1.value;
+        var ov2 := res2.value;
 
-          // Termination - same as above: if the program is well-typed, this is
-          // trivially true.
-          assume ValueTypeHeight(ov0) < ValueTypeHeight(v0);
+        // Termination - same as above: if the program is well-typed, this is
+        // trivially true.
+        assume ValueTypeHeight(ov0) < ValueTypeHeight(v0);
 
-          EqValue_Trans(ov0, ov1, ov2);
+        EqValue_Trans(ov0, ov1, ov2);
 
-          assert EqPureInterpResultValue(res0, res2);
-        }
-        else {
-          // Trivial
-        }
+        assert EqPureInterpResultValue(res0, res2);
+      }
+      else {
+        // Trivial
+      }
     }
   }
 
@@ -521,8 +521,8 @@ module Bootstrap.Semantics.Equiv {
 
   lemma EqValue_HasEqValue_Eq_Forall()
     ensures forall v:WV, v':WV | EqValue(v, v') ::
-      && (HasEqValue(v) == HasEqValue(v'))
-      && (HasEqValue(v) ==> v == v')
+                                 && (HasEqValue(v) == HasEqValue(v'))
+                                 && (HasEqValue(v) ==> v == v')
     // This is one of the important lemmas for the proofs of equivalence.
     // The reason is that the interpreter often checks that some values
     // have a decidable equality (for instance, before inserting a value in
@@ -534,9 +534,9 @@ module Bootstrap.Semantics.Equiv {
   {
     forall v:WV, v':WV | EqValue(v, v')
       ensures
-      && (HasEqValue(v) == HasEqValue(v'))
-      && (HasEqValue(v) ==> v == v') {
-        EqValue_HasEqValue_Eq(v, v');
+        && (HasEqValue(v) == HasEqValue(v'))
+        && (HasEqValue(v) ==> v == v') {
+      EqValue_HasEqValue_Eq(v, v');
     }
   }
 
@@ -687,11 +687,11 @@ module Bootstrap.Semantics.Equiv {
     // This is the important, generic equivalence relation over expressions.
   {
     SupportsInterp(e) ==>
-    (&& SupportsInterp(e')
-     && forall env, ctx, ctx' | eq.eq_state(ctx, ctx') ::
-       GEqInterpResult(eq.eq_state, eq.eq_value,
-                       InterpExpr(e, env, ctx),
-                       InterpExpr(e', env, ctx')))
+      (&& SupportsInterp(e')
+       && forall env, ctx, ctx' | eq.eq_state(ctx, ctx') ::
+                                  GEqInterpResult(eq.eq_state, eq.eq_value,
+                                                  InterpExpr(e, env, ctx),
+                                                  InterpExpr(e', env, ctx')))
   }
 
   function Mk_EqInterp(eq: Equivs): (Expr, Expr) -> bool {
@@ -709,11 +709,11 @@ module Bootstrap.Semantics.Equiv {
   predicate EqInterpBlockExprs(es: seq<Exprs.T>, es': seq<Exprs.T>)
   {
     Seq_All(SupportsInterp, es) ==>
-    (&& Seq_All(SupportsInterp, es')
-     && forall env, ctx, ctx' | EqState(ctx, ctx') ::
-       EqInterpResultValue(
-                      InterpBlock_Exprs(es, env, ctx),
-                      InterpBlock_Exprs(es', env, ctx')))
+      (&& Seq_All(SupportsInterp, es')
+       && forall env, ctx, ctx' | EqState(ctx, ctx') ::
+                                  EqInterpResultValue(
+                                    InterpBlock_Exprs(es, env, ctx),
+                                    InterpBlock_Exprs(es', env, ctx')))
   }
 
   lemma EqInterp_Refl(e: Exprs.T)
@@ -723,8 +723,8 @@ module Bootstrap.Semantics.Equiv {
       forall env, ctx, ctx' | EqState(ctx, ctx')
         ensures
           EqInterpResultValue(
-                       InterpExpr(e, env, ctx),
-                       InterpExpr(e, env, ctx'))
+            InterpExpr(e, env, ctx),
+            InterpExpr(e, env, ctx'))
       {
         EqInterp_Expr_EqState(e, env, ctx, ctx');
       }
@@ -825,7 +825,7 @@ module Bootstrap.Semantics.Equiv {
     reveal InterpBlock_Exprs();
     if es == [] {}
     else {
-       // Evaluate the first expression
+      // Evaluate the first expression
       var res0 := InterpExprWithType(es[0], Types.Unit, env, ctx);
       var res0' := InterpExprWithType(es[0], Types.Unit, env, ctx');
       EqInterp_Refl(es[0]);
@@ -850,22 +850,22 @@ module Bootstrap.Semantics.Equiv {
     requires EqState(ctx, ctx')
     ensures SupportsInterp(e')
     ensures EqInterpResultValue(InterpExpr(e, env, ctx), InterpExpr(e', env, ctx'))
-  // We use this lemma because sometimes quantifiers are are not triggered.
+    // We use this lemma because sometimes quantifiers are are not triggered.
   {}
 
   lemma InterpExprs_GEqInterp_Inst(
-    eq: Equivs, es: seq<Expr>, es': seq<Expr>, env: Environment, ctx: State, ctx': State)
+      eq: Equivs, es: seq<Expr>, es': seq<Expr>, env: Environment, ctx: State, ctx': State)
     requires forall e | e in es :: SupportsInterp(e)
     requires All_Rel_Forall(Mk_EqInterp(eq), es, es')
     requires eq.eq_state(ctx, ctx')
     ensures forall e | e in es' :: SupportsInterp(e)
     ensures GEqInterpResultSeq(eq, InterpExprs(es, env, ctx), InterpExprs(es', env, ctx'))
-  // Auxiliary lemma: if two sequences contain equivalent expressions, evaluating those two
-  // sequences in equivalent contexts leads to equivalent results.
-  // This lemma is written generically over the equivalence relations over the states and
-  // values. We don't do this because it seems elegant: we do this as a desperate attempt
-  // to reduce the context size, while we are unable to use the `opaque` attribute on
-  // some definitions (``EqValue`` in particular).
+    // Auxiliary lemma: if two sequences contain equivalent expressions, evaluating those two
+    // sequences in equivalent contexts leads to equivalent results.
+    // This lemma is written generically over the equivalence relations over the states and
+    // values. We don't do this because it seems elegant: we do this as a desperate attempt
+    // to reduce the context size, while we are unable to use the `opaque` attribute on
+    // some definitions (``EqValue`` in particular).
   {
     reveal InterpExprs();
 
@@ -918,8 +918,8 @@ module Bootstrap.Semantics.Equiv {
     requires EqState(ctx, ctx')
     ensures forall e | e in es' :: SupportsInterp(e)
     ensures EqInterpResultSeqValue(InterpExprs(es, env, ctx), InterpExprs(es', env, ctx'))
-  // Auxiliary lemma: if two sequences contain equivalent expressions, evaluating those two
-  // sequences in equivalent contexts leads to equivalent results.
+    // Auxiliary lemma: if two sequences contain equivalent expressions, evaluating those two
+    // sequences in equivalent contexts leads to equivalent results.
   {
     InterpExprs_GEqInterp_Inst(EQ(EqValue, EqState), es, es', env, ctx, ctx');
   }
@@ -1011,7 +1011,7 @@ module Bootstrap.Semantics.Equiv {
   // (SMH) I don't understand why I need to use vcs_split_on_every_assert on this one.
   // For some strange reason it takes ~20s to verify with this, and timeouts without.
   lemma {:vcs_split_on_every_assert}
-  MapOfPairs_SeqZip_EqCtx(vars: seq<string>, argvs: seq<WV>, argvs': seq<WV>)
+    MapOfPairs_SeqZip_EqCtx(vars: seq<string>, argvs: seq<WV>, argvs': seq<WV>)
     requires |argvs| == |argvs'| == |vars|
     requires (forall i | 0 <= i < |vars| :: EqValue(argvs[i], argvs'[i]))
     ensures
