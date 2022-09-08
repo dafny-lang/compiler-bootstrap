@@ -64,7 +64,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     TagIf(e.Definition? && e.d.Callable? && e.d.ci.body.Some? &&
           ContainsAssumeStatement(e.d.ci.body.value), HasAssumeInBody) +
     TagIf(e.Definition? && e.d.Callable? && |e.d.ci.ens| > 0, HasEnsuresClause) +
-    // TagIf(e.Definition? && e.d.Callable? && |e.d.ci.req| > 0, HasRequiresClause) +
+    TagIf(e.Definition? && e.d.Callable? && |e.d.ci.req| > 0, HasRequiresClause) +
     TagIf(e.Definition? && e.d.Callable?, IsCallable)
   }
 
