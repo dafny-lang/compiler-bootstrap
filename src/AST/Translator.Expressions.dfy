@@ -72,6 +72,7 @@ module Bootstrap.AST.Translator.Expressions {
       var eltTy :- TranslateType(ty.Arg);
       Success(DT.Collection(true, DT.CollectionKind.Seq, eltTy))
     else
+      // TODO: better message, using ToString
       Success(DT.Unsupported("Unsupported type"))
   }
 
@@ -551,16 +552,22 @@ module Bootstrap.AST.Translator.Expressions {
     : (e: TranslationResult<Expr>)
     reads *
   {
-    var predTy :- if p is C.AssertStmt then
-                    Success(DE.Assert)
-                  else if p is C.AssumeStmt then
-                    Success(DE.Assume)
-                  else if p is C.ExpectStmt then
-                    Success(DE.Expect)
-                  else
-                    Failure(Invalid("Unsupported predicate statement type"));
+    var optPredTy :=
+      if p is C.AssertStmt then
+        Some(DE.Assert)
+      else if p is C.AssumeStmt then
+        Some(DE.Assume)
+      else if p is C.ExpectStmt then
+        Some(DE.Expect)
+      else
+        None;
     var e :- TranslateExpression(p.Expr);
-    Success(DE.Apply(DE.Eager(DE.Builtin(DE.BuiltinFunction.Predicate(predTy))), [e]))
+    match optPredTy {
+      case Some(predTy) =>
+        Success(DE.Apply(DE.Eager(DE.Builtin(DE.BuiltinFunction.Predicate(predTy))), [e]))
+      case None =>
+        Success(DE.Unsupported("Unsupported predicate type", []))
+    }
   }
 
   function method TranslateStatement(s: C.Statement)

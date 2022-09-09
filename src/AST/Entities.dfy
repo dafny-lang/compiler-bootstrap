@@ -55,6 +55,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | ClassType(ct: ClassType)
     | DataType(dt: DataType)
     | NewType(nt: NewType)
+    | Unsupported(desc: string)
 
   datatype FieldKind =
     Const | Var
@@ -77,6 +78,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | EImport
     | EType
     | EDefinition
+    | EUnsupported
 
   datatype Location =
     Location(file: string, line: int, column: int)
@@ -118,6 +120,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | Import(ei: EntityInfo, i: Import)
     | Type(ei: EntityInfo, t: Type)
     | Definition(ei: EntityInfo, d: Definition)
+    | Unsupported(description: string)
   {
     const kind :=
       match this
@@ -126,6 +129,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
         case Import(ei, i) => EImport
         case Type(ei, t) => EType
         case Definition(ei, d) => EDefinition
+        case Unsupported(desc) => EUnsupported
   }
 
   datatype AttributeName =
