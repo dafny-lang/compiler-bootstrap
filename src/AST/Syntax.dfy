@@ -280,9 +280,6 @@ module Exprs {
           )
         case If(cond, thn, els) =>
           Math.Max(cond.Depth(), Math.Max(thn.Depth(), els.Depth()))
-        // We ignore the children of Unsupported nodes for normal
-        // traversals, but when we do want to look at the children
-        // it's useful to be able to prove termination.
         case Unsupported(_, args) =>
           Seq.MaxF(var f := (e: Expr) requires e in args => e.Depth(); f, args, 0)
       }
@@ -299,8 +296,7 @@ module Exprs {
         case Block(exprs) => exprs
         case Bind(vars, vals, body) => vals + [body]
         case If(cond, thn, els) => [cond, thn, els]
-        // We ignore the children for normal traversals
-        case Unsupported(_, children) => []
+        case Unsupported(_, children) => children
       }
     }
   }
@@ -341,8 +337,10 @@ module Exprs {
         e'.If?
       case Bind(vars, vals, body) =>
         e'.Bind? && |vars| == |e'.vars| && |vals| == |e'.vals|
-      case Unsupported(description, _) =>
-        e'.Unsupported? && e'.description == description
+      case Unsupported(description, children) =>
+        e'.Unsupported? &&
+        e'.description == description &&
+        |e'.children| == |children|
     }
   }
 

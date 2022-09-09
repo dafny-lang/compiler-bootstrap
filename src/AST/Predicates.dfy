@@ -126,7 +126,8 @@ abstract module Base {
           && All_Expr(body, P)
         case If(cond, thn, els) =>
           All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
-        case Unsupported(_, _) => true
+        case Unsupported(_, exprs) =>
+          Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
       }
     }
 
@@ -144,7 +145,8 @@ abstract module Base {
           && All_Expr(body, P)
         case If(cond, thn, els) =>
           All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
-        case Unsupported(_, _) => true
+        case Unsupported(_, exprs) =>
+          Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
       }
     }
 

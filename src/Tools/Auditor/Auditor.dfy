@@ -21,15 +21,6 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
 
   //// AST traversals ////
 
-  function {:opaque} Any<T>(P: T ~> bool, ts: seq<T>) : (b: bool)
-    reads P.reads
-    requires forall t | t in ts :: P.requires(t)
-    ensures b == exists t | t in ts :: P(t)
-    ensures b == exists i | 0 <= i < |ts| :: P(ts[i])
-  {
-    !Seq.All(x reads P.reads requires P.requires(x) => !P(x), ts)
-  }
-
   predicate IsAssumeStatement(e: Expr)
   {
     && e.Apply?
@@ -42,9 +33,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
   predicate ContainsAssumeStatement(e: Expr)
     decreases e.Depth()
   {
-    || Deep.Any_Expr(e, (c:Expr) => IsAssumeStatement(c))
-    || (&& e.Unsupported?
-        && Any((c:Expr) requires c.Depth() < e.Depth() => ContainsAssumeStatement(c), e.children))
+    Deep.Any_Expr(e, (c:Expr) => IsAssumeStatement(c))
   }
 
   //// Tag extraction and processing ////

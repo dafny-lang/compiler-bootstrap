@@ -156,8 +156,12 @@ module Bootstrap.Transforms.BottomUp {
         var e' := Expr.If(Map_Expr(cond, tr), Map_Expr(thn, tr), Map_Expr(els, tr));
         assert Exprs.ConstructorsMatch(e, e');
         e'
-      // TODO: for now we don't map over subexpressions of unsupported nodes
-      case Unsupported(_, _) => e
+      case Unsupported(desc, exprs) =>
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
+        var e' := Expr.Unsupported(desc, exprs');
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
     }
   }
 
@@ -216,7 +220,13 @@ module Bootstrap.Transforms.BottomUp {
         var e' := Expr.If(Map_Expr_WithRel(cond, tr, rel), Map_Expr_WithRel(thn, tr, rel), Map_Expr_WithRel(els, tr, rel));
         assert Exprs.ConstructorsMatch(e, e');
         e'
-      case Unsupported(_, _) => e
+      case Unsupported(desc, exprs) =>
+        var exprs' := Seq.Map(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr(e, tr), exprs);
+        Map_All_IsMap(e requires e in exprs => Map_Expr_WithRel(e, tr, rel), exprs);
+        var e' := Expr.Unsupported(desc, exprs');
+        assert Exprs.ConstructorsMatch(e, e');
+        e'
     }
   }
 
