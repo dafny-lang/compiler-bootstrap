@@ -108,8 +108,6 @@ $(csharp)/Compiler.cs: $(csharp)/Compiler.dfy $(dfy_models) $(dfy_interop) $(Daf
 $(auditor)/Auditor.cs: $(auditor)/Auditor.dfy $(dfy_models) $(dfy_interop) $(DafnyRuntime)
 	$(dafny_codegen) $< || true
 	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
-	rm "$@.bak"
-	sed -i.bak -e 's/.*Tuple0.*//g' "$@"
 	rm "$@.bak" # https://stackoverflow.com/questions/4247068/
 
 # Compile the resulting C# code
