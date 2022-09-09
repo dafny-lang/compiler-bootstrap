@@ -152,11 +152,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 
   ghost predicate EntityTransformer?(f: Entity --> Entity)
   {
-    forall e ::
-      f.requires(e) ==>
-        && f(e).kind == e.kind
-        && f(e).ei.name == e.ei.name
-        && f(e).ei.members == e.ei.members
+    forall e | f.requires(e) ::
+      && f(e).kind == e.kind
+      && f(e).ei.name == e.ei.name
+      && f(e).ei.members == e.ei.members
   }
 
   type EntityTransformer = f | EntityTransformer?(f) witness e => e
@@ -352,7 +351,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 
     function Map(f: EntityTransformer): Registry
       requires Valid?()
-      requires forall e | e in entities.Values :: f.requires(e)
+      requires forall e <- entities.Values :: f.requires(e)
     {
       Registry(map name | name in entities :: f(entities[name]))
     }

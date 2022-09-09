@@ -128,8 +128,8 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     // TODO: handle nonnull types
     var x := TypeConv.AsString(st.Var.Name);
     var ty :- Expr.TranslateType(st.Rhs);
-    var constraint :-Expr.TranslateExpression(st.Constraint);
-    var wit :-Expr.TranslateOptionalExpression(st.Witness);
+    var constraint :- Expr.TranslateExpression(st.Constraint);
+    var wit :- Expr.TranslateOptionalExpression(st.Witness);
     var ei :- TranslateTopLevelEntityInfo(st);
     Success([E.Entity.Type(ei, E.Type.SubsetType(E.SubsetType.SubsetType(x, ty, constraint, wit)))])
   }
@@ -146,7 +146,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     var x := TypeConv.AsString(nt.Var.Name);
     var ty :- Expr.TranslateType(nt.BaseType);
     var constraint :- Expr.TranslateOptionalExpression(nt.Constraint);
-    var wit :-Expr.TranslateOptionalExpression(nt.Witness);
+    var wit :- Expr.TranslateOptionalExpression(nt.Witness);
     Success(E.Type.NewType(E.NewType.NewType(x, ty, constraint, wit)))
   }
 
