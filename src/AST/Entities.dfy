@@ -13,7 +13,6 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   import opened Names
   import opened Syntax.Exprs
   import opened Syntax.Types
-  import ST = Syntax.Types
   import opened Utils.Lib.Datatypes
   import Utils.Lib.SetSort
   import OS = Utils.Lib.Outcome.OfSeq
@@ -35,7 +34,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   datatype TypeParameter =
     TypeParameter()
   datatype TypeAlias =
-    TypeAlias(base: ST.Type)
+    TypeAlias(base: Types.Type)
   datatype AbstractType =
     AbstractType()
   datatype TraitType =
