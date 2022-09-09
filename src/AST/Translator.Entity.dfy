@@ -134,14 +134,6 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     Success([E.Entity.Type(ei, E.Type.SubsetType(E.SubsetType.SubsetType(x, ty, constraint, wit)))])
   }
 
-  function TranslateTypeParameter(ts: C.TypeParameter): (e: TranslationResult<seq<E.Entity>>)
-    reads *
-  {
-    // TODO: handle variance, etc
-    var ei :- TranslateTopLevelEntityInfo(ts);
-    Success([E.Entity.Type(ei, E.Type.TypeParameter(E.TypeParameter.TypeParameter()))])
-  }
-
   function TranslateOpaqueTypeDecl(ot: C.OpaqueTypeDecl): (e: TranslationResult<E.Type>)
     reads *
   {
@@ -232,8 +224,6 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       TranslateSubsetTypeDecl(tl)
     else if tl is C.TypeSynonymDecl then
       TranslateTypeSynonymDecl(tl)
-    else if tl is C.TypeParameter then
-      TranslateTypeParameter(tl)
     else if tl is C.ModuleDecl then
       var md := tl as C.ModuleDecl;
       assume ASTHeight(md.Signature) < ASTHeight(tl);

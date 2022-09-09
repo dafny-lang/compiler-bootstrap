@@ -31,8 +31,6 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   datatype SubsetType =
     SubsetType(boundVar: string, ty: Types.Type, pred: Expr, witnessExpr: Option<Expr>)
 
-  datatype TypeParameter =
-    TypeParameter()
   datatype TypeAlias =
     TypeAlias(base: Types.Type)
   datatype AbstractType =
@@ -47,7 +45,6 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     NewType(boundVar: string, ty: Types.Type, pred: Option<Expr>, witnessExpr: Option<Expr>)
 
   datatype Type =
-    | TypeParameter(tp: TypeParameter)
     | SubsetType(st: SubsetType)
     | TypeAlias(ta: TypeAlias)
     | AbstractType(at: AbstractType)
