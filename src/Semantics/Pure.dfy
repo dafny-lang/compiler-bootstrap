@@ -46,7 +46,7 @@ module Bootstrap.Semantics.Pure {
       case Block(_) => true
       case Bind(_, _, _) => true
       case If(_, _, _) => true
-      case Unsupported(_) => false
+      case Unsupported(_, _) => false
   }
 
   predicate method {:opaque} IsPure(e: Syntax.Expr) {
@@ -73,7 +73,7 @@ module Bootstrap.Semantics.Pure {
       case Var(v) =>
       case Abs(vars, body) => {}
       case Literal(lit) => {}
-      case Unsupported(_) => {}
+      case Unsupported(_, _) => {}
       case Apply(Lazy(op), args) =>
         InterpExpr_Lazy_IsPure_SameState(e, env, ctx);
       case Apply(Eager(op), args) =>
