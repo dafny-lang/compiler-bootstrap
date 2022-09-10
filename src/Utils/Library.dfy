@@ -31,6 +31,14 @@ module Utils.Lib.Datatypes {
         case Some(v) => Success(v)
         case None() => Failure(f)
     }
+
+    function method All(P: T -> bool) : bool {
+      match this {
+        case Some(v) => P(v)
+        case None => true
+      }
+    }
+
   }
 
   datatype Result<+T, +R> = | Success(value: T) | Failure(error: R) {

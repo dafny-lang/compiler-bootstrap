@@ -7,17 +7,10 @@ module Shallow {
   import opened Entities
   import opened Syntax
 
-  function method All_OptionalExpr(oe: Datatypes.Option<Expr>, P: Expr -> bool) : bool {
-    match oe {
-      case Some(e) => P(e)
-      case None => true
-    }
-  }
-
   function method All_Callable(c: Callable, P: Expr -> bool) : bool {
     && Seq.All(P, c.req)
     && Seq.All(P, c.ens)
-    && All_OptionalExpr(c.body, P)
+    && c.body.All(P)
   }
 
   function method All_Entity(e: Entity, P: Expr -> bool) : bool {
