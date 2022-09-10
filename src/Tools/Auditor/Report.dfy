@@ -9,15 +9,16 @@ module AuditReport {
     | IsGhost
     | IsSubsetType
     | IsCallable
-    | HasNoBody // TODO: should all tags be positive?
+    | MissingBody
     | HasAxiomAttribute
     | HasExternAttribute
     | HasVerifyFalseAttribute
     | HasAssumeInBody // Maybe: (expr: Expression) TODO: :axiom?
     | HasRequiresClause
     | HasEnsuresClause
-    | HasNoWitness // TODO: should all tags be positive?
+    | MissingWitness
     | HasJustification
+    | MayNotTerminate
     // TODO: decreases *?
     {
       function method ToString(): string {
@@ -25,15 +26,16 @@ module AuditReport {
           case IsGhost => "IsGhost"
           case IsSubsetType => "IsSubsetType"
           case IsCallable => "IsCallable"
-          case HasNoBody => "HasNoBody"
+          case MissingBody => "MissingBody"
           case HasAxiomAttribute => "HasAxiomAttribute"
           case HasExternAttribute => "HasExternAttribute"
           case HasVerifyFalseAttribute => "HasVerifyFalseAttribute"
           case HasAssumeInBody => "HasAssumeInBody"
           case HasRequiresClause => "HasRequiresClause"
           case HasEnsuresClause => "HasEnsuresClause"
-          case HasNoWitness => "HasNoWitness"
+          case MissingWitness => "MissingWitness"
           case HasJustification => "HasJustification"
+          case MayNotTerminate => "MayNotTerminate"
         }
       }
     }
@@ -50,11 +52,12 @@ module AuditReport {
 
   predicate method IsAssumption(ts: set<Tag>) {
     // This seems to be of little value at the moment
-    // || (IsSubsetType in ts && HasNoWitness in ts)
+    // || (IsSubsetType in ts && MissingWitness in ts)
     || HasAxiomAttribute in ts
     || (&& IsCallable in ts
-        && (|| (HasEnsuresClause in ts && (HasNoBody in ts || HasExternAttribute in ts))
+        && (|| (HasEnsuresClause in ts && (MissingBody in ts || HasExternAttribute in ts))
             || HasAssumeInBody in ts))
+    // TODO: extern with no ensures but possibly empty type
   }
 
   predicate method IsExplicitAssumption(ts: set<Tag>) {
@@ -73,12 +76,12 @@ module AuditReport {
 
   // TODO: improve these descriptions
   function method AssumptionDescription(ts: set<Tag>): seq<(string, string)> {
-    MaybeElt(IsCallable in ts && HasNoBody in ts && IsGhost in ts,
+    MaybeElt(IsCallable in ts && MissingBody in ts && IsGhost in ts,
       ("Function or lemma has no body.",
-       "Provide a body.")) +
-    MaybeElt(IsCallable in ts && HasNoBody in ts && !(IsGhost in ts),
+       "Provide a body or add {:axiom}.")) +
+    MaybeElt(IsCallable in ts && MissingBody in ts && !(IsGhost in ts),
       ("Callable definition has no body.",
-       "Provide a body.")) +
+       "Provide a body or add {:axiom}.")) +
     MaybeElt(HasExternAttribute in ts && HasRequiresClause in ts,
       ("Extern symbol with precondition.",
        "Extensively test client code.")) +
@@ -86,7 +89,7 @@ module AuditReport {
       ("Extern symbol with postcondition.",
        "Provide a model or a test case, or both.")) +
        /*
-    MaybeElt(IsSubsetType in ts && HasNoWitness in ts,
+    MaybeElt(IsSubsetType in ts && MissingWitness in ts,
       ("Subset type has no witness and could be empty.",
        "Provide a witness.")) +
        */
@@ -95,7 +98,7 @@ module AuditReport {
        "Attempt to provide a proof or model.")) +
     MaybeElt(HasAssumeInBody in ts,
       ("Has `assume` statement in body.",
-      "Try to replace with `assert` and prove."))
+      "Try to replace with `assert` and prove or add {:axiom}."))
   }
 
   lemma AllAssumptionsDescribed(ts: set<Tag>)
