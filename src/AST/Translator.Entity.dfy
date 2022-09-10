@@ -111,7 +111,8 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     else if md is C.Method then
       TranslateMethod(md)
     else
-      Success(E.Entity.Unsupported("Unsupported member declaration type: " + TypeConv.AsString(md.FullName)))
+      var ei :- TranslateMemberEntityInfo(md);
+      Success(E.Entity.Unsupported(ei, "Unsupported member declaration type: " + TypeConv.AsString(md.FullName)))
   }
 
   function TranslateTypeSynonymDecl(ts: C.TypeSynonymDecl): (e: TranslationResult<seq<E.Entity>>)
@@ -229,7 +230,8 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       assume ASTHeight(md.Signature) < ASTHeight(tl);
       TranslateModule(md.Signature)
     else
-      Success([E.Entity.Unsupported("Unsupported top level declaration type for " + TypeConv.AsString(tl.FullName))])
+      var ei :- TranslateTopLevelEntityInfo(tl);
+      Success([E.Entity.Unsupported(ei, "Unsupported top level declaration type for " + TypeConv.AsString(tl.FullName))])
   }
 
   function TranslateModule(sig: C.ModuleSignature): (m: TranslationResult<seq<E.Entity>>)

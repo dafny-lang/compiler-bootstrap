@@ -117,7 +117,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | Import(ei: EntityInfo, i: Import)
     | Type(ei: EntityInfo, t: Type)
     | Definition(ei: EntityInfo, d: Definition)
-    | Unsupported(description: string)
+    | Unsupported(ei: EntityInfo, description: string)
   {
     const kind :=
       match this
@@ -126,7 +126,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
         case Import(ei, i) => EImport
         case Type(ei, t) => EType
         case Definition(ei, d) => EDefinition
-        case Unsupported(desc) => EUnsupported
+        case Unsupported(ei, desc) => EUnsupported
   }
 
   datatype AttributeName =
