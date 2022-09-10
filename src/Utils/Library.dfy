@@ -39,6 +39,15 @@ module Utils.Lib.Datatypes {
       }
     }
 
+    function method Map<R>(f: T ~> R): Option<R>
+      reads f.reads
+      requires this.Some? ==> f.requires(this.value)
+    {
+      match this {
+        case None => None
+        case Some(v) => Some(f(v))
+      }
+    }
   }
 
   datatype Result<+T, +R> = | Success(value: T) | Failure(error: R) {

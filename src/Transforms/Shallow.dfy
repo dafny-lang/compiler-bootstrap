@@ -11,23 +11,13 @@ module Bootstrap.Transforms.Shallow {
   import opened AST.Predicates
   import opened Generic
 
-  function method Map_Option<S,T>(f: S ~> T, o: Option<S>): Option<T>
-    reads f.reads
-    requires o.Some? ==> f.requires(o.value)
-  {
-    match o {
-      case None => None
-      case Some(x) => Some(f(x))
-    }
-  }
-
   function method {:opaque} Map_Callable(c: Callable, tr: ExprTransformer) : (c': Callable)
     requires Shallow.All_Callable(c, tr.f.requires)
     ensures Shallow.All_Callable(c', tr.post) // FIXME Deep
   {
     var req' := Seq.Map(tr.f, c.req);
     var ens' := Seq.Map(tr.f, c.ens);
-    var body' := Map_Option(tr.f, c.body);
+    var body' := c.body.Map(tr.f);
     match c {
       case Constructor(_, _, _) => Constructor(req', ens', body')
       case Function(_, _, _) => Function(req', ens', body')
