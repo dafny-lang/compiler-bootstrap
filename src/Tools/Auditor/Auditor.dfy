@@ -57,11 +57,12 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
 
   /// ## Report generation
 
-  function AddAssumptions(e: Entity, rpt: Report): Report {
+  function AddAssumptions(e: Entity, assms: seq<Assumption>): seq<Assumption> {
     var tags := GetTags(e);
-    if IsAssumption(tags)
-      then Report(rpt.assumptions + [Assumption(e.ei.name.ToString(), tags)])
-      else rpt
+    if IsAssumption(tags) then
+      assms + [Assumption(e.ei.name.ToString(), tags)]
+    else
+      assms
   }
 
   function FoldEntities<T(!new)>(f: (Entity, T) -> T, reg: Registry_, init: T): T {
@@ -70,7 +71,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
   }
 
   function GenerateAuditReport(reg: Registry_): Report {
-    FoldEntities(AddAssumptions, reg, EmptyReport)
+    Report(FoldEntities(AddAssumptions, reg, []))
   }
 
   class {:extern} DafnyAuditor {
@@ -85,7 +86,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
           var rpt := GenerateAuditReport(p'.registry);
           return RenderAuditReportMarkdown(rpt);
         case Failure(err) =>
-          return err.ToString();
+          return "Failed to translate program:\n" + err.ToString();
       }
     }
   }
