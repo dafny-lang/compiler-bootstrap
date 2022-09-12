@@ -282,8 +282,8 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
         var prog := E.Program(reg, defaultModule := defaultModuleName, mainMethod := mainMethodName);
         if prog.Valid?() then Success(prog) else Failure(Invalid("Generated invalid program"))
       case Fail(errs) =>
-        var err := Seq.Flatten(Seq.Map((e: E.ValidationError) => e.ToString(), errs));
-        Failure(Invalid("Failed to validate registry: " + err))
+        var msg := Seq.Flatten(Seq.Interleave("\n", Seq.Map((e: E.ValidationError) => e.ToString(), errs)));
+        Failure(Invalid("Failed to validate registry:\n" + msg))
     }
   }
 }
