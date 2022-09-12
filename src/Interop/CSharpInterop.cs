@@ -1,3 +1,4 @@
+#nullable enable
 using System.Numerics;
 
 namespace CSharpInterop {
@@ -6,7 +7,7 @@ namespace CSharpInterop {
 
     public static void Append<T>(List<T> l, T t) => l.Add(t);
 
-    public static B FoldL<A, B>(Func<B, A, B> f, B b0, List<A> lA) {
+    public static B FoldL<A, B>(Func<B, A, B> f, B b0, List<A>? lA) {
       if(lA is null) {
         return b0;
       }
@@ -16,7 +17,7 @@ namespace CSharpInterop {
       return b0;
     }
 
-    public static B FoldR<A, B>(Func<A, B, B> f, B b0, List<A> lA) {
+    public static B FoldR<A, B>(Func<A, B, B> f, B b0, List<A>? lA) {
       if(lA is null) {
         return b0;
       }
@@ -28,11 +29,13 @@ namespace CSharpInterop {
   }
 
   public partial class DictUtils {
-    public static R FoldL<K, V, R>(Func<R, K, V, R> f, R r0, Dictionary<K, V> d) where K : notnull {
+    public static R FoldL<K, V, R>(Func<R, K, V, R> f, R r0, Dictionary<K, V>? d) where K : notnull {
       if(d is null) {
         return r0;
       }
-      foreach (var k in d.Keys) {
+      var keys = d.Keys.ToList();
+      keys.Sort();
+      foreach (var k in keys) {
         r0 = f(r0, k, d[k]);
       }
       return r0;
