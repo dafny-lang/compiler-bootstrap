@@ -1,4 +1,4 @@
-  include "../AST/Syntax.dfy"
+include "../AST/Syntax.dfy"
 include "../Utils/Library.dfy"
 
 module Bootstrap.Semantics.Values {

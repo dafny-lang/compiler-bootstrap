@@ -1,4 +1,4 @@
-  include "../Semantics/Interp.dfy"
+include "../Semantics/Interp.dfy"
 include "../AST/Syntax.dfy"
 include "../AST/Translator.dfy"
 include "../Semantics/Printer.dfy"
@@ -221,7 +221,7 @@ module Bootstrap.REPL {
       var shortName := TypeConv.AsString(input.ShortName);
       var body :- TranslateBody(input).MapFailure(e => TranslationError(e));
       :- Need(Interp.SupportsInterp(body), Unsupported(body));
-         Success(Named(fullName, shortName, body))
+      Success(Named(fullName, shortName, body))
     }
 
     method ReadResolve() returns (r: REPLResult<seq<Named<Interp.Expr>>>)

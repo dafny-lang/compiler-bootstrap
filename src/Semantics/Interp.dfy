@@ -1,4 +1,4 @@
-  include "../Utils/Library.dfy"
+include "../Utils/Library.dfy"
 include "../AST/Syntax.dfy"
 include "../AST/Predicates.dfy"
 include "Values.dfy"
@@ -315,7 +315,7 @@ module Bootstrap.Semantics.Interp {
     reveal SupportsInterp();
     var Return(val, ctx) :- InterpExpr(e, env, ctx);
     :- Need(val.HasType(ty), TypeError(e, val, ty));
-       Success(Return(val, ctx))
+    Success(Return(val, ctx))
   }
 
   function method NeedType(e: Expr, val: Value, ty: Type)
@@ -442,17 +442,17 @@ module Bootstrap.Semantics.Interp {
   {
     match op
     case BVNot => :- Need(v0.BitVector?, Invalid(expr));
-                     Success(V.BitVector(v0.width, Math.IntPow(2, v0.width) - 1 - v0.value))
+                  Success(V.BitVector(v0.width, Math.IntPow(2, v0.width) - 1 - v0.value))
     case BoolNot => :- Need(v0.Bool?, Invalid(expr));
-                       Success(V.Bool(!v0.b))
+                    Success(V.Bool(!v0.b))
     case SeqLength => :- Need(v0.Seq?, Invalid(expr));
-                         Success(V.Int(|v0.sq|))
+                      Success(V.Int(|v0.sq|))
     case SetCard => :- Need(v0.Set?, Invalid(expr));
-                       Success(V.Int(|v0.st|))
+                    Success(V.Int(|v0.st|))
     case MultisetCard => :- Need(v0.Multiset?, Invalid(expr));
-                            Success(V.Int(|v0.ms|))
+                         Success(V.Int(|v0.ms|))
     case MapCard => :- Need(v0.Map?, Invalid(expr));
-                       Success(V.Int(|v0.m|))
+                    Success(V.Int(|v0.m|))
   }
 
   function method {:opaque} InterpBinaryOp(expr: Expr, bop: Syntax.BinaryOp, v0: Value, v1: Value)
@@ -464,11 +464,11 @@ module Bootstrap.Semantics.Interp {
     case Logical(op) => InterpBinaryLogical(expr, op, v0, v1)
     case Eq(op) => // FIXME which types is this Eq applicable to (vs. the type-specific ones?)
       :- Need(HasEqValue(v0), Invalid(expr));
-         :- Need(HasEqValue(v1), Invalid(expr));
-            match op {
-              case EqCommon() => Success(V.Bool(v0 == v1))
-              case NeqCommon() => Success(V.Bool(v0 != v1))
-            }
+      :- Need(HasEqValue(v1), Invalid(expr));
+      match op {
+        case EqCommon() => Success(V.Bool(v0 == v1))
+        case NeqCommon() => Success(V.Bool(v0 != v1))
+      }
     // case BV(op) =>
     case Char(op) => InterpBinaryChar(expr, op, v0, v1)
     case Sets(op) => InterpBinarySets(expr, op, v0, v1)
@@ -512,7 +512,7 @@ module Bootstrap.Semantics.Interp {
 
   function method NeedIntBounds(x: int, low: int, high: int) : PureInterpResult<int> {
     :- Need(low <= x < high, OutOfIntBounds(x, Some(low), Some(high)));
-       Success(x)
+    Success(x)
   }
 
   function method InterpBinaryNumericChar(expr: Expr, bop: Syntax.BinaryOps.Numeric, x1: char, x2: char)
@@ -551,24 +551,24 @@ module Bootstrap.Semantics.Interp {
     : PureInterpResult<Value>
   {
     :- Need(v0.Bool? && v1.Bool?, Invalid(expr));
-       match op
-       case Iff() =>
-         Success(V.Bool(v0.b <==> v1.b))
+    match op
+    case Iff() =>
+      Success(V.Bool(v0.b <==> v1.b))
   }
 
   function method InterpBinaryChar(expr: Expr, op: Syntax.BinaryOps.Char, v0: Value, v1: Value)
     : PureInterpResult<Value>
   { // FIXME eliminate distinction between GtChar and GT?
     :- Need(v0.Char? && v1.Char?, Invalid(expr));
-       match op
-       case LtChar() =>
-         Success(V.Bool(v0.c < v1.c))
-       case LeChar() =>
-         Success(V.Bool(v0.c <= v1.c))
-       case GeChar() =>
-         Success(V.Bool(v0.c >= v1.c))
-       case GtChar() =>
-         Success(V.Bool(v0.c > v1.c))
+    match op
+    case LtChar() =>
+      Success(V.Bool(v0.c < v1.c))
+    case LeChar() =>
+      Success(V.Bool(v0.c <= v1.c))
+    case GeChar() =>
+      Success(V.Bool(v0.c >= v1.c))
+    case GtChar() =>
+      Success(V.Bool(v0.c > v1.c))
   }
 
   function method InterpBinarySets(expr: Expr, op: Exprs.BinaryOps.Sets, v0: Value, v1: Value)
@@ -578,33 +578,33 @@ module Bootstrap.Semantics.Interp {
     // equality.
     match op
     case SetEq() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
-                       Success(V.Bool(v0.st == v1.st))
+                    Success(V.Bool(v0.st == v1.st))
     case SetNeq() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
-                        Success(V.Bool(v0.st != v1.st))
+                     Success(V.Bool(v0.st != v1.st))
     case Subset() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
-                        Success(V.Bool(v0.st <= v1.st))
+                     Success(V.Bool(v0.st <= v1.st))
     case Superset() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
-                          Success(V.Bool(v0.st >= v1.st))
+                       Success(V.Bool(v0.st >= v1.st))
     case ProperSubset() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
-                              Success(V.Bool(v0.st < v1.st))
+                           Success(V.Bool(v0.st < v1.st))
     case ProperSuperset() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
-                                Success(V.Bool(v0.st > v1.st))
+                             Success(V.Bool(v0.st > v1.st))
     case Disjoint() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
-                          Success(V.Bool(v0.st !! v1.st))
+                       Success(V.Bool(v0.st !! v1.st))
     case Union() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
-                       Success(V.Set(v0.st + v1.st))
+                    Success(V.Set(v0.st + v1.st))
     case Intersection() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
-                              Success(V.Set(v0.st * v1.st))
+                           Success(V.Set(v0.st * v1.st))
     case SetDifference() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
-                               Success(V.Set(v0.st - v1.st))
+                            Success(V.Set(v0.st - v1.st))
     case InSet() =>
       :- Need(HasEqValue(v0), Invalid(expr));
-         :- Need(v1.Set?, Invalid(expr));
-            Success(V.Bool(v0 in v1.st))
+      :- Need(v1.Set?, Invalid(expr));
+      Success(V.Bool(v0 in v1.st))
     case NotInSet() =>
       :- Need(HasEqValue(v0), Invalid(expr));
-         :- Need(v1.Set?, Invalid(expr));
-            Success(V.Bool(v0 !in v1.st))
+      :- Need(v1.Set?, Invalid(expr));
+      Success(V.Bool(v0 !in v1.st))
   }
 
   function method InterpBinaryMultisets(expr: Expr, op: Exprs.BinaryOps.Multisets, v0: Value, v1: Value)
@@ -614,37 +614,37 @@ module Bootstrap.Semantics.Interp {
     // equality.
     match op // DISCUSS
     case MultisetEq() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
-                            Success(V.Bool(v0.ms == v1.ms))
+                         Success(V.Bool(v0.ms == v1.ms))
     case MultisetNeq() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
-                             Success(V.Bool(v0.ms != v1.ms))
+                          Success(V.Bool(v0.ms != v1.ms))
     case MultiSubset() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
-                             Success(V.Bool(v0.ms <= v1.ms))
+                          Success(V.Bool(v0.ms <= v1.ms))
     case MultiSuperset() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
-                               Success(V.Bool(v0.ms >= v1.ms))
+                            Success(V.Bool(v0.ms >= v1.ms))
     case ProperMultiSubset() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
-                                   Success(V.Bool(v0.ms < v1.ms))
+                                Success(V.Bool(v0.ms < v1.ms))
     case ProperMultiSuperset() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
-                                     Success(V.Bool(v0.ms > v1.ms))
+                                  Success(V.Bool(v0.ms > v1.ms))
     case MultisetDisjoint() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
-                                  Success(V.Bool(v0.ms !! v1.ms))
+                               Success(V.Bool(v0.ms !! v1.ms))
     case MultisetUnion() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
-                               Success(V.Multiset(v0.ms + v1.ms))
+                            Success(V.Multiset(v0.ms + v1.ms))
     case MultisetIntersection() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
-                                      Success(V.Multiset(v0.ms * v1.ms))
+                                   Success(V.Multiset(v0.ms * v1.ms))
     case MultisetDifference() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
-                                    Success(V.Multiset(v0.ms - v1.ms))
+                                 Success(V.Multiset(v0.ms - v1.ms))
     case InMultiset() =>
       :- Need(HasEqValue(v0), Invalid(expr));
-         :- Need(v1.Multiset?, Invalid(expr));
-            Success(V.Bool(v0 in v1.ms))
+      :- Need(v1.Multiset?, Invalid(expr));
+      Success(V.Bool(v0 in v1.ms))
     case NotInMultiset() =>
       :- Need(HasEqValue(v0), Invalid(expr));
-         :- Need(v1.Multiset?, Invalid(expr));
-            Success(V.Bool(v0 !in v1.ms))
+      :- Need(v1.Multiset?, Invalid(expr));
+      Success(V.Bool(v0 !in v1.ms))
     case MultisetSelect() =>
       :- Need(HasEqValue(v1), Invalid(expr));
-         :- Need(v0.Multiset?, Invalid(expr));
-            Success(V.Int(v0.ms[v1]))
+      :- Need(v0.Multiset?, Invalid(expr));
+      Success(V.Int(v0.ms[v1]))
   }
 
   function method InterpBinarySequences(expr: Expr, op: Exprs.BinaryOps.Sequences, v0: Value, v1: Value)
@@ -658,45 +658,45 @@ module Bootstrap.Semantics.Interp {
     match op
     case SeqEq() =>
       :- Need(v0.Seq? && v1.Seq?, Invalid(expr));
-         :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-            :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
-               Success(V.Bool(v0.sq == v1.sq))
+      :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+      :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+      Success(V.Bool(v0.sq == v1.sq))
     case SeqNeq() =>
       :- Need(v0.Seq? && v1.Seq?, Invalid(expr));
-         :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-            :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
-               Success(V.Bool(v0.sq != v1.sq))
+      :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+      :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+      Success(V.Bool(v0.sq != v1.sq))
     case Prefix() =>
       :- Need(v0.Seq? && v1.Seq?, Invalid(expr));
-         :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-            :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
-               Success(V.Bool(v0.sq <= v1.sq))
+      :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+      :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+      Success(V.Bool(v0.sq <= v1.sq))
     case ProperPrefix() =>
       :- Need(v0.Seq? && v1.Seq?, Invalid(expr));
-         :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-            :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
-               Success(V.Bool(v0.sq < v1.sq))
+      :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+      :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+      Success(V.Bool(v0.sq < v1.sq))
     case Concat() => :- Need(v0.Seq? && v1.Seq?, Invalid(expr));
-                        Success(V.Seq(v0.sq + v1.sq))
+                     Success(V.Seq(v0.sq + v1.sq))
     case InSeq() =>
       :- Need(v1.Seq?, Invalid(expr));
-         :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-            :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
-               Success(V.Bool(v0 in v1.sq))
+      :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+      :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+      Success(V.Bool(v0 in v1.sq))
     case NotInSeq() =>
       :- Need(v1.Seq?, Invalid(expr));
-         :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-            :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
-               Success(V.Bool(v0 !in v1.sq))
+      :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+      :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+      Success(V.Bool(v0 !in v1.sq))
     case SeqDrop() =>
       :- NeedValidEndpoint(expr, v0, v1);
-         Success(V.Seq(v0.sq[v1.i..]))
+      Success(V.Seq(v0.sq[v1.i..]))
     case SeqTake() =>
       :- NeedValidEndpoint(expr, v0, v1);
-         Success(V.Seq(v0.sq[..v1.i]))
+      Success(V.Seq(v0.sq[..v1.i]))
     case SeqSelect() =>
       :- NeedValidIndex(expr, v0, v1);
-         Success(v0.sq[v1.i])
+      Success(v0.sq[v1.i])
   }
 
   function method InterpBinaryMaps(expr: Expr, op: Exprs.BinaryOps.Maps, v0: Value, v1: Value)
@@ -707,33 +707,33 @@ module Bootstrap.Semantics.Interp {
     match op
     case MapEq() =>
       :- Need(v0.Map? && v1.Map?, Invalid(expr));
-         :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-            :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
-               Success(V.Bool(v0.m == v1.m))
+      :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+      :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+      Success(V.Bool(v0.m == v1.m))
     case MapNeq() =>
       :- Need(v0.Map? && v1.Map?, Invalid(expr));
-         :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-            :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
-               Success(V.Bool(v0.m != v1.m))
+      :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+      :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+      Success(V.Bool(v0.m != v1.m))
     case MapMerge() =>
       :- Need(v0.Map? && v1.Map?, Invalid(expr));
-         Success(V.Map(v0.m + v1.m))
+      Success(V.Map(v0.m + v1.m))
     case MapSubtraction() =>
       :- Need(v0.Map? && v1.Set?, Invalid(expr));
-         Success(V.Map(v0.m - v1.st))
+      Success(V.Map(v0.m - v1.st))
     case InMap() =>
       :- Need(v1.Map?, Invalid(expr));
-         :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-            Success(V.Bool(v0 in v1.m))
+      :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+      Success(V.Bool(v0 in v1.m))
     case NotInMap() =>
       :- Need(v1.Map?, Invalid(expr));
-         :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
-            Success(V.Bool(v0 !in v1.m))
+      :- Need(HasEqValue(v0), Invalid(expr)); // We need decidable equality
+      Success(V.Bool(v0 !in v1.m))
     case MapSelect() =>
       :- Need(v0.Map?, Invalid(expr));
-         :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
-            :- Need(v1 in v0.m, OutOfMapDomain(v0, v1));
-               Success(v0.m[v1])
+      :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+      :- Need(v1 in v0.m, OutOfMapDomain(v0, v1));
+      Success(v0.m[v1])
   }
 
   function method {:opaque} InterpTernaryOp(expr: Expr, top: Syntax.TernaryOp, v0: Value, v1: Value, v2: Value)
@@ -770,12 +770,12 @@ module Bootstrap.Semantics.Interp {
     match op
     case SeqUpdate() =>
       :- NeedValidIndex(expr, v0, v1);
-         Success(V.Seq(v0.sq[v1.i := v2]))
+      Success(V.Seq(v0.sq[v1.i := v2]))
     case SeqSubseq() =>
       :- NeedValidEndpoint(expr, v0, v2);
-         :- Need(v1.Int?, Invalid(expr));
-            :- Need(0 <= v1.i <= v2.i, OutOfIntBounds(v1.i, Some(0), Some(v2.i)));
-               Success(V.Seq(v0.sq[v1.i..v2.i]))
+      :- Need(v1.Int?, Invalid(expr));
+      :- Need(0 <= v1.i <= v2.i, OutOfIntBounds(v1.i, Some(0), Some(v2.i)));
+      Success(V.Seq(v0.sq[v1.i..v2.i]))
   }
 
   function method InterpTernaryMultisets(expr: Expr, op: Syntax.TernaryOps.Multisets, v0: Value, v1: Value, v2: Value)
@@ -784,9 +784,9 @@ module Bootstrap.Semantics.Interp {
     match op
     case MultisetUpdate() =>
       :- Need(v0.Multiset?, Invalid(expr));
-         :- Need(v2.Int? && v2.i >= 0, Invalid(expr));
-            :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
-               Success(V.Multiset(v0.ms[v1 := v2.i]))
+      :- Need(v2.Int? && v2.i >= 0, Invalid(expr));
+      :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+      Success(V.Multiset(v0.ms[v1 := v2.i]))
   }
 
   function method InterpTernaryMaps(expr: Expr, op: Syntax.TernaryOps.Maps, v0: Value, v1: Value, v2: Value)
@@ -795,8 +795,8 @@ module Bootstrap.Semantics.Interp {
     match op
     case MapUpdate() =>
       :- Need(v0.Map?, Invalid(expr));
-         :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
-            Success(V.Map(v0.m[v1 := v2]))
+      :- Need(HasEqValue(v1), Invalid(expr)); // We need decidable equality
+      Success(V.Map(v0.m[v1 := v2]))
   }
 
   function method {:opaque} InterpDisplay(e: Expr, kind: Types.CollectionKind, argvs: seq<Value>)
@@ -808,14 +808,14 @@ module Bootstrap.Semantics.Interp {
       Success(V.Map(m))
     case Multiset() =>
       :- Need(forall i | 0 <= i < |argvs| :: HasEqValue(argvs[i]), Invalid(e)); // The elements must have a decidable equality
-         var v := V.Multiset(multiset(argvs));
-         assert WellFormedEqValue(v); // Doesn't work without this assert
-         Success(v)
+      var v := V.Multiset(multiset(argvs));
+      assert WellFormedEqValue(v); // Doesn't work without this assert
+      Success(v)
     case Seq() =>
       Success(V.Seq(argvs))
     case Set() =>
       :- Need(forall x | x in argvs :: HasEqValue(x), Invalid(e)); // The elements must have a decidable equality
-         Success(V.Set(set s | s in argvs))
+      Success(V.Set(set s | s in argvs))
   }
 
   function method InterpMapDisplay(e: Expr, argvs: seq<Value>)
@@ -829,8 +829,8 @@ module Bootstrap.Semantics.Interp {
     : PureInterpResult<(EqWV, Value)>
   {
     :- Need(argv.Seq? && |argv.sq| == 2, Invalid(e));
-       :- Need(HasEqValue(argv.sq[0]), Invalid(e));
-          Success((argv.sq[0], argv.sq[1]))
+    :- Need(HasEqValue(argv.sq[0]), Invalid(e));
+    Success((argv.sq[0], argv.sq[1]))
   }
 
   function method AugmentContext(base: Context, vars: seq<string>, vals: seq<Value>)
@@ -852,13 +852,13 @@ module Bootstrap.Semantics.Interp {
     decreases env.fuel, e, 0
   {
     :- Need(env.fuel > 0, OutOfFuel(fn));
-       :- Need(fn.Closure?, Invalid(e));
-          reveal SupportsInterp();
-          Predicates.Deep.AllImpliesChildren(fn.body, SupportsInterp1);
-          :- Need(|fn.vars| == |argvs|, SignatureMismatch(fn.vars, argvs));
-             var ctx := State(locals := AugmentContext(fn.ctx, fn.vars, argvs));
-             var Return(val, ctx) :- InterpExpr(fn.body, env.(fuel := env.fuel - 1), ctx);
-             Success(val)
+    :- Need(fn.Closure?, Invalid(e));
+    reveal SupportsInterp();
+    Predicates.Deep.AllImpliesChildren(fn.body, SupportsInterp1);
+    :- Need(|fn.vars| == |argvs|, SignatureMismatch(fn.vars, argvs));
+    var ctx := State(locals := AugmentContext(fn.ctx, fn.vars, argvs));
+    var Return(val, ctx) :- InterpExpr(fn.body, env.(fuel := env.fuel - 1), ctx);
+    Success(val)
   }
 
   // TODO(SMH): update this to not enforce the intermediary blocks to evaluate to `Unit`,

@@ -67,14 +67,14 @@ module Utils.StrTree {
   lemma countFormat_Acc(formatString: string, start: int := 0, count: int := 0)
     decreases |formatString| - start
     ensures countFormat(formatString, start, count)
-            == countFormat(formatString, start) + count
+         == countFormat(formatString, start) + count
   {}
 
   lemma splitFormat_countFormat(formatString: string, start: int := 0, pos: int := start)
     requires 0 <= start <= pos <= |formatString|
     decreases |formatString| - pos
     ensures |splitFormat(formatString, start, pos)|
-            == 1 + countFormat(formatString, pos)
+         == 1 + countFormat(formatString, pos)
   {
     if pos >= |formatString| - 1 {
     } else if formatString[pos] == '{' && formatString[pos + 1] == '}' {
