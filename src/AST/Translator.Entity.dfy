@@ -250,9 +250,8 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
         assume ASTHeight(tl.1) < ASTHeight(sig);
         TranslateTopLevelDecl(tl.1));
     var topDecls' := Seq.Flatten(topDecls);
-    var topNames := Seq.Map((d: E.Entity) => d.ei.name, topDecls');
-    //:- Need(forall nm <- topNames :: nm.ChildOf(name), Invalid("Malformed name in " + name.ToString()));
-    assume forall nm <- topNames :: nm.ChildOf(name);
+    var topAndBelowNames := Seq.Map((d: E.Entity) => d.ei.name, topDecls');
+    var topNames := Seq.Filter(topAndBelowNames, (n:N.Name) => n.ChildOf(name));
     var ei := E.EntityInfo(name, location := loc, attrs := attrs, members := topNames);
     var mod := E.Entity.Module(ei, E.Module.Module());
     Success([mod] + topDecls')
