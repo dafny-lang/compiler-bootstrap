@@ -179,14 +179,15 @@ module Bootstrap.AST.Translator.Expressions {
     decreases ASTHeight(u), 0
     reads *
   {
-    :- Need(u is C.UnaryOpExpr, UnsupportedExpr(u));
+    :- Need(u is C.UnaryOpExpr, Invalid("Invalid unary operator"));
     var u := u as C.UnaryOpExpr;
     var op, e := u.ResolvedOp, u.E;
     assume Decreases(e, u);
-    :- Need(op !in GhostUnaryOps, GhostExpr(u));
-    :- Need(op in UnaryOpMap.Keys, UnsupportedExpr(u));
     var te :- TranslateExpression(e);
-    Success(DE.Apply(DE.Eager(DE.UnaryOp(UnaryOpMap[op])), [te]))
+    if op in GhostUnaryOps || op !in UnaryOpMap.Keys then
+      Success(DE.Unsupported("Unsupported unary operation", [te]))
+    else 
+      Success(DE.Apply(DE.Eager(DE.UnaryOp(UnaryOpMap[op])), [te]))
   }
 
   function method TranslateBinary(b: C.BinaryExpr)
@@ -198,10 +199,12 @@ module Bootstrap.AST.Translator.Expressions {
     // LATER b.AccumulatesForTailRecursion
     assume Decreases(e0, b);
     assume Decreases(e1, b);
-    :- Need(op in BinaryOpCodeMap, UnsupportedExpr(b));
     var t0 :- TranslateExpression(e0);
     var t1 :- TranslateExpression(e1);
-    Success(DE.Apply(BinaryOpCodeMap[op], [t0, t1]))
+    if op !in BinaryOpCodeMap then
+      Success(DE.Unsupported("Unsupported binary operator", [t0, t1]))
+    else
+      Success(DE.Apply(BinaryOpCodeMap[op], [t0, t1]))
   }
 
   function method TranslateLiteral(l: C.LiteralExpr)
@@ -411,18 +414,20 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
     decreases ASTHeight(le), 0
   {
-    :- Need(le.Exact, UnsupportedExpr(le));
     var lhss := ListUtils.ToSeq(le.LHSs);
     var bvs :- Seq.MapResult(lhss, (pat: C.CasePattern<C.BoundVar>) reads * =>
-      :- Need(pat.Var != null, UnsupportedExpr(le));
+      :- Need(pat.Var != null, Invalid("Null pattern variable in let expression."));
       Success(TypeConv.AsString(pat.Var.Name)));
     var rhss := ListUtils.ToSeq(le.RHSs);
     var elems :- Seq.MapResult(rhss, e requires e in rhss reads * =>
       assume Decreases(e, le); TranslateExpression(e));
-    :- Need(|bvs| == |elems|, UnsupportedExpr(le));
+    :- Need(|bvs| == |elems|, Invalid("Incorrect number of bound variables in let expression."));
     assume Decreases(le.Body, le);
     var body :- TranslateExpression(le.Body);
-    Success(DE.Bind(bvs, elems, body))
+    if !le.Exact then
+      Success(DE.Unsupported("Inexact let expression", [body] + elems))
+    else
+      Success(DE.Bind(bvs, elems, body))
   }
 
   function method TranslateConcreteSyntaxExpression(ce: C.ConcreteSyntaxExpression)
