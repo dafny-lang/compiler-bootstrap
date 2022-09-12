@@ -30,18 +30,18 @@ module Bootstrap.AST.Translator {
   {
     function method ToString() : string {
       match this
-        case Invalid(msg) =>
-          "Invalid term: " + msg
-        case GhostExpr(expr) =>
-          "Ghost expression: " + TypeConv.ObjectToString(expr)
-        case UnsupportedType(ty) =>
-          "Unsupported type: " + TypeConv.ObjectToString(ty)
-        case UnsupportedExpr(expr) =>
-          "Unsupported expression: " + TypeConv.ObjectToString(expr)
-        case UnsupportedStmt(stmt) =>
-          "Unsupported statement: " + TypeConv.ObjectToString(stmt)
-        case UnsupportedMember(decl) =>
-          "Unsupported declaration: " + TypeConv.ObjectToString(decl)
+      case Invalid(msg) =>
+        "Invalid term: " + msg
+      case GhostExpr(expr) =>
+        "Ghost expression: " + TypeConv.ObjectToString(expr)
+      case UnsupportedType(ty) =>
+        "Unsupported type: " + TypeConv.ObjectToString(ty)
+      case UnsupportedExpr(expr) =>
+        "Unsupported expression: " + TypeConv.ObjectToString(expr)
+      case UnsupportedStmt(stmt) =>
+        "Unsupported statement: " + TypeConv.ObjectToString(stmt)
+      case UnsupportedMember(decl) =>
+        "Unsupported declaration: " + TypeConv.ObjectToString(decl)
     }
   }
 
@@ -71,7 +71,7 @@ module Bootstrap.AST.Translator {
       var bvTy := ty as C.BitvectorType;
       :- Need(bvTy.Width >= 0, Invalid("BV width must be >= 0"));
       Success(DT.BitVector(bvTy.Width as int))
-    // TODO: the following could be simplified
+      // TODO: the following could be simplified
     else if ty is C.MapType then
       var ty := ty as C.MapType;
       assume TypeHeight(ty.Domain) < TypeHeight(ty);
@@ -259,7 +259,7 @@ module Bootstrap.AST.Translator {
     var fn :- TranslateExpression(ae.Function);
     var args := ListUtils.ToSeq(ae.Args);
     var args :- Seq.MapResult(args, e requires e in args reads * =>
-      assume Decreases(e, ae); TranslateExpression(e));
+                                assume Decreases(e, ae); TranslateExpression(e));
     Success(DE.Apply(DE.Eager(DE.FunctionCall()), [fn] + args))
   }
 
@@ -294,7 +294,7 @@ module Bootstrap.AST.Translator {
     var fn :- TranslateMemberSelect(fce.Receiver, fce.Function.FullName);
     var args := ListUtils.ToSeq(fce.Args);
     var args :- Seq.MapResult(args, e requires e in args reads * =>
-      assume Decreases(e, fce); TranslateExpression(e));
+                                assume Decreases(e, fce); TranslateExpression(e));
     Success(DE.Apply(DE.Eager(DE.FunctionCall()), [fn] + args))
   }
 
@@ -309,7 +309,7 @@ module Bootstrap.AST.Translator {
     // TODO: also include formals in the following, and filter out ghost arguments
     var args := ListUtils.ToSeq(dtv.Arguments);
     var args :- Seq.MapResult(args, e requires e in args reads * =>
-      assume Decreases(e, dtv); TranslateExpression(e));
+                                assume Decreases(e, dtv); TranslateExpression(e));
     Success(DE.Apply(DE.Eager(DE.DataConstructor([n], typeArgs)), args)) // TODO: proper path
   }
 
@@ -322,7 +322,7 @@ module Bootstrap.AST.Translator {
     :- Need(ty.Collection? && ty.finite, Invalid("`DisplayExpr` must be a finite collection."));
     var elems := ListUtils.ToSeq(de.Elements);
     var elems :- Seq.MapResult(elems, e requires e in elems reads * =>
-      assume Decreases(e, de); TranslateExpression(e));
+                                 assume Decreases(e, de); TranslateExpression(e));
     Success(DE.Apply(DE.Eager(DE.Builtin(DE.Display(ty))), elems))
   }
 
@@ -349,8 +349,8 @@ module Bootstrap.AST.Translator {
     :- Need(ty.Collection? && ty.kind.Map? && ty.finite, Invalid("`MapDisplayExpr` must be a map."));
     var elems := ListUtils.ToSeq(mde.Elements);
     var elems :- Seq.MapResult(elems, (ep: C.ExpressionPair) requires ep in elems reads * =>
-      assume Math.Max(ASTHeight(ep.A), ASTHeight(ep.B)) < ASTHeight(mde);
-      TranslateExpressionPair(mde, ep));
+                                 assume Math.Max(ASTHeight(ep.A), ASTHeight(ep.B)) < ASTHeight(mde);
+                                 TranslateExpressionPair(mde, ep));
     Success(DE.Apply(DE.Eager(DE.Builtin(DE.Display(ty))), elems))
   }
 
@@ -409,9 +409,9 @@ module Bootstrap.AST.Translator {
     var tIndex :- TranslateExpression(se.Index);
     var tValue :- TranslateExpression(se.Value);
     var op := match ty.kind
-      case Seq() => DE.TernaryOps.Sequences(DE.TernaryOps.SeqUpdate)
-      case Map(_) => DE.TernaryOps.Maps(DE.TernaryOps.MapUpdate)
-      case Multiset() => DE.TernaryOps.Multisets(DE.TernaryOps.MultisetUpdate);
+              case Seq() => DE.TernaryOps.Sequences(DE.TernaryOps.SeqUpdate)
+              case Map(_) => DE.TernaryOps.Maps(DE.TernaryOps.MapUpdate)
+              case Multiset() => DE.TernaryOps.Multisets(DE.TernaryOps.MultisetUpdate);
     Success(DE.Apply(DE.Eager(DE.TernaryOp(op)), [tSeq, tIndex, tValue]))
   }
 
@@ -421,7 +421,7 @@ module Bootstrap.AST.Translator {
     decreases ASTHeight(le), 0
   {
     var bvars := Seq.Map((bv: C.BoundVar) reads * => TypeConv.AsString(bv.Name),
-      ListUtils.ToSeq(le.BoundVars));
+                         ListUtils.ToSeq(le.BoundVars));
     assume Decreases(le.Term, le);
     var body :- TranslateExpression(le.Term);
     Success(DE.Abs(bvars, body))
@@ -435,11 +435,11 @@ module Bootstrap.AST.Translator {
     :- Need(le.Exact, UnsupportedExpr(le));
     var lhss := ListUtils.ToSeq(le.LHSs);
     var bvs :- Seq.MapResult(lhss, (pat: C.CasePattern<C.BoundVar>) reads * =>
-      :- Need(pat.Var != null, UnsupportedExpr(le));
-      Success(TypeConv.AsString(pat.Var.Name)));
+                               :- Need(pat.Var != null, UnsupportedExpr(le));
+                               Success(TypeConv.AsString(pat.Var.Name)));
     var rhss := ListUtils.ToSeq(le.RHSs);
     var elems :- Seq.MapResult(rhss, e requires e in rhss reads * =>
-      assume Decreases(e, le); TranslateExpression(e));
+                                 assume Decreases(e, le); TranslateExpression(e));
     :- Need(|bvs| == |elems|, UnsupportedExpr(le));
     assume Decreases(le.Body, le);
     var body :- TranslateExpression(le.Body);
@@ -526,7 +526,7 @@ module Bootstrap.AST.Translator {
   {
     var stmts := ListUtils.ToSeq(b.Body);
     var stmts' :- Seq.MapResult(stmts, s' requires s' in stmts reads * =>
-      assume Decreases(s', b); TranslateStatement(s'));
+                                  assume Decreases(s', b); TranslateStatement(s'));
     Success(DE.Block(stmts'))
   }
 
