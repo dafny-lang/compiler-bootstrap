@@ -19,7 +19,6 @@ module AuditReport {
     | MissingWitness
     | HasJustification
     | MayNotTerminate
-    // TODO: decreases *?
     {
       function method ToString(): string {
         match this {
@@ -57,11 +56,13 @@ module AuditReport {
     || (&& IsCallable in ts
         && (|| (HasEnsuresClause in ts && (MissingBody in ts || HasExternAttribute in ts))
             || HasAssumeInBody in ts))
+    || MayNotTerminate in ts
     // TODO: extern with no ensures but possibly empty type
   }
 
   predicate method IsExplicitAssumption(ts: set<Tag>) {
-    HasAxiomAttribute in ts || HasAssumeInBody in ts
+    || HasAxiomAttribute in ts
+    || HasAssumeInBody in ts
   }
 
   //// Report rendering ////
@@ -96,6 +97,9 @@ module AuditReport {
     MaybeElt(HasAxiomAttribute in ts,
       ("Has explicit `{:axiom}` attribute.",
        "Attempt to provide a proof or model.")) +
+    MaybeElt(MayNotTerminate in ts,
+      ("May not terminate (uses `decreases *`).",
+       "Provide a valid `decreases` clause.")) +
     MaybeElt(HasAssumeInBody in ts,
       ("Has `assume` statement in body.",
       "Try to replace with `assert` and prove or add {:axiom}."))
