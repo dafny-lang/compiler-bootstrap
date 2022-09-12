@@ -501,7 +501,7 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
     decreases ASTHeight(ue), 0
   {
-    var children := []; // TODO: ListUtils.ToSeq(ue.SubExpressions);
+    var children := EnumerableUtils.ToSeq(ue.SubExpressions);
     var children' :- Seq.MapResult(children, e requires e in children reads * =>
       assume Decreases(e, ue); TranslateExpression(e));
     Success(DE.Unsupported("Unsupported expression", children'))
@@ -597,8 +597,8 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
     decreases ASTHeight(us), 0
   {
-    var subexprs := []; // TODO: ListUtils.ToSeq(ue.SubExpressions);
-    var substmts := []; // TODO: ListUtils.ToSeq(ue.SubStatements);
+    var subexprs := EnumerableUtils.ToSeq(us.SubExpressions);
+    var substmts := EnumerableUtils.ToSeq(us.SubStatements);
     var subexprs' :- Seq.MapResult(subexprs, e requires e in subexprs reads * =>
       assume Decreases(e, us); TranslateExpression(e));
     var substmts' :- Seq.MapResult(substmts, s requires s in substmts reads * =>

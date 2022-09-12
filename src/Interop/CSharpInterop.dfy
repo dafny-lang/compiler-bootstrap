@@ -28,6 +28,19 @@ module {:extern "CSharpInterop"} Bootstrap.Interop.CSharpInterop {
     }
   }
 
+  class EnumerableUtils {
+    constructor {:extern} () requires false // Prevent instantiation
+
+    static function method {:extern} FoldR<A, B>(f: (A, B) -> B, b0: B, l: IEnumerable<A>) : B
+      reads l
+
+    static function method ToSeq<T>(l: IEnumerable<T>) : seq<T>
+      reads l
+    {
+      FoldR((t, s) => [t] + s, [], l)
+    }
+  }
+
   class DictUtils {
     constructor {:extern} () requires false // Prevent instantiation
 

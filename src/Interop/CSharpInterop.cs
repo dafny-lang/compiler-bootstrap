@@ -28,6 +28,18 @@ namespace CSharpInterop {
     }
   }
 
+  public partial class EnumerableUtils {
+    public static B FoldR<A, B>(Func<A, B, B> f, B b0, IEnumerable<A>? eA) {
+      if(eA is null) {
+        return b0;
+      }
+      foreach (var x in eA) {
+        b0 = f(x, b0);
+      }
+      return b0;
+    }
+  }
+
   public partial class DictUtils {
     public static R FoldL<K, V, R>(Func<R, K, V, R> f, R r0, Dictionary<K, V>? d) where K : notnull {
       if(d is null) {
