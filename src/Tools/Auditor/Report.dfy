@@ -58,6 +58,7 @@ module AuditReport {
             || HasAssumeInBody in ts))
     || MayNotTerminate in ts
     // TODO: extern with no ensures but possibly empty type
+    // TODO: loop or forall with no body
   }
 
   predicate method IsExplicitAssumption(ts: set<Tag>) {
@@ -111,7 +112,11 @@ module AuditReport {
     {
     }
 
-  function method RenderAssumptionMarkdown(a: Assumption): string {
+  function method RenderRow(begin: string, sep: string, end: string, cells: seq<string>): string {
+    begin + Flatten(Seq.Interleave(sep, cells)) + end
+  }
+
+  function method RenderAssumption(begin: string, sep: string, end: string, a: Assumption): string {
     var descs := AssumptionDescription(a.tags);
     var issues := Map( (desc: (string, string)) => desc.0, descs);
     var mitigations := Map( (desc: (string, string)) => desc.1, descs);
@@ -123,7 +128,11 @@ module AuditReport {
       , Flatten(Seq.Interleave("<br>", issues))
       , Flatten(Seq.Interleave("<br>", mitigations))
       ];
-    "| " + Flatten(Seq.Interleave(" | ", cells)) + " |"
+    RenderRow(begin, sep, end, cells)
+  }
+
+  function method RenderAssumptionMarkdown(a: Assumption): string {
+    RenderAssumption("| ", " | ", " |", a)
   }
 
   function method RenderAuditReportMarkdown(r: Report): string {
@@ -131,5 +140,20 @@ module AuditReport {
       "|Name|Compiled|Explicit Assumption|Extern|Issue|Mitigation|\n" +
       "|----|--------|-------------------|------|-----|----------|\n";
     FoldL((s, a) => s + RenderAssumptionMarkdown(a) + "\n", header, r.assumptions)
+  }
+
+  function method RenderAssumptionHTML(a: Assumption): string {
+    RenderAssumption("<tr><td>", "</td><td>", "</td></tr>", a)
+  }
+
+  function method RenderAuditReportHTML(r: Report): string {
+    var header :=
+      "<tr><th>Name</th><th>Compiled</th><th>Explicit Assumption</th>" +
+      "<th>Extern</th><th>Issue</th><th>Mitigation</th></tr>\n";
+    FoldL((s, a) => s + RenderAssumptionHTML(a) + "\n", header, r.assumptions)
+  }
+
+  function method RenderAuditReportText(r: Report): string {
+    "Not yet implemented"
   }
 }

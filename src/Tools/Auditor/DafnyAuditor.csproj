@@ -16,4 +16,10 @@
     <Compile Include="..\..\Interop\CSharpDafnyInterop.cs" />
     <Compile Include="..\..\Interop\CSharpDafnyASTInterop.cs" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="assets\template.html">
+      <LogicalName>template.html</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

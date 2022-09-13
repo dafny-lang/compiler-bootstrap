@@ -78,16 +78,31 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     constructor() {
     }
 
-    method Audit(p: CSharpDafnyASTModel.Program) returns (r: string)
+    method Audit(render: Report -> string, p: CSharpDafnyASTModel.Program) returns (r: string)
     {
       var res := E.TranslateProgram(p);
       match res {
         case Success(p') =>
           var rpt := GenerateAuditReport(p'.registry);
-          return RenderAuditReportMarkdown(rpt);
+          return render(rpt);
         case Failure(err) =>
           return "Failed to translate program:\n" + err.ToString();
       }
+    }
+
+    method AuditHTML(p: CSharpDafnyASTModel.Program) returns (r: string)
+    {
+      r := Audit(RenderAuditReportHTML, p);
+    }
+
+    method AuditMarkdown(p: CSharpDafnyASTModel.Program) returns (r: string)
+    {
+      r := Audit(RenderAuditReportMarkdown, p);
+    }
+
+    method AuditText(p: CSharpDafnyASTModel.Program) returns (r: string)
+    {
+      r := Audit(RenderAuditReportText, p);
     }
   }
 }
