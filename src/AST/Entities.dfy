@@ -528,6 +528,8 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       [root] + Seq.Flatten(Seq.Map(RecursiveTransitiveMembers'(root), Members(root)))
     }
 
+    // BUG: the root parameter should be ghost, but causes compile failure if it is
+    // TODO: create and link to GitHub issue once we can reduce it to a simpler reproduction
     function RecursiveTransitiveMembers'(root: Name)
       : (Name --> seq<Name>)
       requires Valid?()
