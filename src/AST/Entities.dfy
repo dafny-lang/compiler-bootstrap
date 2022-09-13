@@ -41,7 +41,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     ClassType(parentTypes: seq<Name>)
   datatype DataType =
     DataType()
-  datatype NewType =
+  datatype NewType = // TODO: Change this into a subset type with a flag?
     NewType(boundVar: string, ty: Types.Type, pred: Option<Expr>, witnessExpr: Option<Expr>)
 
   datatype Type =
@@ -118,7 +118,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | Type(ei: EntityInfo, t: Type)
     | Definition(ei: EntityInfo, d: Definition)
     | Unsupported(ei: EntityInfo, description: string)
-  {
+  { // TODO: Define subexpressions and use that in the implementation of the auditor
     const kind :=
       match this
         case Module(ei, m) => EModule
