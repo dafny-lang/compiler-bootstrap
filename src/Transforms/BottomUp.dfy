@@ -312,6 +312,7 @@ module Bootstrap.Transforms.BottomUp {
     Shallow.Map_Program(p, Map_Expr_Transformer(tr))
   }
 
+  // TODO: prove
 /*
   lemma {:opaque} Map_Program_PreservesRel(p: Program, tr: BottomUpTransformer, rel: (Expr, Expr) -> bool)
     requires Deep.All_Program(p, tr.f.requires)

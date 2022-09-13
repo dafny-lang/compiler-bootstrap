@@ -672,12 +672,14 @@ module Simplify {
   function method Apply(p: Program) : (p': Program)
     requires Tr_Pre(p)
     ensures Tr_Post(p')
+    // TODO
     //ensures Tr_Expr_Rel(p.mainMethod.methodBody, p'.mainMethod.methodBody)
     // Apply the transformation to a program.
   {
     Deep.All_Expr_True_Forall(Tr_Expr.f.requires);
     assert Deep.All_Program(p, Tr_Expr.f.requires);
     EqInterp_Lift(Tr_Expr.f);
+    // TODO
     //Map_Program_PreservesRel(p, Tr_Expr, Tr_Expr_Rel);
     Map_Program(p, Tr_Expr)
   }

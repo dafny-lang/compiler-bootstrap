@@ -31,6 +31,7 @@ module Types {
     | Collection(finite: bool, kind: CollectionKind, eltType: Type)
     | Function(args: seq<Type>, ret: Type) // TODO
     | Class(classType: ClassType)
+    // TODO: change string to indicate C# class and include location
     | Unsupported(description: string)
   {
     // TODO: remove?
@@ -259,6 +260,7 @@ module Exprs {
     | Block(stmts: seq<Expr>)
     | Bind(vars: seq<string>, vals: seq<Expr>, body: Expr)
     | If(cond: Expr, thn: Expr, els: Expr) // DISCUSS: Lazy op node?
+    // TODO: change string to indicate C# class and include location
     | Unsupported(description: string, children: seq<Expr>)
   {
     function method Depth() : nat {

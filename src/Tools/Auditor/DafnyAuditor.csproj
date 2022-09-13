@@ -10,6 +10,7 @@
     <DAFNY_ROOT Condition="'$(DAFNY_ROOT)' == ''">..\..\..\..\</DAFNY_ROOT>
   </PropertyGroup>
 
+  <!-- TODO: get DafnyPipeline from NuGet when we can -->
   <ItemGroup>
     <ProjectReference Include="$(DAFNY_ROOT)\Source\Dafny\DafnyPipeline.csproj" />
     <Compile Include="..\..\Interop\CSharpInterop.cs" />
