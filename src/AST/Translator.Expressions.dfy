@@ -174,13 +174,11 @@ module Bootstrap.AST.Translator.Expressions {
     ASTHeight(u) < ASTHeight(v)
   }
 
-  function method TranslateUnary(u: C.UnaryExpr)
+  function method TranslateUnaryOp(u: C.UnaryOpExpr)
     : (e: TranslationResult<Expr>)
     decreases ASTHeight(u), 0
     reads *
   {
-    :- Need(u is C.UnaryOpExpr, Invalid("Invalid unary operator"));
-    var u := u as C.UnaryOpExpr;
     var op, e := u.ResolvedOp, u.E;
     assume Decreases(e, u);
     var te :- TranslateExpression(e);
@@ -463,8 +461,8 @@ module Bootstrap.AST.Translator.Expressions {
       TranslateIdentifierExpr(c as C.IdentifierExpr)
     else if c is C.ConversionExpr then
       TranslateUnsupportedExpression(c)
-    else if c is C.UnaryExpr then
-      TranslateUnary(c as C.UnaryExpr)
+    else if c is C.UnaryOpExpr then
+      TranslateUnaryOp(c as C.UnaryOpExpr)
     else if c is C.BinaryExpr then
       TranslateBinary(c as C.BinaryExpr)
     else if c is C.LiteralExpr then
