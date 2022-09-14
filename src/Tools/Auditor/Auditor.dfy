@@ -44,9 +44,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     TagIf(exists a | a in e.ei.attrs :: a.name == Extern, HasExternAttribute) +
     TagIf(exists a | a in e.ei.attrs :: a.name == Axiom, HasAxiomAttribute) +
     TagIf(e.Type? && e.t.SubsetType?, IsSubsetType) +
-    TagIf(e.Type? && e.t.NewType? && e.t.nt.pred.Some?, IsSubsetType) +
     TagIf(e.Type? && e.t.SubsetType? && e.t.st.witnessExpr.None?, MissingWitness) +
-    TagIf(e.Type? && e.t.NewType? && e.t.nt.witnessExpr.None?, MissingWitness) +
     TagIf(e.Definition? && e.d.Callable? && e.d.ci.body.None?, MissingBody) +
     TagIf(e.Definition? && e.d.Callable? && e.d.ci.body.Some? &&
           ContainsAssumeStatement(e.d.ci.body.value), HasAssumeInBody) +

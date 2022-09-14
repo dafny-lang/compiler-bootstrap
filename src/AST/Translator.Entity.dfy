@@ -120,7 +120,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   {
     var ty :- Expr.TranslateType(ts.Rhs);
     var ei :- TranslateTopLevelEntityInfo(ts);
-    Success([E.Entity.Type(ei, E.Type.TypeAlias(E.TypeAlias.TypeAlias(ty)))])
+    Success([E.Entity.Type(ei, E.Type.TypeAlias(E.TypeAlias.TypeAlias(ty, false)))])
   }
 
   function TranslateSubsetTypeDecl(st: C.SubsetTypeDecl): (e: TranslationResult<seq<E.Entity>>)
@@ -132,7 +132,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     var constraint :- Expr.TranslateExpression(st.Constraint);
     var wit :- Expr.TranslateOptionalExpression(st.Witness);
     var ei :- TranslateTopLevelEntityInfo(st);
-    Success([E.Entity.Type(ei, E.Type.SubsetType(E.SubsetType.SubsetType(x, ty, constraint, wit)))])
+    Success([E.Entity.Type(ei, E.Type.SubsetType(E.SubsetType.SubsetType(x, ty, constraint, wit, false)))])
   }
 
   function TranslateOpaqueTypeDecl(ot: C.OpaqueTypeDecl): (e: TranslationResult<E.Type>)
@@ -144,11 +144,14 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateNewtypeDecl(nt: C.NewtypeDecl): (e: TranslationResult<E.Type>)
     reads *
   {
-    var x := if nt.Var == null then None else Some(TypeConv.AsString(nt.Var.Name));
     var ty :- Expr.TranslateType(nt.BaseType);
-    var constraint :- Expr.TranslateOptionalExpression(nt.Constraint);
-    var wit :- Expr.TranslateOptionalExpression(nt.Witness);
-    Success(E.Type.NewType(E.NewType.NewType(x, ty, constraint, wit)))
+    if nt.Var == null || nt.Constraint == null then
+      Success(E.Type.TypeAlias(E.TypeAlias.TypeAlias(ty, true)))
+    else
+      var x := TypeConv.AsString(nt.Var.Name);
+      var constraint :- Expr.TranslateExpression(nt.Constraint);
+      var wit :- Expr.TranslateOptionalExpression(nt.Witness);
+    Success(E.Type.SubsetType(E.SubsetType.SubsetType(x, ty, constraint, wit, true)))
   }
 
   function TranslateDatatypeDecl(dt: C.DatatypeDecl): (e: TranslationResult<E.Type>)

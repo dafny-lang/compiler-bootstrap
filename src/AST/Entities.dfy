@@ -29,10 +29,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     Import(localName: Atom, target: Name)
 
   datatype SubsetType =
-    SubsetType(boundVar: string, ty: Types.Type, pred: Expr, witnessExpr: Option<Expr>)
+    SubsetType(boundVar: string, ty: Types.Type, pred: Expr, witnessExpr: Option<Expr>, isNewType: bool)
 
   datatype TypeAlias =
-    TypeAlias(base: Types.Type)
+    TypeAlias(base: Types.Type, isNewType: bool)
   datatype AbstractType =
     AbstractType()
   datatype TraitType =
@@ -41,8 +41,6 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     ClassType(parentTypes: seq<Name>)
   datatype DataType =
     DataType()
-  datatype NewType = // TODO: Change this into a subset type with a flag?
-    NewType(boundVar: Option<string>, ty: Types.Type, pred: Option<Expr>, witnessExpr: Option<Expr>)
 
   datatype Type =
     | SubsetType(st: SubsetType)
@@ -51,7 +49,6 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | TraitType(tt: TraitType)
     | ClassType(ct: ClassType)
     | DataType(dt: DataType)
-    | NewType(nt: NewType)
     | Unsupported(desc: string)
 
   datatype FieldKind =
