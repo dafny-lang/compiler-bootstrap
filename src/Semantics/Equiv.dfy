@@ -183,7 +183,7 @@ module Bootstrap.Semantics.Equiv {
       case (Closure(ctx, vars, body), Closure(ctx', vars', body')) =>
         EqValue_Closure(v, v')
 
-      // DISCUSS: Better way to write this?  Need exhaustivity checking
+      // See discussion in Values.dfy for why this match is written like this.
       case (Unit, _) => false
       case (Bool(b), _) => false
       case (Char(c), _) => false

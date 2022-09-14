@@ -45,7 +45,12 @@ module Bootstrap.Semantics.Values {
         case (Closure(ctx, vars, body), Function(args, ret)) =>
           true // FIXME: Need a typing relation on terms, not just values
 
-        // DISCUSS: Better way to write this?  Need exhaustivity checking
+        // This block of cases ensures that the checks above are exhaustive.
+        // Using `case _ =>` would not be robust to the addition of new values
+        // or types; and replacing the match on the type by predicates
+        // (i.e. writing `Set(b) => ty.Collection? && …`) would lead to lots of
+        // boilerplate for complex matches (like the ones on `Collection`) and
+        // not be robust to the addition of extra fields in type constructors.
         case (Unit, _) => false
         case (Bool(b), _) => false
         case (Char(c), _) => false
