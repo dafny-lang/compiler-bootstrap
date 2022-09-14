@@ -46,7 +46,10 @@ namespace CSharpInterop {
         return r0;
       }
       var keys = d.Keys.ToList();
-      keys.Sort();
+      // The keys really should be sorted to make this a valid `function`
+      // in Dafny, but some of the instances that come up in practice have
+      // key types that don't implement `IComparable`. *sigh*
+      //keys.Sort();
       foreach (var k in keys) {
         r0 = f(r0, k, d[k]);
       }
