@@ -12,11 +12,11 @@ The following are places where we'd like to use a model of Dafny's hierarchy of 
   `Find: Name → Registry → Entity`
 
 - In the compiler, to apply a transformation over every definition
-  `Map: (f: NamedEntity → NamedEntity) → Registry → Registry`
+  `Map: (f: Entity → Entity) → Registry → Registry`
   (Plus some well-formedness criteria)
 
 - In the compiler, to introduce or remove entities
-  `Add/Replace: NamedEntity → Registry → Registry`
+  `Add/Replace: Entity → Registry → Registry`
   `Remove: Name → Registry → Registry`
 
 - In the auditor, to look for entities with certain properties
@@ -68,8 +68,8 @@ datatype Name = Anonymous | Name(parent: Name, suffix: Atom)
 The parent-child relationship is captured by the following predicate:
 
 ```dafny
-predicate Extends(parent: Name, child: Name) {
-  child.Name? && child.parent == parent
+predicate ChildOf(parent: Name) {
+  this.Name? && parent == this.parent
 }
 ```
 
@@ -77,21 +77,19 @@ predicate Extends(parent: Name, child: Name) {
 
 ```dafny
 datatype Entity =
-  | Module(children: seq<Name>)
-    // Note: Not separating submodules, exports, and imports in `children`
-  | ExportSet(provided: map<Name, Provided|Revealed>)
-  | Import(localName: Atom, target: Name)
-  | Type(children: seq<Name>, …)
-  | Definition(…)
-datatype NamedEntity = NamedEntity(n: Name, e: Entity)
+  | Module(ei: EntityInfo, m: Module)
+  | ExportSet(ei: EntityInfo, e: ExportSet)
+  | Import(ei: EntityInfo, i: Import)
+  | Type(ei: EntityInfo, t: Type)
+  | Definition(ei: EntityInfo, d: Definition)
 ```
 
-Note that entities do not contain a name; the name is packaged in the `NamedEntity`.  This makes access to the name of an entity more consistent (there's no need to have a `Name` field in every constructor).
+Each constructor includes an `EntityInfo` instance that contains a name, attributes, and members.
 
 A **registry** is a collection of named entities.  The root of the registry is a module with an empty name.
 
 ```
-datatype Registry = Registry(entities: map<Name, NamedEntity>) {
+datatype Registry = Registry(entities: map<Name, Entity>) {
   const root := entities[Anonymous];
 }
 ```
@@ -101,6 +99,6 @@ datatype Registry = Registry(entities: map<Name, NamedEntity>) {
 The definitions above are augmented with criteria capturing well-formedness, including:
 
 - A root module exists (`entities` is non-empty)
-- Parent-children relationships are respected (e.g. type can't point to module, import must point to a module)
+- Parent-children relationships are respected (e.g. a type can't point to module, import must point to a module)
 - Parent-children naming conventions are respected with their parents (see `.Extends` above).
 - All names found in the entity graph resolve to an entity (no dangling names).
