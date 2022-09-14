@@ -42,7 +42,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   datatype DataType =
     DataType()
   datatype NewType = // TODO: Change this into a subset type with a flag?
-    NewType(boundVar: string, ty: Types.Type, pred: Option<Expr>, witnessExpr: Option<Expr>)
+    NewType(boundVar: Option<string>, ty: Types.Type, pred: Option<Expr>, witnessExpr: Option<Expr>)
 
   datatype Type =
     | SubsetType(st: SubsetType)

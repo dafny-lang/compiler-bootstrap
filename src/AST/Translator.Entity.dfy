@@ -144,7 +144,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   function TranslateNewtypeDecl(nt: C.NewtypeDecl): (e: TranslationResult<E.Type>)
     reads *
   {
-    var x := TypeConv.AsString(nt.Var.Name);
+    var x := if nt.Var == null then None else Some(TypeConv.AsString(nt.Var.Name));
     var ty :- Expr.TranslateType(nt.BaseType);
     var constraint :- Expr.TranslateOptionalExpression(nt.Constraint);
     var wit :- Expr.TranslateOptionalExpression(nt.Witness);
