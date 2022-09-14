@@ -301,11 +301,13 @@ module Bootstrap.AST.Translator.Expressions {
     decreases ASTHeight(de), 0
   {
     var ty :- TranslateType(de.Type);
-    :- Need(ty.Collection? && ty.finite, Invalid("`DisplayExpr` must be a finite collection."));
     var elems := ListUtils.ToSeq(de.Elements);
     var elems :- Seq.MapResult(elems, e requires e in elems reads * =>
       assume Decreases(e, de); TranslateExpression(e));
-    Success(DE.Apply(DE.Eager(DE.Builtin(DE.Display(ty))), elems))
+    if !ty.Collection? || (ty.Collection? && !ty.finite) then
+      Success(DE.Unsupported("`DisplayExpr` must be a finite collection.", elems))
+    else
+      Success(DE.Apply(DE.Eager(DE.Builtin(DE.Display(ty))), elems))
   }
 
   function method TranslateExpressionPair(mde: C.MapDisplayExpr, ep: C.ExpressionPair)
