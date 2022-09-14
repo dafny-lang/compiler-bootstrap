@@ -310,10 +310,10 @@ module Utils.Lib.Seq {
             case None => []) + MapFilter(s[1..], f)
   }
 
-  /// Break a sequence into a prefix that does not satisfy a predicate and
-  /// a suffix beginning with an element that does (or an empty suffix if
-  /// no elements satisfy the predicate).
   function method Break<T>(P: T -> bool, s: seq<T>): (result: (seq<T>, seq<T>))
+    // Break a sequence into a prefix that does not satisfy a predicate and
+    // a suffix beginning with an element that does (or an empty suffix if
+    // no elements satisfy the predicate).
     ensures |result.1| <= |s|
     ensures forall c <- result.0 :: !P(c)
     ensures |result.1| > 0 ==> P(result.1[0])
@@ -326,12 +326,12 @@ module Utils.Lib.Seq {
       ([s[0]] + h, t)
   }
 
-  /// Split a sequence into the subsequences separated by the given delimiter.
   function method Split<T(==)>(x: T, s: seq<T>): (result: seq<seq<T>>)
+    // Split a sequence into the subsequences separated by the given delimiter.
     decreases |s|
     ensures forall s <- result :: x !in s
     // The following should be true, but doesn't go through automatically.
-    //ensures Flatten(result) == Filter(s, y => y != x)
+    // ensures Flatten(result) == Filter(s, y => y != x)
   {
     var (h, t) := Break(y => y == x, s);
     assert !(x in h);

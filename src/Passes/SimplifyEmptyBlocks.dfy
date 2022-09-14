@@ -605,7 +605,7 @@ module SimplifyIfThenElse {
 }
 
 module Simplify {
-  /// The final transformation
+  // The final transformation
   
   import Utils.Lib
   import Utils.Lib.Debug

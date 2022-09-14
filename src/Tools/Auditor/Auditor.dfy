@@ -19,7 +19,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
   import opened Utils.Lib.Datatypes
   import opened Utils.Lib.Seq
 
-  /// ## AST traversals
+/// ## AST traversals
 
   predicate IsAssumeStatement(e: Expr)
   {
@@ -33,7 +33,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     Deep.Any_Expr(e, (c:Expr) => IsAssumeStatement(c))
   }
 
-  /// ## Tag extraction and processing
+/// ## Tag extraction and processing
 
   function TagIf(cond: bool, t: Tag): set<Tag> {
     if cond then {t} else {}
@@ -55,7 +55,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     TagIf(e.Definition? && e.d.Callable?, IsCallable)
   }
 
-  /// ## Report generation
+/// ## Report generation
 
   function AddAssumptions(e: Entity, assms: seq<Assumption>): seq<Assumption> {
     var tags := GetTags(e);

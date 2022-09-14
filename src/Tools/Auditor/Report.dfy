@@ -3,7 +3,7 @@ include "../../Utils/Library.dfy"
 module AuditReport {
   import opened Utils.Lib.Seq
 
-  //// Data types for report ////
+/// ## Data types for report
 
   datatype Tag =
     | IsGhost
@@ -47,7 +47,7 @@ module AuditReport {
 
   const EmptyReport := Report([])
 
-  //// Tag categorization ////
+/// ## Tag categorization
 
   predicate method IsAssumption(ts: set<Tag>) {
     // This seems to be of little value at the moment
@@ -66,7 +66,7 @@ module AuditReport {
     || HasAssumeInBody in ts
   }
 
-  //// Report rendering ////
+/// ## Report rendering
 
   function method BoolYN(b: bool): string {
     if b then "Y" else "N"
