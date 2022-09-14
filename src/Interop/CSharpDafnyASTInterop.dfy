@@ -26,7 +26,9 @@ module {:extern "CSharpDafnyASTInterop"} Bootstrap.Interop.CSharpDafnyASTInterop
   class {:extern} ExprUtils {
     constructor {:extern} () requires false // Prevent instantiation
 
-    static function method {:extern} UnescapedCharacters(ty: CSharpDafnyASTModel.CharLiteralExpr)
-      : (cs: IEnumerable<char>)
+    static function method {:extern} UnescapedCharacters(e: CSharpDafnyASTModel.LiteralExpr)
+      : (cs: List<char>)
+      reads e
+      requires e.Value is System.String
   }
 }

@@ -217,13 +217,11 @@ module Bootstrap.AST.Translator.Expressions {
     else if l.Value is BaseTypes.BigDec then
       Success(DE.Literal(DE.LitReal(TypeConv.AsReal(l.Value)))) // TODO test
     else if l.Value is String then
+      var str := ListUtils.ToSeq(ExprUtils.UnescapedCharacters(l));
       if l is C.CharLiteralExpr then
-        var charEnum := ExprUtils.UnescapedCharacters(l as C.CharLiteralExpr);
-        var chars := EnumerableUtils.ToSeq(charEnum);
-        :- Need(|chars| == 1, Invalid("CharLiteralExpr must contain a single character."));
-        Success(DE.Literal(DE.LitChar(chars[0])))
+        :- Need(|str| == 1, Invalid("CharLiteralExpr must contain a single character."));
+        Success(DE.Literal(DE.LitChar(str[0])))
       else if l is C.StringLiteralExpr then
-        var str := TypeConv.AsString(l.Value);
         var sl := l as C.StringLiteralExpr;
         Success(DE.Literal(DE.LitString(str, sl.IsVerbatim)))
       else
@@ -298,14 +296,14 @@ module Bootstrap.AST.Translator.Expressions {
   function method TranslateDisplayExpr(de: C.DisplayExpression)
     : (e: TranslationResult<Expr>)
     reads *
-    decreases ASTHeight(de), 0
+    decreases ASTHeight(de), 1
   {
     var ty :- TranslateType(de.Type);
     var elems := ListUtils.ToSeq(de.Elements);
     var elems :- Seq.MapResult(elems, e requires e in elems reads * =>
       assume Decreases(e, de); TranslateExpression(e));
-    if !ty.Collection? || (ty.Collection? && !ty.finite) then
-      Success(DE.Unsupported("`DisplayExpr` must be a finite collection.", elems))
+    if !ty.Collection? || !ty.finite then
+      TranslateUnsupportedExpression(de)
     else
       Success(DE.Apply(DE.Eager(DE.Builtin(DE.Display(ty))), elems))
   }
@@ -344,10 +342,11 @@ module Bootstrap.AST.Translator.Expressions {
     ensures e.Success? ==> P.All_Expr(e.value, DE.WellFormed)
   { // FIXME: The models that we generate do not allow for `null`
     var ty :- TranslateType(se.Seq.Type);
-    if ( || !ty.Collection?
-         || ty.kind.Set?
-         || (se.SelectOne && (se.E0 == null || se.E1 != null))
-         || (!se.SelectOne && ty.Collection? && !ty.kind.Seq?)) then
+    :- Need(se.SelectOne ==> se.E0 != null && se.E1 == null,
+        Invalid("Inconsistent values for `SelectOne` and E1 in SeqSelect."));
+    :- Need(!se.SelectOne ==> ty.Collection? && ty.kind.Seq?,
+        Invalid("`SeqSelect` on a map or multiset must have a single index."));
+    if !ty.Collection?  || ty.kind.Set? then
       TranslateUnsupportedExpression(se)
     else
       assume Math.Max(ASTHeight(se.Seq), Math.Max(ASTHeight(se.E0), ASTHeight(se.E1))) < ASTHeight(se);
@@ -602,7 +601,7 @@ module Bootstrap.AST.Translator.Expressions {
     decreases ASTHeight(us), 0
   {
     if us == null then
-      Success(DE.Unsupported("Unsupporte statement: null", []))
+      Success(DE.Unsupported("Unsupported statement: null", []))
     else
       var subexprs := EnumerableUtils.ToSeq(us.SubExpressions);
       var substmts := EnumerableUtils.ToSeq(us.SubStatements);

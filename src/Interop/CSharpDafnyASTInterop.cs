@@ -4,7 +4,7 @@ namespace CSharpDafnyASTInterop {
       ty.NormalizeExpand();
   }
   public partial class ExprUtils {
-    public static IEnumerable<char> UnescapedCharacters(Microsoft.Dafny.CharLiteralExpr e) =>
-      Microsoft.Dafny.Util.UnescapedCharacters((string)e.Value, false);
+    public static List<char> UnescapedCharacters(Microsoft.Dafny.LiteralExpr e) =>
+      Microsoft.Dafny.Util.UnescapedCharacters((string)e.Value, false).ToList();
   }
 }
