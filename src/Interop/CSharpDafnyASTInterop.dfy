@@ -1,7 +1,10 @@
 include "CSharpDafnyASTModel.dfy"
+include "CSharpModel.dfy"
 
 module {:extern "CSharpDafnyASTInterop"} Bootstrap.Interop.CSharpDafnyASTInterop {
   import CSharpDafnyASTModel
+  import System
+  import opened System.Collections.Generic
 
   function {:axiom} TypeHeight(t: CSharpDafnyASTModel.Type) : nat
 
@@ -18,5 +21,12 @@ module {:extern "CSharpDafnyASTInterop"} Bootstrap.Interop.CSharpDafnyASTInterop
     static function method {:extern} NormalizeExpand(ty: CSharpDafnyASTModel.Type)
       : (ty': CSharpDafnyASTModel.Type)
       ensures TypeHeight(ty') <= TypeHeight(ty)
+  }
+
+  class {:extern} ExprUtils {
+    constructor {:extern} () requires false // Prevent instantiation
+
+    static function method {:extern} UnescapedCharacters(ty: CSharpDafnyASTModel.CharLiteralExpr)
+      : (cs: IEnumerable<char>)
   }
 }
