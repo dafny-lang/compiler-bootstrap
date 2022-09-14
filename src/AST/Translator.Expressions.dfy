@@ -416,17 +416,19 @@ module Bootstrap.AST.Translator.Expressions {
     decreases ASTHeight(le), 0
   {
     var lhss := ListUtils.ToSeq(le.LHSs);
-    var bvs := Seq.Map((pat: C.CasePattern<C.BoundVar>) reads * =>
-      if pat.Var == null then "_" else TypeConv.AsString(pat.Var.Name), lhss);
     var rhss := ListUtils.ToSeq(le.RHSs);
     var elems :- Seq.MapResult(rhss, e requires e in rhss reads * =>
       assume Decreases(e, le); TranslateExpression(e));
-    :- Need(|bvs| == |elems|, Invalid("Incorrect number of bound variables in let expression."));
     assume Decreases(le.Body, le);
     var body :- TranslateExpression(le.Body);
     if !le.Exact then
       Success(DE.Unsupported("Inexact let expression", [body] + elems))
+    else if !Seq.All((pat: C.CasePattern<C.BoundVar>) reads * => pat.Var != null, lhss) then
+      Success(DE.Unsupported("Let expression with null bound variable", [body] + elems))
     else
+      var bvs := Seq.Map((pat: C.CasePattern<C.BoundVar>) reads * =>
+        TypeConv.AsString(pat.Var.Name), lhss);
+      :- Need(|bvs| == |elems|, Invalid("Incorrect number of bound variables in let expression."));
       Success(DE.Bind(bvs, elems, body))
   }
 
