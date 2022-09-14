@@ -503,10 +503,13 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
     decreases ASTHeight(ue), 0
   {
-    var children := EnumerableUtils.ToSeq(ue.SubExpressions);
-    var children' :- Seq.MapResult(children, e requires e in children reads * =>
-      assume Decreases(e, ue); TranslateExpression(e));
-    Success(DE.Unsupported("Unsupported expression", children'))
+    if ue == null then
+      Success(DE.Unsupported("Unsupported expression: null", []))
+    else
+      var children := if ue.SubExpressions == null then [] else EnumerableUtils.ToSeq(ue.SubExpressions);
+      var children' :- Seq.MapResult(children, e requires e in children reads * =>
+        assume Decreases(e, ue); TranslateExpression(e));
+      Success(DE.Unsupported("Unsupported expression", children'))
   }
 
   // TODO: adapt auto-generated AST to include some nullable fields
@@ -599,13 +602,16 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
     decreases ASTHeight(us), 0
   {
-    var subexprs := EnumerableUtils.ToSeq(us.SubExpressions);
-    var substmts := EnumerableUtils.ToSeq(us.SubStatements);
-    var subexprs' :- Seq.MapResult(subexprs, e requires e in subexprs reads * =>
-      assume Decreases(e, us); TranslateExpression(e));
-    var substmts' :- Seq.MapResult(substmts, s requires s in substmts reads * =>
-      assume Decreases(s, us); TranslateStatement(s));
-    Success(DE.Unsupported("Unsupported expression", subexprs' + substmts'))
+    if us == null then
+      Success(DE.Unsupported("Unsupporte statement: null", []))
+    else
+      var subexprs := EnumerableUtils.ToSeq(us.SubExpressions);
+      var substmts := EnumerableUtils.ToSeq(us.SubStatements);
+      var subexprs' :- Seq.MapResult(subexprs, e requires e in subexprs reads * =>
+        assume Decreases(e, us); TranslateExpression(e));
+      var substmts' :- Seq.MapResult(substmts, s requires s in substmts reads * =>
+        assume Decreases(s, us); TranslateStatement(s));
+      Success(DE.Unsupported("Unsupported statement", subexprs' + substmts'))
   }
 
 
