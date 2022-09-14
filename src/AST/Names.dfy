@@ -1,6 +1,7 @@
 include "../Utils/Library.dfy"
 
 module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
+  import Utils.Lib.Seq
   import Utils.Lib.Set
   import C = Utils.Lib.Sort.Comparison
   import SeqCmp = Utils.Lib.Seq.Comparison
@@ -26,6 +27,20 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
         case Anonymous => "_"
         case Name(Anonymous, suffix) => suffix
         case Name(parent, suffix) => parent.ToString() + "." + suffix
+    }
+
+    function ToDafnyName(): string {
+      var parts := Seq.Filter(this.ToSeq(), a => a !in {"_default", "_module"});
+      Seq.Flatten(Seq.Interleave(".", parts))
+    }
+
+    function IsInternal(): bool {
+      match this {
+        case Anonymous => true
+        case Name(_, suffix) =>
+          var parts := Seq.Split('_', suffix);
+          |parts| > 0 && parts[0] == "reveal"
+      }
     }
 
     function ToSeq(): seq<Atom> {
