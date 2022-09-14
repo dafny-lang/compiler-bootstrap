@@ -417,9 +417,8 @@ module Bootstrap.AST.Translator.Expressions {
     decreases ASTHeight(le), 0
   {
     var lhss := ListUtils.ToSeq(le.LHSs);
-    var bvs :- Seq.MapResult(lhss, (pat: C.CasePattern<C.BoundVar>) reads * =>
-      :- Need(pat.Var != null, Invalid("Null pattern variable in let expression."));
-      Success(TypeConv.AsString(pat.Var.Name)));
+    var bvs := Seq.Map((pat: C.CasePattern<C.BoundVar>) reads * =>
+      if pat.Var == null then "_" else TypeConv.AsString(pat.Var.Name), lhss);
     var rhss := ListUtils.ToSeq(le.RHSs);
     var elems :- Seq.MapResult(rhss, e requires e in rhss reads * =>
       assume Decreases(e, le); TranslateExpression(e));
