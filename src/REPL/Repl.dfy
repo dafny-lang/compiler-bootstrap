@@ -275,8 +275,8 @@ class REPL {
           } else {
             print "Fuel exhausted, trying again with fuel := ", fuel, "\n";
           }
-        case Failure(_) =>
-          return Failure(v.error); // Work around a translation bug
+        case Failure(_) => // BUG(https://github.com/dafny-lang/dafny/issues/2740)
+          return Failure(v.error);
     }
   }
 
