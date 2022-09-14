@@ -24,6 +24,15 @@ Supported language
 Our initial target is the purely functional subset of Dafny (aka non-ghost functions).  This is also the subset that the compiler is written on (our first large application will be bootstrapping the compiler itself).
 The Dafny-in-Dafny AST is defined in ``src/AST.dfy``.  We have operational semantics for most of it in ``src/Semantics/Interp.dfy``.  The C# backend is in ``src/Backends/CSharp/Compiler.dfy``, but it is not up-to-date (we are focusing on the language and the semantics).
 
+Tools
+-----
+
+The Dafny in Dafny code base supports two key executable programs:
+
+* A REPL, for interactively evaluating Dafny statements, in ``src/REPL``.
+
+* An auditor plugin, for reporting assumptions in a Dafny program, in ``src/Tools/Auditor``.
+
 Design notes
 ------------
 
@@ -91,6 +100,14 @@ Project hierarchy
       Extern declarations for existing C# functions from Dafny's codebase
     ``CSharpModel.dfy``
       Extern declarations for C#'s standard library (automatically copied from ``AutoExtern``)
+  ``Tools/``
+    ``Auditor/``
+      ``Auditor.dfy``
+      An auditor to identify assumptions in a Dafny program.
+      ``EntryPoint.cs``
+      The C# entry point that enables the auditor to be used as a plugin from Dafny.
+      ``Report.dfy``
+      The ``Report`` data structure used by the auditor.
   ``Utils/``
     ``Library.dfy``
       Utility functions (should move to shared library)
