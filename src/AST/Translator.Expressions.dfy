@@ -340,44 +340,44 @@ module Bootstrap.AST.Translator.Expressions {
 
   function method TranslateSeqSelectExpr(se: C.SeqSelectExpr): (e: TranslationResult<DE.T>)
     reads *
-    decreases ASTHeight(se), 0
+    decreases ASTHeight(se), 1
     ensures e.Success? ==> P.All_Expr(e.value, DE.WellFormed)
   { // FIXME: The models that we generate do not allow for `null`
     var ty :- TranslateType(se.Seq.Type);
-    :- Need(ty.Collection? && !ty.kind.Set?,
-            Invalid("`SeqSelect` must be on a map, sequence, or multiset."));
-    :- Need(se.SelectOne ==> se.E0 != null && se.E1 == null,
-            Invalid("Inconsistent values for `SelectOne` and E1 in SeqSelect."));
-    :- Need(!se.SelectOne ==> ty.kind.Seq?,
-            Invalid("`SeqSelect` on a map or multiset must have a single index."));
-    assume Math.Max(ASTHeight(se.Seq), Math.Max(ASTHeight(se.E0), ASTHeight(se.E1))) < ASTHeight(se);
-    var recv :- TranslateExpression(se.Seq);
-    var eager := (op, args) => Success(DE.Apply(DE.Eager(op), args));
-    match ty.kind { // FIXME AST gen should produce `Expression?` not `Expression`
-      case Seq() =>
-        if se.SelectOne then
-          assert se.E1 == null;
+    if ( || !ty.Collection?
+         || ty.kind.Set?
+         || (se.SelectOne && (se.E0 == null || se.E1 != null))
+         || (!se.SelectOne && ty.Collection? && !ty.kind.Seq?)) then
+      TranslateUnsupportedExpression(se)
+    else
+      assume Math.Max(ASTHeight(se.Seq), Math.Max(ASTHeight(se.E0), ASTHeight(se.E1))) < ASTHeight(se);
+      var recv :- TranslateExpression(se.Seq);
+      var eager := (op, args) => Success(DE.Apply(DE.Eager(op), args));
+      match ty.kind { // FIXME AST gen should produce `Expression?` not `Expression`
+        case Seq() =>
+          if se.SelectOne then
+            assert se.E1 == null;
+            var e0 :- TranslateExpression(se.E0);
+            eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqSelect)), [recv, e0])
+          else if se.E1 == null then
+            var e0 :- TranslateExpression(se.E0);
+            eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqDrop)), [recv, e0])
+          else if se.E0 == null then
+            var e1 :- TranslateExpression(se.E1);
+            eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqTake)), [recv, e1])
+          else
+            var e0 :- TranslateExpression(se.E0);
+            var e1 :- TranslateExpression(se.E1);
+            eager(DE.TernaryOp(DE.TernaryOps.Sequences(DE.TernaryOps.SeqSubseq)), [recv, e0, e1])
+        case Map(_) =>
+          assert se.SelectOne && se.E1 == null;
           var e0 :- TranslateExpression(se.E0);
-          eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqSelect)), [recv, e0])
-        else if se.E1 == null then
+          eager(DE.BinaryOp(DE.BinaryOps.Maps(DE.BinaryOps.MapSelect)), [recv, e0])
+        case Multiset() =>
+          assert se.SelectOne && se.E1 == null;
           var e0 :- TranslateExpression(se.E0);
-          eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqDrop)), [recv, e0])
-        else if se.E0 == null then
-          var e1 :- TranslateExpression(se.E1);
-          eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqTake)), [recv, e1])
-        else
-          var e0 :- TranslateExpression(se.E0);
-          var e1 :- TranslateExpression(se.E1);
-          eager(DE.TernaryOp(DE.TernaryOps.Sequences(DE.TernaryOps.SeqSubseq)), [recv, e0, e1])
-      case Map(_) =>
-        assert se.SelectOne && se.E1 == null;
-        var e0 :- TranslateExpression(se.E0);
-        eager(DE.BinaryOp(DE.BinaryOps.Maps(DE.BinaryOps.MapSelect)), [recv, e0])
-      case Multiset() =>
-        assert se.SelectOne && se.E1 == null;
-        var e0 :- TranslateExpression(se.E0);
-        eager(DE.BinaryOp(DE.BinaryOps.Multisets(DE.BinaryOps.MultisetSelect)), [recv, e0])
-    }
+          eager(DE.BinaryOp(DE.BinaryOps.Multisets(DE.BinaryOps.MultisetSelect)), [recv, e0])
+      }
   }
 
   function method TranslateSeqUpdateExpr(se: C.SeqUpdateExpr)
