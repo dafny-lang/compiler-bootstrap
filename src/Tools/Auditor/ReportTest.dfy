@@ -7,19 +7,21 @@ module AuditReportTest {
   method Main() {
     var rpt := Report([
       Assumption("MinusBv8NoBody",
-        {IsCallable, IsGhost, HasNoBody, HasEnsuresClause}),
+        {IsCallable, IsGhost, MissingBody, HasEnsuresClause}),
       Assumption("LeftShiftBV128",
-        {IsCallable, IsGhost, HasNoBody, HasEnsuresClause, HasAxiomAttribute}),
+        {IsCallable, IsGhost, MissingBody, HasEnsuresClause, HasAxiomAttribute}),
       Assumption("MinusBv8Assume",
         {IsCallable, IsGhost, HasEnsuresClause, HasAssumeInBody}),
       Assumption("GenerateBytes",
-        {IsCallable, HasExternAttribute, HasEnsuresClause, HasNoBody}),
+        {IsCallable, HasExternAttribute, HasEnsuresClause, MissingBody}),
       Assumption("GenerateBytesWithModel",
         {IsCallable, HasExternAttribute, HasEnsuresClause}),
       Assumption("GenerateBytesWrapper",
-        {IsCallable, HasExternAttribute, HasEnsuresClause, HasAssumeInBody}),
+        {IsCallable, HasExternAttribute, HasEnsuresClause, HasAssumeInBody})
+      /*
       Assumption("emptyType",
-        {IsSubsetType, HasNoWitness})
+        {IsSubsetType, MissingWitness})
+        */
       // This doesn't pass IsAsssumption
       /*
       Assumption("WhoKnows",
