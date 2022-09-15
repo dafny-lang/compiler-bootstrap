@@ -78,34 +78,33 @@ module Bootstrap.Tools.AuditReport {
      if b then [elt] else []
   }
 
-  // TODO: improve these descriptions
   function method AssumptionDescription(ts: set<Tag>): seq<(string, string)> {
     MaybeElt(IsCallable in ts && MissingBody in ts && IsGhost in ts,
-      ("Function or lemma has no body.",
-       "Provide a body or add {:axiom}.")) +
+      ("Ghost declaration has no body.",
+       "Provide a body or add `{:axiom}`.")) +
     MaybeElt(IsCallable in ts && MissingBody in ts && !(IsGhost in ts),
-      ("Callable definition has no body.",
-       "Provide a body or add {:axiom}.")) +
+      ("Compiled declaration has no body.",
+       "Provide a body or add `{:axiom}`.")) +
     MaybeElt(HasExternAttribute in ts && HasRequiresClause in ts,
-      ("Extern symbol with precondition.",
+      ("Declaration with `{:extern}` has precondition.",
        "Extensively test client code.")) +
     MaybeElt(HasExternAttribute in ts && HasEnsuresClause in ts,
-      ("Extern symbol with postcondition.",
-       "Provide a model or a test case, or both.")) +
+      ("Declaration with `{:extern}` has postcondition.",
+       "Extensively test against external code.")) +
        /*
     MaybeElt(IsSubsetType in ts && MissingWitness in ts,
       ("Subset type has no witness and could be empty.",
        "Provide a witness.")) +
        */
     MaybeElt(HasAxiomAttribute in ts,
-      ("Has explicit `{:axiom}` attribute.",
-       "Attempt to provide a proof or model.")) +
+      ("Declaration has explicit `{:axiom}` attribute.",
+       "Attempt to provide a proof or test.")) +
     MaybeElt(MayNotTerminate in ts,
-      ("May not terminate (uses `decreases *`).",
+      ("Method may not terminate (uses `decreases *`).",
        "Provide a valid `decreases` clause.")) +
     MaybeElt(HasAssumeInBody in ts,
-      ("Has `assume` statement in body.",
-      "Try to replace with `assert` and prove or add {:axiom}."))
+      ("Definition has `assume` statement in body.",
+      "Try to replace with `assert` and prove or add `{:axiom}`."))
   }
 
   lemma AllAssumptionsDescribed(ts: set<Tag>)
