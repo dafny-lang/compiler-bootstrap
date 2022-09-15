@@ -37,7 +37,7 @@ public class Auditor : Plugins.Rewriter {
 
   public override void PostResolve(Program program) {
     string? filename = null;
-    Format format = Format.Markdown;
+    Format format = Format.Text;
     string[] args = AuditorConfiguration.args;
 
     if (args.Count() > 1) {

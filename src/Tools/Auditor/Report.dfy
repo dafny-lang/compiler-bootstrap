@@ -117,19 +117,21 @@ module Bootstrap.Tools.AuditReport {
     begin + Flatten(Seq.Interleave(sep, cells)) + end
   }
 
-  function method RenderAssumption(begin: string, sep: string, end: string, a: Assumption): string {
-    var descs := AssumptionDescription(a.tags);
-    var issues := Map( (desc: (string, string)) => desc.0, descs);
-    var mitigations := Map( (desc: (string, string)) => desc.1, descs);
-    var cells :=
+  function method IssueRow(a: Assumption, issue: string, mitigation: string): seq<string> {
       [ a.name
       , BoolYN(!(IsGhost in a.tags))
       , BoolYN(IsExplicitAssumption(a.tags))
       , BoolYN(HasExternAttribute in a.tags)
-      , Flatten(Seq.Interleave("<br>", issues))
-      , Flatten(Seq.Interleave("<br>", mitigations))
-      ];
-    RenderRow(begin, sep, end, cells)
+      , issue
+      , mitigation
+      ]
+  }
+
+  function method RenderAssumption(begin: string, sep: string, end: string, a: Assumption): string {
+    var descs := AssumptionDescription(a.tags);
+    var rows := Map((desc: (string, string)) =>
+                  RenderRow(begin, sep, end, IssueRow(a, desc.0, desc.1)), descs);
+    Flatten(Interleave("\n", rows))
   }
 
   function method RenderAssumptionMarkdown(a: Assumption): string {
@@ -154,7 +156,14 @@ module Bootstrap.Tools.AuditReport {
     FoldL((s, a) => s + RenderAssumptionHTML(a) + "\n", header, r.assumptions)
   }
 
+  function method RenderAssumptionText(a: Assumption): string {
+    var descs := AssumptionDescription(a.tags);
+    var lines := Map((desc: (string, string)) =>
+      a.location.ToString() + ": " + a.name + ": " + desc.0 + " Possible mitigation: " + desc.1, descs);
+    Flatten(Seq.Interleave("\n", lines))
+  }
+
   function method RenderAuditReportText(r: Report): string {
-    "Not yet implemented"
+    FoldL((s, a) => s + RenderAssumptionText(a) + "\n", "", r.assumptions)
   }
 }
