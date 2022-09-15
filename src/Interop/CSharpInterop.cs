@@ -1,5 +1,8 @@
 #nullable enable
 using System.Numerics;
+using Dafny;
+using icharseq = Dafny.ISequence<char>;
+using charseq = Dafny.Sequence<char>;
 
 namespace CSharpInterop {
   public partial class ListUtils {
@@ -37,6 +40,12 @@ namespace CSharpInterop {
         b0 = f(x, b0);
       }
       return b0;
+    }
+  }
+
+  public partial class NumUtils {
+    public static icharseq IntToString(BigInteger n) {
+      return charseq.FromString(n.ToString());
     }
   }
 }

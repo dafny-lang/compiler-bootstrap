@@ -3,6 +3,7 @@
 
 include "Names.dfy"
 include "Syntax.dfy"
+include "../Interop/CSharpInterop.dfy"
 include "../Utils/Library.dfy"
 include "../Utils/Lib.Sort.dfy"
 
@@ -10,6 +11,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   // Hierarchies of Dafny entities.
   // See </doc/design/entities.md>.
 {
+  import opened Interop.CSharpInterop
   import opened Names
   import opened Syntax.Exprs
   import opened Syntax.Types
@@ -79,6 +81,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   {
     static function EMPTY(): Location {
       Location("<none>", 0, 0)
+    }
+
+    function ToString(): string {
+      file + "(" + NumUtils.IntToString(line) + "," + NumUtils.IntToString(column) + ")"
     }
   }
 

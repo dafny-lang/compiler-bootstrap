@@ -40,4 +40,10 @@ module {:extern "CSharpInterop"} Bootstrap.Interop.CSharpInterop {
       FoldR((t, s) => [t] + s, [], l)
     }
   }
+
+  class NumUtils {
+    constructor {:extern} () requires false // Prevent instantiation
+
+    static function method {:extern} IntToString(x: int): string
+  }
 }
