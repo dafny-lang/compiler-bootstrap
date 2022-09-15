@@ -58,7 +58,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
   function AddAssumptions(e: Entity, assms: seq<Assumption>): seq<Assumption> {
     var tags := GetTags(e);
     if IsAssumption(tags) then
-      assms + [Assumption(e.ei.name.ToDafnyName(), tags)]
+      assms + [Assumption(e.ei.name.ToDafnyName(), e.ei.location, tags)]
     else
       assms
   }

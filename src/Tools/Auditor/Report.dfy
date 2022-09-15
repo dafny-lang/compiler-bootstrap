@@ -1,6 +1,8 @@
+include "../../AST/Entities.dfy"
 include "../../Utils/Library.dfy"
 
-module AuditReport {
+module Bootstrap.Tools.AuditReport {
+  import opened AST.Entities
   import opened Utils.Lib.Seq
 
 /// ## Data types for report
@@ -40,7 +42,7 @@ module AuditReport {
     }
 
   datatype Assumption =
-    Assumption(name: string, tags: set<Tag>)
+    Assumption(name: string, location: Location, tags: set<Tag>)
 
   datatype Report =
     Report(assumptions: seq<Assumption>)
