@@ -39,21 +39,4 @@ namespace CSharpInterop {
       return b0;
     }
   }
-
-  public partial class DictUtils {
-    public static R FoldL<K, V, R>(Func<R, K, V, R> f, R r0, Dictionary<K, V>? d) where K : notnull {
-      if(d is null) {
-        return r0;
-      }
-      var keys = d.Keys.ToList();
-      // The keys really should be sorted to make this a valid `function`
-      // in Dafny, but some of the instances that come up in practice have
-      // key types that don't implement `IComparable`. *sigh*
-      //keys.Sort();
-      foreach (var k in keys) {
-        r0 = f(r0, k, d[k]);
-      }
-      return r0;
-    }
-  }
 }

@@ -12,7 +12,7 @@ module {:extern "CSharpDafnyASTInterop"} Bootstrap.Interop.CSharpDafnyASTInterop
     requires || c is CSharpDafnyASTModel.Expression
              || c is CSharpDafnyASTModel.Statement
              || c is CSharpDafnyASTModel.Declaration
-             || c is CSharpDafnyASTModel.ModuleSignature
+             || c is CSharpDafnyASTModel.ModuleDefinition
              || c is CSharpDafnyASTModel.Attributes
 
   class {:extern} TypeUtils {

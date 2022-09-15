@@ -228,44 +228,45 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       TranslateSubsetTypeDecl(tl)
     else if tl is C.TypeSynonymDecl then
       TranslateTypeSynonymDecl(tl)
-    else if tl is C.ModuleDecl then
-      var md := tl as C.ModuleDecl;
-      assume ASTHeight(md.Signature) < ASTHeight(tl);
-      TranslateModule(md.Signature)
+    else if tl is C.LiteralModuleDecl then
+      var md := tl as C.LiteralModuleDecl;
+      assume ASTHeight(md.ModuleDef) < ASTHeight(tl);
+      TranslateModule(md.ModuleDef)
     else
       var ei :- TranslateTopLevelEntityInfo(tl);
       Success([E.Entity.Unsupported(ei, "Unsupported top level declaration type for " + TypeConv.AsString(tl.FullName))])
   }
 
-  function TranslateModule(sig: C.ModuleSignature): (m: TranslationResult<seq<E.Entity>>)
+  function TranslateModule(def: C.ModuleDefinition): (m: TranslationResult<seq<E.Entity>>)
     reads *
-    decreases ASTHeight(sig), 1
+    decreases ASTHeight(def), 1
   {
-    var def := sig.ModuleDef;
-    var name :- TranslateName(def.FullName);
-    var attrs :- TranslateAttributes(def.Attributes);
-    var loc := TranslateLocation(def.tok);
-    var includes := ListUtils.ToSeq(def.Includes);
-    var exports := sig.ExportSets;
-    var topLevels := DictUtils.DictionaryToSeq(sig.TopLevels);
-    var topDecls :- Seq.MapResult(topLevels,
-      (tl: (System.String, C.TopLevelDecl)) reads * =>
-        assume ASTHeight(tl.1) < ASTHeight(sig);
-        TranslateTopLevelDecl(tl.1));
-    var topDecls' := Seq.Flatten(topDecls);
-    var topAndBelowNames := Seq.Map((d: E.Entity) => d.ei.name, topDecls');
-    var topNames := Seq.Filter(topAndBelowNames, (n:N.Name) => n.ChildOf(name));
-    var ei := E.EntityInfo(name, location := loc, attrs := attrs, members := topNames);
-    var mod := E.Entity.Module(ei, E.Module.Module());
-    Success([mod] + topDecls')
+    if def.tok is C.IncludeToken then
+      Success([])
+    else
+      var name :- TranslateName(def.FullName);
+      var attrs :- TranslateAttributes(def.Attributes);
+      var loc := TranslateLocation(def.tok);
+      var includes := ListUtils.ToSeq(def.Includes);
+      var topLevels := ListUtils.ToSeq(def.TopLevelDecls);
+      var topDecls :- Seq.MapResult(topLevels,
+        (tl: C.TopLevelDecl) reads * =>
+          assume ASTHeight(tl) < ASTHeight(def);
+          TranslateTopLevelDecl(tl));
+      var topDecls' := Seq.Flatten(topDecls);
+      var topAndBelowNames := Seq.Map((d: E.Entity) => d.ei.name, topDecls');
+      var topNames := Seq.Filter(topAndBelowNames, (n:N.Name) => n.ChildOf(name));
+      var ei := E.EntityInfo(name, location := loc, attrs := attrs, members := topNames);
+      var mod := E.Entity.Module(ei, E.Module.Module());
+      Success([mod] + topDecls')
   }
 
   function TranslateProgram(p: C.Program): (exps: TranslationResult<E.Program>)
     reads *
   {
-    var moduleSigs := DictUtils.DictionaryToSeq(p.ModuleSigs);
-    var entities :- Seq.MapResult(moduleSigs,
-      (sig: (C.ModuleDefinition, C.ModuleSignature)) reads * => TranslateModule(sig.1));
+    var moduleDefs := ListUtils.ToSeq(p.CompileModules);
+    var entities :- Seq.MapResult(moduleDefs,
+      (def: C.ModuleDefinition) reads * => TranslateModule(def));
     var flatEntities := Seq.Flatten(entities);
     var names := Seq.Map((e: E.Entity) => e.ei.name, flatEntities);
     var topNames := Seq.Filter(names, (n:N.Name) => n.Name? && n.parent.Anonymous?);
