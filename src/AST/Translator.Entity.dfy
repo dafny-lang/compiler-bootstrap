@@ -261,19 +261,23 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       Success([mod] + topDecls')
   }
 
-  function TranslateProgram(p: C.Program): (exps: TranslationResult<E.Program>)
+  function TranslateProgram(p: C.Program, skipCompile: bool): (exps: TranslationResult<E.Program>)
     reads *
   {
     var moduleDefs := ListUtils.ToSeq(p.CompileModules);
     var entities :- Seq.MapResult(moduleDefs,
       (def: C.ModuleDefinition) reads * => TranslateModule(def));
     var flatEntities := Seq.Flatten(entities);
-    var names := Seq.Map((e: E.Entity) => e.ei.name, flatEntities);
+    var inclEntities := if skipCompile then
+                          Seq.Filter(flatEntities, (e: E.Entity) => !e.ei.name.IsCompile())
+                        else
+                          flatEntities;
+    var names := Seq.Map((e: E.Entity) => e.ei.name, inclEntities);
     var topNames := Seq.Filter(names, (n:N.Name) => n.Name? && n.parent.Anonymous?);
     :- Need(forall nm <- topNames :: nm.ChildOf(N.Anonymous), Invalid("Malformed name at top level"));
     var rootEI := E.EntityInfo.EntityInfo(N.Name.Anonymous, location := E.Location.EMPTY(), attrs := [], members := topNames);
     var root := E.Entity.Module(rootEI, E.Module.Module());
-    var regMap := Seq.FoldL((m:map<N.Name, E.Entity>, e: E.Entity) => m + map[e.ei.name := e], map[], [root] + flatEntities);
+    var regMap := Seq.FoldL((m:map<N.Name, E.Entity>, e: E.Entity) => m + map[e.ei.name := e], map[], [root] + inclEntities);
     var mainMethodName :- if p.MainMethod == null then
                             Success(None)
                           else

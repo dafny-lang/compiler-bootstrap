@@ -44,6 +44,15 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
       }
     }
 
+    function IsCompile(): bool {
+      match this {
+        case Anonymous => false
+        case Name(_, suffix) =>
+          var parts := Seq.Split('_', suffix);
+          (|parts| > 0 && parts[|parts| - 1] == "Compile") || parent.IsCompile()
+      }
+    }
+
     function ToSeq(): seq<Atom> {
       match this
         case Anonymous => []

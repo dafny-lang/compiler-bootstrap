@@ -78,7 +78,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
 
     method Audit(render: Report -> string, p: CSharpDafnyASTModel.Program) returns (r: string)
     {
-      var res := E.TranslateProgram(p);
+      var res := E.TranslateProgram(p, true);
       match res {
         case Success(p') =>
           var rpt := GenerateAuditReport(p'.registry);
