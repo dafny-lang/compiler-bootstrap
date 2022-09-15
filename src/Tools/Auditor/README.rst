@@ -31,8 +31,8 @@ From the top level of this repository, run the following.
 .. code-block:: shell
 
   git clone https://github.com/dafny-lang/dafny
-  (cd dafny && git checkout compiler-bootstrap)
-  DAFNY_ROOT=dafny make auditor
+  (cd dafny && git checkout compiler-bootstrap && make exe)
+  DAFNY_ROOT=$(pwd)/dafny make clean auditor
 
 Usage
 =====
@@ -52,7 +52,8 @@ the output file indicates what format to use. The following are supported:
 ``.md``
   Format as a Markdown table.
 ``.txt``
-  Format as plain text for a human reader.
+  Format as plain text for a human reader (currently a list of
+  warnings).
 
 If an output file is not provided, the report is sent to the console in
 the form of a list of warnings.
