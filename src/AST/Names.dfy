@@ -36,10 +36,11 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
 
     function IsInternal(): bool {
       match this {
-        case Anonymous => true
-        case Name(_, suffix) =>
+        case Anonymous => false
+        case Name(Anonymous, "_System") => true
+        case Name(parent, suffix) =>
           var parts := Seq.Split('_', suffix);
-          |parts| > 0 && parts[0] == "reveal"
+          (|parts| > 0 && parts[0] == "reveal") || parent.IsInternal()
       }
     }
 
