@@ -344,9 +344,9 @@ module Bootstrap.AST.Translator.Expressions {
     var ty :- TranslateType(se.Seq.Type);
     :- Need(se.SelectOne ==> se.E0 != null && se.E1 == null,
         Invalid("Inconsistent values for `SelectOne` and E1 in SeqSelect."));
-    :- Need(!se.SelectOne ==> ty.Collection? && ty.kind.Seq?,
-        Invalid("`SeqSelect` on a map or multiset must have a single index."));
-    if !ty.Collection?  || ty.kind.Set? then
+    if || !ty.Collection? 
+       || ty.kind.Set? 
+       || (!se.SelectOne && (!ty.Collection? || !ty.kind.Seq?)) then
       TranslateUnsupportedExpression(se)
     else
       assume Math.Max(ASTHeight(se.Seq), Math.Max(ASTHeight(se.E0), ASTHeight(se.E1))) < ASTHeight(se);
