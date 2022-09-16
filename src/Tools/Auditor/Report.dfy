@@ -49,7 +49,7 @@ module Bootstrap.Tools.AuditReport {
 
   const EmptyReport := Report([])
 
-  /// ## Tag categorization
+/// ## Tag categorization
 
   predicate method IsAssumption(ts: set<Tag>) {
     // This seems to be of little value at the moment
@@ -68,7 +68,7 @@ module Bootstrap.Tools.AuditReport {
     || HasAssumeInBody in ts
   }
 
-  /// ## Report rendering
+/// ## Report rendering
 
   function method BoolYN(b: bool): string {
     if b then "Y" else "N"
@@ -157,12 +157,13 @@ module Bootstrap.Tools.AuditReport {
   }
 
   function method AssumptionWarning(a: Assumption, desc: (string, string)): string {
-      a.location.ToString() + ": " + a.name + ": " + desc.0 + " Possible mitigation: " + desc.1
+      a.name + ": " + desc.0 + " Possible mitigation: " + desc.1
   }
 
   function method RenderAssumptionText(a: Assumption): string {
     var descs := AssumptionDescription(a.tags);
-    var lines := Map((desc: (string, string)) => AssumptionWarning(a, desc), descs);
+    var lines := Map((desc: (string, string)) =>
+      a.location.ToString() + ": " + AssumptionWarning(a, desc), descs);
     Flatten(Seq.Interleave("\n", lines))
   }
 

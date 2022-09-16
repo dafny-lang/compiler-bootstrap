@@ -34,21 +34,25 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
       Seq.Flatten(Seq.Interleave(".", parts))
     }
 
-    function IsInternal(): bool {
+    function Any(P: Atom -> bool): bool {
       match this {
         case Anonymous => false
-        case Name(Anonymous, "_System") => true
         case Name(parent, suffix) =>
-          "reveal_" <= suffix || parent.IsInternal()
+          P(suffix) || parent.Any(P)
       }
     }
 
+    function IsInternal(): bool {
+      Any(suffix => || "reveal_" <= suffix
+                    || "_System" == suffix)
+    }
+
     function IsCompile(): bool {
-      match this {
-        case Anonymous => false
-        case Name(_, suffix) =>
-          "Compile_" <= suffix || parent.IsCompile()
-      }
+      Any(suffix =>
+        // TODO: this is a suffix, so we can't use <=.
+        // Is there a better way?
+        var parts := Seq.Split('_', suffix);
+        parts[|parts| - 1] == "Compile")
     }
 
     function ToSeq(): seq<Atom> {

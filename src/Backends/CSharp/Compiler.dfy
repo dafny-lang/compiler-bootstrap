@@ -306,7 +306,7 @@ module Compiler {
     method Compile(dafnyProgram: CSharpDafnyASTModel.Program,
                    wr: ConcreteSyntaxTree) {
       var st := new CSharpDafnyInterop.SyntaxTreeAdapter(wr);
-      match Entity.TranslateProgram(dafnyProgram) {
+      match Entity.TranslateProgram(dafnyProgram, false) {
         case Success(translated) =>
           var lowered := EliminateNegatedBinops.Apply(translated);
 

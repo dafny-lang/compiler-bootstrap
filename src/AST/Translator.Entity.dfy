@@ -31,7 +31,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     var filename := if tok.FileName == null then "<none>" else TypeConv.AsString(tok.FileName);
     var line := tok.Line;
     var col := tok.Column;
-    E.Location(filename, line as int, col as int)
+    E.Location(filename, line, col)
   }
 
   function TranslateAttributeName(s: string): E.AttributeName {

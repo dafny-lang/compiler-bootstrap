@@ -123,8 +123,8 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
             for j := 0 to |descs| {
               var desc := descs[j];
               var msg := AssumptionWarning(a, desc);
-              var line := NumUtils.AsInt32OrNegOne(a.location.line);
-              var col := NumUtils.AsInt32OrNegOne(a.location.column);
+              var line := a.location.line;
+              var col := a.location.column;
               AuditorExterns.Auditor.Warning(reporter, StringUtils.ToCString(loc.file),
                                           line, col, StringUtils.ToCString(msg));
             }

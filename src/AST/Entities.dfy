@@ -15,8 +15,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   import opened Names
   import opened Syntax.Exprs
   import opened Syntax.Types
+  import System
   import opened Utils.Lib.Datatypes
   import Utils.Lib.SetSort
+  import Utils.Lib.Str
   import OS = Utils.Lib.Outcome.OfSeq
 
   // DISCUSS: Should this module be parameterized by `TExpr`?
@@ -77,14 +79,14 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | EUnsupported
 
   datatype Location =
-    Location(file: string, line: int, column: int)
+    Location(file: string, line: System.int32, column: System.int32)
   {
     static function EMPTY(): Location {
       Location("<none>", 0, 0)
     }
 
     function ToString(): string {
-      file + "(" + NumUtils.IntToString(line) + "," + NumUtils.IntToString(column) + ")"
+      file + "(" + Str.of_int(line as int) + "," + Str.of_int(column as int) + ")"
     }
   }
 
