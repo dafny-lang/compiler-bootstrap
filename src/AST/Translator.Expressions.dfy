@@ -249,7 +249,10 @@ module Bootstrap.AST.Translator.Expressions {
     decreases ASTHeight(obj), 3
   {
     var fname := TypeConv.AsString(fullName);
-    if obj.Resolved is C.StaticReceiverExpr then
+    if obj.Type == null then
+      // This occasionally happens, and causes obj.Resolved to trigger an assertion failure.
+      TranslateUnsupportedExpression(obj)
+    else if obj.Resolved is C.StaticReceiverExpr then
       Success(DE.Var(fname))
     else
       var obj :- TranslateExpression(obj);
