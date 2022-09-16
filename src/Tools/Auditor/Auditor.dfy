@@ -70,7 +70,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
   }
 
   function FoldEntities<T(!new)>(f: (Entity, T) -> T, reg: Registry_, init: T): T {
-    var names := Seq.Filter(reg.SortedNames(), (n:Name) => !n.IsInternal());
+    var names := Seq.Filter(reg.SortedNames(), (n: Name) => !n.IsInternal());
     FoldL((a, n) requires reg.Contains(n) => f(reg.Get(n), a), init, names)
   }
 

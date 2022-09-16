@@ -5,7 +5,7 @@ module Bootstrap.Tools.AuditReport {
   import opened AST.Entities
   import opened Utils.Lib.Seq
 
-  /// ## Data types for report
+/// ## Data types for report
 
   datatype Tag =
     | IsGhost

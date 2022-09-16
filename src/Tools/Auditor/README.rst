@@ -41,7 +41,7 @@ From the top level of this repository, run the following.
 
 .. code-block:: shell
 
-  ./dafny/Scripts/dafny /plugin:src/Tools/Auditor/bin/Debug/net6.0/DafnyAuditor.dll,<output file> /compile:0 /noVerify <input files>
+   ./dafny/Scripts/dafny /plugin:src/Tools/Auditor/bin/Debug/net6.0/DafnyAuditor.dll,<output file> /compile:0 /noVerify <input files>
 
 Here, ``<input files>`` should be one or more Dafny source files, and
 ``<output file>`` indicates where to write the report. The extension of

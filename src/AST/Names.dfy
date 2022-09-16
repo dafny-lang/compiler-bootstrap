@@ -39,8 +39,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
         case Anonymous => false
         case Name(Anonymous, "_System") => true
         case Name(parent, suffix) =>
-          var parts := Seq.Split('_', suffix);
-          (|parts| > 0 && parts[0] == "reveal") || parent.IsInternal()
+          "reveal_" <= suffix || parent.IsInternal()
       }
     }
 
@@ -48,8 +47,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
       match this {
         case Anonymous => false
         case Name(_, suffix) =>
-          var parts := Seq.Split('_', suffix);
-          (|parts| > 0 && parts[|parts| - 1] == "Compile") || parent.IsCompile()
+          "Compile_" <= suffix || parent.IsCompile()
       }
     }
 
