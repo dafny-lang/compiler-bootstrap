@@ -261,17 +261,17 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       Success([mod] + topDecls')
   }
 
-  function TranslateProgram(p: C.Program, skipCompile: bool): (exps: TranslationResult<E.Program>)
+  function TranslateProgram(p: C.Program, nameonly includeCompileModules: bool := true): (exps: TranslationResult<E.Program>)
     reads *
   {
     var moduleDefs := ListUtils.ToSeq(p.CompileModules);
     var entities :- Seq.MapResult(moduleDefs,
       (def: C.ModuleDefinition) reads * => TranslateModule(def));
     var flatEntities := Seq.Flatten(entities);
-    var inclEntities := if skipCompile then
-                          Seq.Filter(flatEntities, (e: E.Entity) => !e.ei.name.IsCompile())
+    var inclEntities := if includeCompileModules then
+                          flatEntities
                         else
-                          flatEntities;
+                          Seq.Filter(flatEntities, (e: E.Entity) => !e.ei.name.IsCompile());
     var names := Seq.Map((e: E.Entity) => e.ei.name, inclEntities);
     var topNames := Seq.Filter(names, (n:N.Name) => n.Name? && n.parent.Anonymous?);
     :- Need(forall nm <- topNames :: nm.ChildOf(N.Anonymous), Invalid("Malformed name at top level"));
