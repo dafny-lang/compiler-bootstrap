@@ -1,30 +1,32 @@
 include "Report.dfy"
 
-module AuditReportTest {
+module Bootstrap.Tools.AuditReportTest {
 
   import opened AuditReport
+  import opened AST.Entities
 
   method Main() {
+    var loc := Location("File.dfy", 0, 0);
     var rpt := Report([
-      Assumption("MinusBv8NoBody",
+      Assumption("MinusBv8NoBody", loc,
         {IsCallable, IsGhost, MissingBody, HasEnsuresClause}),
-      Assumption("LeftShiftBV128",
+      Assumption("LeftShiftBV128", loc,
         {IsCallable, IsGhost, MissingBody, HasEnsuresClause, HasAxiomAttribute}),
-      Assumption("MinusBv8Assume",
+      Assumption("MinusBv8Assume", loc,
         {IsCallable, IsGhost, HasEnsuresClause, HasAssumeInBody}),
-      Assumption("GenerateBytes",
+      Assumption("GenerateBytes", loc,
         {IsCallable, HasExternAttribute, HasEnsuresClause, MissingBody}),
-      Assumption("GenerateBytesWithModel",
+      Assumption("GenerateBytesWithModel", loc,
         {IsCallable, HasExternAttribute, HasEnsuresClause}),
-      Assumption("GenerateBytesWrapper",
+      Assumption("GenerateBytesWrapper", loc,
         {IsCallable, HasExternAttribute, HasEnsuresClause, HasAssumeInBody})
       /*
-      Assumption("emptyType",
+      Assumption("emptyType", loc,
         {IsSubsetType, MissingWitness})
         */
       // This doesn't pass IsAsssumption
       /*
-      Assumption("WhoKnows",
+      Assumption("WhoKnows", loc,
         {IsCallable, IsGhost, HasNoBody})
         */
       ]);
