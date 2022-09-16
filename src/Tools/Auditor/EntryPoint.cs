@@ -35,6 +35,25 @@ public class Auditor : Plugins.Rewriter {
     return templateText.Replace("{{TABLE}}", table.ToString());
   }
 
+  // TODO: potentially move this to ErrorReporter as a non-static method
+  internal static void Warning(ErrorReporter reporter, string filename, int line, int col, string msg) {
+    var tok = new Token(line, col);
+    tok.Filename = filename;
+    // TODO: is this the right source? This is technically a rewriter
+    // plugin, but it's not doing any rewriting. Maybe we should add
+    // support for resolver plugins and change this to be one?
+    reporter.Warning(MessageSource.Rewriter, tok, msg);
+  }
+
+  internal static void Error(ErrorReporter reporter, string filename, int line, int col, string msg) {
+    var tok = new Token(line, col);
+    tok.Filename = filename;
+    // TODO: is this the right source? This is technically a rewriter
+    // plugin, but it's not doing any rewriting. Maybe we should add
+    // support for resolver plugins and change this to be one?
+    reporter.Error(MessageSource.Rewriter, tok, msg);
+  }
+
   public override void PostResolve(Program program) {
     string? filename = null;
     Format format = Format.Text;
@@ -58,15 +77,15 @@ public class Auditor : Plugins.Rewriter {
       }
     }
 
-    var text = format switch {
-      Format.HTML => GenerateHTMLReport(program),
-      Format.Markdown => auditor.AuditMarkdown(program).ToString(),
-      Format.Text => auditor.AuditText(program).ToString(),
-    };
-
     if (filename is null) {
-      Console.WriteLine(text);
+      auditor.AuditWarnings(Reporter, program);
     } else {
+      var text = format switch {
+        Format.HTML => GenerateHTMLReport(program),
+        Format.Markdown => auditor.AuditMarkdown(program).ToString(),
+        Format.Text => auditor.AuditText(program).ToString(),
+      };
+
       File.WriteAllText(filename, text);
     }
   }

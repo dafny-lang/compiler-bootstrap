@@ -45,5 +45,9 @@ module {:extern "CSharpInterop"} Bootstrap.Interop.CSharpInterop {
     constructor {:extern} () requires false // Prevent instantiation
 
     static function method {:extern} IntToString(x: int): string
+
+    static function method AsInt32OrNegOne(x: int): System.int32 {
+      (if -0x8000_0000 <= x < 0x8000_0000 then x else -1) as System.int32
+    }
   }
 }

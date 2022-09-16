@@ -2,8 +2,10 @@ include "../../AST/Entities.dfy"
 include "../../AST/Names.dfy"
 include "../../AST/Syntax.dfy"
 include "../../AST/Translator.Entity.dfy"
+include "../../Interop/CSharpAuditorInterop.dfy"
 include "../../Interop/CSharpDafnyASTModel.dfy"
 include "../../Interop/CSharpDafnyInterop.dfy"
+include "../../Interop/CSharpModel.dfy"
 include "../../Utils/Library.dfy"
 include "Report.dfy"
 
@@ -16,8 +18,12 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
   import E = AST.Translator.Entity
   import opened AuditReport
   import opened Interop
+  import opened Interop.CSharpDafnyInterop
+  import opened Interop.CSharpInterop
   import opened Utils.Lib.Datatypes
   import opened Utils.Lib.Seq
+  import System
+  import AuditorExterns
 
 /// ## AST traversals
 
@@ -73,6 +79,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
   }
 
   class {:extern} DafnyAuditor {
+
     constructor() {
     }
 
@@ -101,6 +108,32 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     method AuditText(p: CSharpDafnyASTModel.Program) returns (r: string)
     {
       r := Audit(RenderAuditReportText, p);
+    }
+
+    method AuditWarnings(reporter: Microsoft.Dafny.ErrorReporter, p: CSharpDafnyASTModel.Program)
+    {
+      var res := E.TranslateProgram(p, true);
+      match res {
+        case Success(p') =>
+          var rpt := GenerateAuditReport(p'.registry);
+          for i := 0 to |rpt.assumptions| {
+            var a := rpt.assumptions[i];
+            var loc := a.location;
+            var descs := AssumptionDescription(a.tags);
+            for j := 0 to |descs| {
+              var desc := descs[j];
+              var msg := AssumptionWarning(a, desc);
+              var line := NumUtils.AsInt32OrNegOne(a.location.line);
+              var col := NumUtils.AsInt32OrNegOne(a.location.column);
+              AuditorExterns.Auditor.Warning(reporter, StringUtils.ToCString(loc.file),
+                                          line, col, StringUtils.ToCString(msg));
+            }
+          }
+        case Failure(err) =>
+          var tok := p.DefaultModuleDef.tok;
+          var msg := StringUtils.ToCString("Failed to translate program. " + err.ToString());
+          AuditorExterns.Auditor.Error(reporter, tok.FileName, tok.Line, tok.Column, msg);
+      }
     }
   }
 }

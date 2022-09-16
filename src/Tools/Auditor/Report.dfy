@@ -156,10 +156,13 @@ module Bootstrap.Tools.AuditReport {
     FoldL((s, a) => s + RenderAssumptionHTML(a) + "\n", header, r.assumptions)
   }
 
+  function method AssumptionWarning(a: Assumption, desc: (string, string)): string {
+      a.location.ToString() + ": " + a.name + ": " + desc.0 + " Possible mitigation: " + desc.1
+  }
+
   function method RenderAssumptionText(a: Assumption): string {
     var descs := AssumptionDescription(a.tags);
-    var lines := Map((desc: (string, string)) =>
-      a.location.ToString() + ": " + a.name + ": " + desc.0 + " Possible mitigation: " + desc.1, descs);
+    var lines := Map((desc: (string, string)) => AssumptionWarning(a, desc), descs);
     Flatten(Seq.Interleave("\n", lines))
   }
 
