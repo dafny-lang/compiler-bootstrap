@@ -42,10 +42,4 @@ namespace CSharpInterop {
       return b0;
     }
   }
-
-  public partial class NumUtils {
-    public static icharseq IntToString(BigInteger n) {
-      return charseq.FromString(n.ToString());
-    }
-  }
 }
