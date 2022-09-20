@@ -184,7 +184,7 @@ module Bootstrap.AST.Translator.Expressions {
     var te :- TranslateExpression(e);
     if op in GhostUnaryOps || op !in UnaryOpMap.Keys then
       Success(DE.Unsupported("Unsupported unary operation", [te]))
-    else 
+    else
       Success(DE.Apply(DE.Eager(DE.UnaryOp(UnaryOpMap[op])), [te]))
   }
 
@@ -347,8 +347,8 @@ module Bootstrap.AST.Translator.Expressions {
     var ty :- TranslateType(se.Seq.Type);
     :- Need(se.SelectOne ==> se.E0 != null && se.E1 == null,
         Invalid("Inconsistent values for `SelectOne` and E1 in SeqSelect."));
-    if || !ty.Collection? 
-       || ty.kind.Set? 
+    if || !ty.Collection?
+       || ty.kind.Set?
        || (!se.SelectOne && (!ty.Collection? || !ty.kind.Seq?)) then
       TranslateUnsupportedExpression(se)
     else
