@@ -1,0 +1,37 @@
+name: Build and verify
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  dotnet-version: 6.0.x
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Setup dotnet
+      uses: actions/setup-dotnet@v1.9.0
+      with:
+        dotnet-version: ${{env.dotnet-version}}
+    - name: Checkout compiler-bootstrap
+      uses: actions/checkout@v2
+    - name: Checkout dafny
+      uses: actions/checkout@v2
+      with:
+        repository: https://github.com/dafny-lang/dafny
+        ref: compiler-bootstrap
+        path: dafny
+    - name: Restore tools
+      working-directory: dafny
+      run: |
+        make exe
+        make z3-ubuntu
+    - name: Typecheck
+      run: DAFNY_ROOT=$(pwd)/dafny make typecheck
+    - name: Verify
+      run: DAFNY_ROOT=$(pwd)/dafny make verify
+    - name: Build auditor
+      run: DAFNY_ROOT=$(pwd)/dafny make auditor
