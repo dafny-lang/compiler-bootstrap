@@ -21,7 +21,7 @@ jobs:
     - name: Checkout dafny
       uses: actions/checkout@v2
       with:
-        repository: https://github.com/dafny-lang/dafny
+        repository: dafny-lang/dafny
         ref: compiler-bootstrap
         path: dafny
     - name: Restore tools
