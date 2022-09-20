@@ -141,10 +141,10 @@ repl: $(repl_dll) FORCE
 
 auditor: $(auditor_dll) FORCE
 
-typecheck:
+typecheck: $(dfy_models)
 	$(dafny_typecheck) $(dfy_entry_points)
 
-verify:
+verify: $(dfy_models)
 	$(dafny_verify) $(dfy_entry_points)
 
 build: $(dlls)
