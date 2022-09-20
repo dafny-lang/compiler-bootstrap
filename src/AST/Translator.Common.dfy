@@ -16,7 +16,7 @@ module Bootstrap.AST.Translator.Common {
         case Invalid(msg) =>
           "Invalid term: " + msg
         case UnsupportedMember(decl) =>
-          "Unsupported declaration: " + TypeConv.ObjectToString(decl)
+          "Unsupported declaration: " + TypeConv.AnyToString(decl)
     }
   }
 

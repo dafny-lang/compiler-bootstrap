@@ -28,7 +28,7 @@ module {:extern "CSharpDafnyInterop"} Bootstrap.Interop.CSharpDafnyInterop {
       (TypeConv.Numerator(r), TypeConv.Denominator(r))
     }
 
-    static function method {:extern} ObjectToString(o: object) : string
+    static function method {:extern} AnyToString<A>(a: A) : string
   }
 
   class SyntaxTreeAdapter {
