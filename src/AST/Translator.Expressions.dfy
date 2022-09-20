@@ -516,7 +516,7 @@ module Bootstrap.AST.Translator.Expressions {
   }
 
   // TODO: adapt auto-generated AST to include some nullable fields
-  function method TranslateOptionalExpression(e: C.Expression): TranslationResult<Option<Expr>>
+  function method TranslateOptionalExpression(e: C.Expression?): TranslationResult<Option<Expr>>
     reads *
   {
     if e == null then
@@ -619,7 +619,7 @@ module Bootstrap.AST.Translator.Expressions {
 
 
   // TODO: adapt auto-generated AST to include some nullable fields
-  function method TranslateOptionalStatement(s: C.Statement): TranslationResult<Option<Expr>>
+  function method TranslateOptionalStatement(s: C.Statement?): TranslationResult<Option<Expr>>
     reads *
   {
     if s == null then
