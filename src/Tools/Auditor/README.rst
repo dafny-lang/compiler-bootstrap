@@ -30,8 +30,8 @@ From the top level of this repository, run the following.
 
 .. code-block:: shell
 
-  git clone https://github.com/dafny-lang/dafny
-  (cd dafny && git checkout compiler-bootstrap && make exe)
+  git clone https://github.com/dafny-lang/dafny --depth=1 --branch=compiler-bootstrap
+  (cd dafny && make exe)
   DAFNY_ROOT=$(pwd)/dafny make clean auditor
 
 Usage

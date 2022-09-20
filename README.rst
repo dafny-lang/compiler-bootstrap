@@ -103,11 +103,11 @@ Project hierarchy
   ``Tools/``
     ``Auditor/``
       ``Auditor.dfy``
-      An auditor to identify assumptions in a Dafny program.
+        An auditor to identify assumptions in a Dafny program.
       ``EntryPoint.cs``
-      The C# entry point that enables the auditor to be used as a plugin from Dafny.
+        The C# entry point that enables the auditor to be used as a plugin from Dafny.
       ``Report.dfy``
-      The ``Report`` data structure used by the auditor.
+        The ``Report`` data structure used by the auditor.
   ``Utils/``
     ``Library.dfy``
       Utility functions (should move to shared library)
