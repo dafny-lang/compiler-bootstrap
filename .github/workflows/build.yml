@@ -9,7 +9,7 @@ env:
   dotnet-version: 6.0.x
 
 jobs:
-  build:
+  build_and_verify:
     runs-on: ubuntu-18.04
     steps:
     - name: Setup dotnet
@@ -24,7 +24,7 @@ jobs:
         repository: dafny-lang/dafny
         ref: compiler-bootstrap
         path: dafny
-    - name: Restore tools
+    - name: Build Dafny
       working-directory: dafny
       run: |
         make exe
@@ -33,5 +33,5 @@ jobs:
       run: DAFNY_ROOT=$(pwd)/dafny make typecheck
     - name: Verify
       run: DAFNY_ROOT=$(pwd)/dafny make verify
-    - name: Build auditor
+    - name: Build Auditor
       run: DAFNY_ROOT=$(pwd)/dafny make auditor
