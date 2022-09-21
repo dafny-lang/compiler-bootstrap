@@ -14,7 +14,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Locations
     Location(file: Option<string>, line: int, column: int)
   {
     static function EMPTY(): Location {
-      Location(None, 0, 0)
+      Location(None, 1, 0)
     }
 
     function ToString(): string {
