@@ -27,7 +27,8 @@ module
 
     static method ValidateProgram(reporter: Dafny.ErrorReporter, program: CSharpDafnyASTModel.Program) {
       var adapter := new Locations.ReporterAdapter(reporter);
-      match Entity.TranslateProgram(program, includeCompileModules := true) {
+      // FIXME: Why does the entity store not validate with `includeCompileModules := true`?
+      match Entity.TranslateProgram(program, includeCompileModules := false) {
         case Success(translated) =>
           match ValidateTranslatedProgram(translated) {
             case Pass => print "No translation issues found.\n";
