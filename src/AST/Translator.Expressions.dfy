@@ -11,6 +11,7 @@ include "Translator.Common.dfy"
 module Bootstrap.AST.Translator.Expressions {
   import opened Utils.Lib
   import opened Utils.Lib.Datatypes
+  import opened Utils.Lib.ControlFlow
   import opened Interop.CSharpInterop
   import opened Interop.CSharpInterop.System
   import opened Interop.CSharpDafnyInterop
@@ -29,8 +30,8 @@ module Bootstrap.AST.Translator.Expressions {
     witness DE.Block([])
 
   predicate Decreases(u: object, v: object)
-    requires u is C.Expression || u is C.Statement
-    requires v is C.Expression || v is C.Statement
+    requires u is C.Expression? || u is C.Statement? || u is C.Type?
+    requires v is C.Expression? || v is C.Statement? || v is C.Type?
   {
     ASTHeight(u) < ASTHeight(v)
   }
@@ -79,8 +80,7 @@ module Bootstrap.AST.Translator.Expressions {
       var eltTy :- TranslateType(ty.Arg);
       Success(DT.Collection(true, DT.CollectionKind.Seq, eltTy))
     else
-      // TODO: better message, using ToString
-      Success(DT.Unsupported("Unsupported type"))
+      Success(DT.Unsupported(TypeConv.AnyToString(ty)))
   }
 
   const GhostUnaryOps: set<C.UnaryOpExpr__ResolvedOpcode> :=
@@ -180,11 +180,11 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
   {
     var op, e := u.ResolvedOp, u.E;
-    assume Decreases(e, u);
-    var te :- TranslateExpression(e);
-    if op in GhostUnaryOps || op !in UnaryOpMap.Keys then
-      Success(DE.Unsupported("Unsupported unary operation", [te]))
+    if op !in UnaryOpMap.Keys then
+      TranslateUnsupportedExpression(u)
     else
+      assume Decreases(e, u);
+      var te :- TranslateExpression(e);
       Success(DE.Apply(DE.Eager(DE.UnaryOp(UnaryOpMap[op])), [te]))
   }
 
@@ -194,14 +194,14 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
   {
     var op, e0, e1 := b.ResolvedOp, b.E0, b.E1;
-    // LATER b.AccumulatesForTailRecursion
-    assume Decreases(e0, b);
-    assume Decreases(e1, b);
-    var t0 :- TranslateExpression(e0);
-    var t1 :- TranslateExpression(e1);
     if op !in BinaryOpCodeMap then
-      Success(DE.Unsupported("Unsupported binary operator", [t0, t1]))
+      TranslateUnsupportedExpression(b)
     else
+      assume Decreases(e0, b);
+      assume Decreases(e1, b);
+      var t0 :- TranslateExpression(e0);
+      var t1 :- TranslateExpression(e1);
+      // LATER b.AccumulatesForTailRecursion
       Success(DE.Apply(BinaryOpCodeMap[op], [t0, t1]))
   }
 
@@ -419,16 +419,16 @@ module Bootstrap.AST.Translator.Expressions {
     decreases ASTHeight(le), 0
   {
     var lhss := ListUtils.ToSeq(le.LHSs);
-    var rhss := ListUtils.ToSeq(le.RHSs);
-    var elems :- Seq.MapResult(rhss, e requires e in rhss reads * =>
-      assume Decreases(e, le); TranslateExpression(e));
-    assume Decreases(le.Body, le);
-    var body :- TranslateExpression(le.Body);
     if !le.Exact then
-      Success(DE.Unsupported("Inexact let expression", [body] + elems))
+      TranslateUnsupportedExpression(le, "Inexact let expression")
     else if !Seq.All((pat: C.CasePattern<C.BoundVar>) reads * => pat.Var != null, lhss) then
-      Success(DE.Unsupported("Let expression with null bound variable", [body] + elems))
+      TranslateUnsupportedExpression(le, "Let expression with null bound variable")
     else
+      var rhss := ListUtils.ToSeq(le.RHSs);
+      var elems :- Seq.MapResult(rhss, e requires e in rhss reads * =>
+        assume Decreases(e, le); TranslateExpression(e));
+      assume Decreases(le.Body, le);
+      var body :- TranslateExpression(le.Body);
       var bvs := Seq.Map((pat: C.CasePattern<C.BoundVar>) reads * =>
         TypeConv.AsString(pat.Var.Name), lhss);
       :- Need(|bvs| == |elems|, Invalid("Incorrect number of bound variables in let expression."));
@@ -501,18 +501,19 @@ module Bootstrap.AST.Translator.Expressions {
     else TranslateUnsupportedExpression(c)
   }
 
-  function method TranslateUnsupportedExpression(ue: C.Expression)
+  function method TranslateUnsupportedExpression(ue: C.Expression?, prefix: string := "")
     : (e: TranslationResult<Expr>)
     reads *
-    decreases ASTHeight(ue), 0
+    decreases ASTHeight(ue), 0, ()
   {
-    if ue == null then
-      Success(DE.Unsupported("Unsupported expression: null", []))
-    else
-      var children := if ue.SubExpressions == null then [] else EnumerableUtils.ToSeq(ue.SubExpressions);
-      var children' :- Seq.MapResult(children, e requires e in children reads * =>
-        assume Decreases(e, ue); TranslateExpression(e));
-      Success(DE.Unsupported("Unsupported expression", children'))
+    var children :-
+      if ue == null then
+        Success([])
+      else
+        var exprs := EnumerableUtils.ToSeq(ue.SubExpressions);
+        Seq.MapResult(exprs, e requires e in exprs reads * =>
+          assume Decreases(e, ue); TranslateExpression(e));
+    TranslateUnsupported(ue, children, prefix)
   }
 
   // TODO: adapt auto-generated AST to include some nullable fields
@@ -563,6 +564,7 @@ module Bootstrap.AST.Translator.Expressions {
 
   function method TranslatePredicateStmt(p: C.PredicateStmt)
     : (e: TranslationResult<Expr>)
+    decreases ASTHeight(p), 0
     reads *
   {
     var optPredTy :=
@@ -574,12 +576,12 @@ module Bootstrap.AST.Translator.Expressions {
         Some(DE.Expect)
       else
         None;
-    var e :- TranslateExpression(p.Expr);
     match optPredTy {
       case Some(predTy) =>
+        var e :- TranslateExpression(p.Expr);
         Success(DE.Apply(DE.Eager(DE.Builtin(DE.BuiltinFunction.Predicate(predTy))), [e]))
       case None =>
-        Success(DE.Unsupported("Unsupported predicate type", []))
+        TranslateUnsupportedStatement(p)
     }
   }
 
@@ -600,26 +602,35 @@ module Bootstrap.AST.Translator.Expressions {
       TranslateUnsupportedStatement(s)
   }
 
-  function method TranslateUnsupportedStatement(us: C.Statement)
+  function method TranslateUnsupportedStatement(us: C.Statement?, prefix: string := "")
     : (e: TranslationResult<Expr>)
     reads *
-    decreases ASTHeight(us), 0
+    decreases ASTHeight(us), 0, ()
   {
-    if us == null then
-      Success(DE.Unsupported("Unsupported statement: null", []))
-    else
-      var subexprs := EnumerableUtils.ToSeq(us.SubExpressions);
-      var substmts := EnumerableUtils.ToSeq(us.SubStatements);
-      var subexprs' :- Seq.MapResult(subexprs, e requires e in subexprs reads * =>
-        assume Decreases(e, us); TranslateExpression(e));
-      var substmts' :- Seq.MapResult(substmts, s requires s in substmts reads * =>
-        assume Decreases(s, us); TranslateStatement(s));
-      Success(DE.Unsupported("Unsupported statement", subexprs' + substmts'))
+    var children :-
+      if us == null then
+        Success([])
+      else
+        var subexprs := EnumerableUtils.ToSeq(us.SubExpressions);
+        var substmts := EnumerableUtils.ToSeq(us.SubStatements);
+        var subexprs' :- Seq.MapResult(subexprs, e requires e in subexprs reads * =>
+          assume Decreases(e, us); TranslateExpression(e));
+        var substmts' :- Seq.MapResult(substmts, s requires s in substmts reads * =>
+          assume Decreases(s, us); TranslateStatement(s));
+        Success(subexprs' + substmts');
+    TranslateUnsupported(us, children, prefix)
   }
 
+  function method TranslateUnsupported(o: object?, children: seq<Expr>, prefix: string)
+    : (e: TranslationResult<Expr>)
+  {
+    var msg := prefix + (if |prefix| > 0 then ": " else "") + TypeConv.AnyToString(o);
+    Success(DE.Unsupported(TypeConv.AnyToString(o), children))
+  }
 
   // TODO: adapt auto-generated AST to include some nullable fields
-  function method TranslateOptionalStatement(s: C.Statement?): TranslationResult<Option<Expr>>
+  function method TranslateOptionalStatement(s: C.Statement?)
+    : TranslationResult<Option<Expr>>
     reads *
   {
     if s == null then
