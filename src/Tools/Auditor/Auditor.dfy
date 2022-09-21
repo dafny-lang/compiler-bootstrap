@@ -2,7 +2,6 @@ include "../../AST/Entities.dfy"
 include "../../AST/Names.dfy"
 include "../../AST/Syntax.dfy"
 include "../../AST/Translator.Entity.dfy"
-include "../../Interop/CSharpAuditorInterop.dfy"
 include "../../Interop/CSharpDafnyASTModel.dfy"
 include "../../Interop/CSharpDafnyInterop.dfy"
 include "../../Interop/CSharpModel.dfy"
@@ -23,7 +22,6 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
   import opened Utils.Lib.Datatypes
   import opened Utils.Lib.Seq
   import System
-  import AuditorExterns
 
 /// ## AST traversals
 
@@ -113,16 +111,11 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     method WarnReport(reporter: Microsoft.Dafny.ErrorReporter, rpt: Report) {
       for i := 0 to |rpt.assumptions| {
         var a := rpt.assumptions[i];
-        var loc := a.location;
         var descs := AssumptionDescription(a.tags);
         for j := 0 to |descs| {
-          var msg := AssumptionWarning(a, descs[j]);
-          var line, col := loc.line, loc.column;
-          var file := loc.file.UnwrapOr("<no file>");
-          AuditorExterns.Auditor.Warning(
-            reporter, StringUtils.ToCString(file),
-            TypeConv.ClampInt32(line), TypeConv.ClampInt32(col),
-            StringUtils.ToCString(msg));
+          var desc := descs[j];
+          var msg := AssumptionWarning(a, desc);
+          adapter.Message(Dafny.MessageSource.Rewriter, Dafny.ErrorLevel.Warning, a.location, msg);
         }
       }
     }
@@ -130,6 +123,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     method AuditWarnings(reporter: Microsoft.Dafny.ErrorReporter, p: CSharpDafnyASTModel.Program)
     {
       var res := E.TranslateProgram(p, includeCompileModules := false);
+      var adapter := new Locations.ReporterAdapter(reporter);
       match res {
         case Success(p') =>
           var rpt := GenerateAuditReport(p'.registry);
@@ -137,8 +131,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
         case Failure(err) =>
           var tok := p.DefaultModuleDef.tok;
           var msg := StringUtils.ToCString("Failed to translate program. " + err.ToString());
-          var file := if tok.FileName == null then StringUtils.ToCString("<no file>") else tok.FileName;
-          AuditorExterns.Auditor.Error(reporter, file, tok.Line, tok.Column, msg);
+          reporter.Message(Dafny.MessageSource.Rewriter, Dafny.ErrorLevel.Error, tok, msg);
       }
     }
   }

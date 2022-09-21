@@ -38,4 +38,10 @@ namespace CSharpDafnyInterop {
     public static Dafny.ISequence<char> AnyToString(object? o) =>
       AsString(o is null ? "null" : o.ToString());
   }
+
+  public static Boogie.IToken CreateToken(System.String file, int line, int col) {
+    var tok = new Token(line, col);
+    tok.Filename = filename;
+    return tok;
+  }
 }

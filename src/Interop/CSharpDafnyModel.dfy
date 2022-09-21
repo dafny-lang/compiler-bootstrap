@@ -6,12 +6,12 @@ module {:extern "Microsoft.BaseTypes"} {:compile false} Microsoft.BaseTypes {
 
 module {:extern "Microsoft.Dafny"} {:compile false} Microsoft.Dafny {
   import System
+  import Boogie
 
   class {:extern} {:compile false} FreshIdGenerator {}
   class {:extern} {:compile false} Graph<T> {}
   class {:extern} {:compile false} Translator {}
   class {:extern} {:compile false} VisibilityScope {}
-  class {:extern} {:compile false} ErrorReporter {}
   class {:extern} {:compile false} TypeConstraint {}
   class {:extern} {:compile false} BuiltIns {}
   trait {:extern} {:compile false} {:termination false} Cloner {}
@@ -27,6 +27,19 @@ module {:extern "Microsoft.Dafny"} {:compile false} Microsoft.Dafny {
     method {:extern} WriteLine(value: System.String)
     method {:extern} NewBlock(header: System.String) returns (wr: ConcreteSyntaxTree)
   }
+
+  type {:extern} {:compile false} ErrorLevel(!new) {
+    static const {:extern} Warning: ErrorLevel;
+    static const {:extern} Error: ErrorLevel;
+  }
+
+  type {:extern} {:compile false} MessageSource(!new) {
+    static const {:extern} Rewriter: MessageSource;
+  }
+
+  class {:extern} {:compile false} ErrorReporter {
+    method {:extern} Message(src: MessageSource, err: ErrorLevel, tok: Boogie.IToken, str: System.String)
+  }
 }
 
 module {:extern "Microsoft.Boogie"} {:compile false} Microsoft.Boogie {
@@ -37,7 +50,6 @@ module {:extern "Microsoft.Boogie"} {:compile false} Microsoft.Boogie {
     var {:extern "line"} Line: System.int32
     var {:extern "col"} Column: System.int32
   }
-  class {:extern} {:compile false} ErrorReporter {}
   class {:extern} {:compile false} Expr {}
   class {:extern} {:compile false} Function {}
 }

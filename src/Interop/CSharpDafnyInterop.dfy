@@ -4,6 +4,8 @@ include "CSharpInterop.dfy"
 
 module {:extern "CSharpDafnyInterop"} Bootstrap.Interop.CSharpDafnyInterop {
   import Microsoft
+  import Microsoft.Dafny
+  import Microsoft.Boogie
   import opened CSharpInterop
 
   class {:extern} StringUtils {
@@ -35,6 +37,10 @@ module {:extern "CSharpDafnyInterop"} Bootstrap.Interop.CSharpDafnyInterop {
       else if x > 0x7fff_ffff then 0x7fff_ffff
       else x as System.int32
     }
+
+    static method {:extern} CreateToken(file: System.String?, line: System.int32, col: System.int32)
+      returns (tok: Boogie.IToken)
+      ensures fresh(tok)
   }
 
   class SyntaxTreeAdapter {
