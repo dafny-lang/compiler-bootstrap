@@ -14,6 +14,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 {
   import opened Interop.CSharpInterop
   import opened Names
+  import opened Syntax.Debug
   import opened Syntax.Exprs
   import opened Syntax.Types
   import opened Locations
@@ -68,7 +69,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | TraitType(tt: TraitType)
     | ClassType(ct: ClassType)
     | DataType(dt: DataType)
-    | Unsupported(desc: string)
+    | Unsupported(un: Unsupported)
   {
     function Exprs(): seq<Expr> {
       match this
@@ -158,7 +159,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | Import(ei: EntityInfo, i: Import)
     | Type(ei: EntityInfo, t: Type)
     | Definition(ei: EntityInfo, d: Definition)
-    | Unsupported(ei: EntityInfo, description: string)
+    | Unsupported(ei: EntityInfo, un: Unsupported)
   { // TODO: Define subexpressions and use that in the implementation of the auditor
     const kind :=
       match this
@@ -167,7 +168,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
         case Import(ei, i) => EImport
         case Type(ei, t) => EType
         case Definition(ei, d) => EDefinition
-        case Unsupported(ei, desc) => EUnsupported
+        case Unsupported(ei, un) => EUnsupported
 
     function Exprs(): seq<Expr> {
       ei.Exprs() +
@@ -177,7 +178,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
         case Import(_, i) => i.Exprs()
         case Type(_, t) => t.Exprs()
         case Definition(_, d) => d.Exprs()
-        case Unsupported(_, desc) => []
+        case Unsupported(_, un) => []
     }
   }
 

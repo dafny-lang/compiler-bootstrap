@@ -39,6 +39,8 @@ module Bootstrap.AST.Translator.Common {
         var e := o as C.Expression; TranslateLocation(e.tok)
       else if o is C.UserDefinedType then
         var udt := o as C.UserDefinedType; TranslateLocation(udt.tok)
+      else if o is C.Declaration then
+        var d := o as C.Declaration; TranslateLocation(d.tok)
       else
         Locations.Location.EMPTY();
     Debug.Unsupported(TypeConv.AnyToString(o), descr, loc)
