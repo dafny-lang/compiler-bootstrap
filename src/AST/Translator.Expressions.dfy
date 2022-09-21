@@ -521,7 +521,14 @@ module Bootstrap.AST.Translator.Expressions {
         var exprs := EnumerableUtils.ToSeq(ue.SubExpressions);
         Seq.MapResult(exprs, e requires e in exprs reads * =>
           assume Decreases(e, ue); TranslateExpression(e));
-    TranslateUnsupported(ue, children, prefix)
+    var stmt :-
+      if ue is C.StmtExpr then
+        var us := ue as C.StmtExpr;
+        var s := us.S;
+        var tr :- assume Decreases(s, ue); TranslateStatement(s);
+        Success([tr])
+      else Success([]);
+    TranslateUnsupported(ue, stmt + children, prefix)
   }
 
   // TODO: adapt auto-generated AST to include some nullable fields
