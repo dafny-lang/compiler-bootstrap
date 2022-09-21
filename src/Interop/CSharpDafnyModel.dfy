@@ -35,6 +35,7 @@ module {:extern "Microsoft.Dafny"} {:compile false} Microsoft.Dafny {
 
   type {:extern} {:compile false} MessageSource(!new) {
     static const {:extern} Rewriter: MessageSource;
+    static const {:extern} Compiler: MessageSource;
   }
 
   trait {:extern} {:compile false} IToken extends Boogie.IToken

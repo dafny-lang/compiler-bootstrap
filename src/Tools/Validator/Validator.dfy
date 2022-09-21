@@ -7,6 +7,7 @@ module
   {:extern "Bootstrap.Tools.Validator.Validator"}
   Bootstrap.Tools.Validator.Validator
 {
+  import Microsoft.Dafny
   import opened AST.Syntax
   import opened AST.Entities
   import AST.Translator.Entity
@@ -24,7 +25,8 @@ module
         if e.Unsupported? then Fail(e.un) else Pass)
     }
 
-    static method ValidateProgram(program: CSharpDafnyASTModel.Program) {
+    static method ValidateProgram(reporter: Dafny.ErrorReporter, program: CSharpDafnyASTModel.Program) {
+      var adapter := new Locations.ReporterAdapter(reporter);
       match Entity.TranslateProgram(program, includeCompileModules := true) {
         case Success(translated) =>
           match ValidateTranslatedProgram(translated) {
@@ -32,7 +34,11 @@ module
             case Fail(issues) =>
               for i := 0 to |issues| {
                 var issue := issues[i];
-                print issue.loc.ToString() + ": " + issue.Message() + "\n";
+                adapter.Message(
+                  Dafny.MessageSource.Compiler,
+                  Dafny.ErrorLevel.Error,
+                  issue.loc, issue.Message()
+                );
               }
           }
         case Failure(err) =>

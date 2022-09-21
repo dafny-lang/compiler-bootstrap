@@ -7,6 +7,6 @@ public class Validator : Plugins.Rewriter {
   public Validator(ErrorReporter reporter) : base(reporter) { }
 
   public override void PostResolve(Program program) {
-    DafnyValidator.ValidateProgram(program);
+    DafnyValidator.ValidateProgram(Reporter, program);
   }
 }
