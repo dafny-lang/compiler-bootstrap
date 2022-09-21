@@ -6,10 +6,9 @@ module {:extern "CSharpDafnyASTInterop"} Bootstrap.Interop.CSharpDafnyASTInterop
   import System
   import opened System.Collections.Generic
 
-  function {:axiom} TypeHeight(t: CSharpDafnyASTModel.Type) : nat
-
   function {:axiom} ASTHeight(c: object?) : nat
-    requires || c is CSharpDafnyASTModel.Expression?
+    requires || c is CSharpDafnyASTModel.Type?
+             || c is CSharpDafnyASTModel.Expression?
              || c is CSharpDafnyASTModel.Statement?
              || c is CSharpDafnyASTModel.Declaration?
              || c is CSharpDafnyASTModel.ModuleDefinition?
@@ -20,7 +19,7 @@ module {:extern "CSharpDafnyASTInterop"} Bootstrap.Interop.CSharpDafnyASTInterop
 
     static function method {:extern} NormalizeExpand(ty: CSharpDafnyASTModel.Type)
       : (ty': CSharpDafnyASTModel.Type)
-      ensures TypeHeight(ty') <= TypeHeight(ty)
+      ensures ASTHeight(ty') <= ASTHeight(ty)
   }
 
   class {:extern} ExprUtils {

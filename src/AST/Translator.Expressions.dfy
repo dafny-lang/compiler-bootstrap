@@ -28,10 +28,17 @@ module Bootstrap.AST.Translator.Expressions {
   type Expr = e: DE.Expr | P.All_Expr(e, DE.WellFormed)
     witness DE.Block([])
 
+  predicate Decreases(u: object, v: object)
+    requires u is C.Expression || u is C.Statement
+    requires v is C.Expression || v is C.Statement
+  {
+    ASTHeight(u) < ASTHeight(v)
+  }
+
   function method TranslateType(ty: C.Type)
     : TranslationResult<DT.Type>
     reads *
-    decreases TypeHeight(ty)
+    decreases ASTHeight(ty)
   {
     var ty := TypeUtils.NormalizeExpand(ty);
     if ty is C.BoolType then
@@ -51,24 +58,24 @@ module Bootstrap.AST.Translator.Expressions {
     // TODO: the following could be simplified
     else if ty is C.MapType then
       var ty := ty as C.MapType;
-      assume TypeHeight(ty.Domain) < TypeHeight(ty);
-      assume TypeHeight(ty.Range) < TypeHeight(ty);
+      assume Decreases(ty.Domain, ty);
+      assume Decreases(ty.Range, ty);
       var domainTy :- TranslateType(ty.Domain);
       var rangeTy :- TranslateType(ty.Range);
       Success(DT.Collection(ty.Finite, DT.CollectionKind.Map(domainTy), rangeTy))
     else if ty is C.SetType then
       var ty := ty as C.SetType;
-      assume TypeHeight(ty.Arg) < TypeHeight(ty);
+      assume Decreases(ty.Arg, ty);
       var eltTy :- TranslateType(ty.Arg);
       Success(DT.Collection(ty.Finite, DT.CollectionKind.Set, eltTy))
     else if ty is C.MultiSetType then
       var ty := ty as C.MultiSetType;
-      assume TypeHeight(ty.Arg) < TypeHeight(ty);
+      assume Decreases(ty.Arg, ty);
       var eltTy :- TranslateType(ty.Arg);
       Success(DT.Collection(true, DT.CollectionKind.Multiset, eltTy))
     else if ty is C.SeqType then
       var ty := ty as C.SeqType;
-      assume TypeHeight(ty.Arg) < TypeHeight(ty);
+      assume Decreases(ty.Arg, ty);
       var eltTy :- TranslateType(ty.Arg);
       Success(DT.Collection(true, DT.CollectionKind.Seq, eltTy))
     else
@@ -165,13 +172,6 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
   {
     Success(DE.Var(TypeConv.AsString(ie.Name)))
-  }
-
-  predicate Decreases(u: object, v: object)
-    requires u is C.Expression || u is C.Statement
-    requires v is C.Expression || v is C.Statement
-  {
-    ASTHeight(u) < ASTHeight(v)
   }
 
   function method TranslateUnaryOp(u: C.UnaryOpExpr)
