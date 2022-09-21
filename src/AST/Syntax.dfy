@@ -275,7 +275,6 @@ module Exprs {
     | Block(stmts: seq<Expr>)
     | Bind(vars: seq<string>, vals: seq<Expr>, body: Expr)
     | If(cond: Expr, thn: Expr, els: Expr) // DISCUSS: Lazy op node?
-    // TODO: change string to indicate C# class and include location
     | Unsupported(un: Unsupported, children: seq<Expr>)
   {
     function method Depth() : nat {
