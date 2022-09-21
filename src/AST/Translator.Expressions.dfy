@@ -188,8 +188,8 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
   {
     var op, e := u.ResolvedOp, u.E;
-    if op !in UnaryOpMap.Keys then
-      TranslateUnsupportedExpression(u)
+    if op !in UnaryOpMap then
+      TranslateUnsupportedExpression(u, "Unexpected unary operator")
     else
       assume Decreases(e, u);
       var te :- TranslateExpression(e);
@@ -203,7 +203,7 @@ module Bootstrap.AST.Translator.Expressions {
   {
     var op, e0, e1 := b.ResolvedOp, b.E0, b.E1;
     if op !in BinaryOpCodeMap then
-      TranslateUnsupportedExpression(b)
+      TranslateUnsupportedExpression(b, "Unexpected binary operator")
     else
       assume Decreases(e0, b);
       assume Decreases(e1, b);
@@ -258,8 +258,8 @@ module Bootstrap.AST.Translator.Expressions {
   {
     var fname := TypeConv.AsString(fullName);
     if IsNull(obj.Type) then
-      // This occasionally happens, and causes obj.Resolved to trigger an assertion failure.
-      TranslateUnsupportedExpression(obj)
+      // This occasionally happens, and causes `obj.Resolved` to trigger an assertion failure.
+      TranslateUnsupportedExpression(obj, "Expression with .Type == null")
     else if obj.Resolved is C.StaticReceiverExpr then
       Success(DE.Var(fname))
     else
@@ -313,8 +313,10 @@ module Bootstrap.AST.Translator.Expressions {
     var elems := ListUtils.ToSeq(de.Elements);
     var elems :- Seq.MapResult(elems, e requires e in elems reads * =>
       assume Decreases(e, de); TranslateExpression(e));
-    if !ty.Collection? || !ty.finite then
+    if !ty.Collection? then
       TranslateUnsupportedExpression(de)
+    else if !ty.finite then
+      TranslateUnsupportedExpression(de, "Infinite display")
     else
       Success(DE.Apply(DE.Eager(DE.Builtin(DE.Display(ty))), elems))
   }
@@ -428,7 +430,7 @@ module Bootstrap.AST.Translator.Expressions {
   {
     var lhss := ListUtils.ToSeq(le.LHSs);
     if !le.Exact then
-      TranslateUnsupportedExpression(le, "Inexact let expression")
+      TranslateUnsupportedExpression(le, "Let-such-that expression")
     else if !Seq.All((pat: C.CasePattern<C.BoundVar>) reads * => !IsNull(pat.Var), lhss) then
       TranslateUnsupportedExpression(le, "Let expression with null bound variable")
     else
