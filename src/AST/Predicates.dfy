@@ -3,21 +3,17 @@ include "Syntax.dfy"
 
 module Bootstrap.AST.Predicates {
 module Shallow {
-  import opened Utils.Lib
+  import opened Utils.Lib.Datatypes
+  import Utils.Lib.Outcome.OfSeq
   import opened Entities
   import opened Syntax
 
-  function method All_Entity(e: Entity, P: Expr -> bool) : bool {
-    Seq.All(P, e.Exprs())
+  function method All_Entity(ent: Entity, P: Expr -> bool) : bool {
+    Seq.All(P, ent.Exprs())
   }
 
-  function method All_Program(p: Program, P: Expr -> bool) : (r: bool)
-  {
-    forall e | e in p.registry.entities.Values :: All_Entity(e, P)
-  }
-
-  function method All(p: Program, P: Expr -> bool) : bool {
-    All_Program(p, P)
+  function method All_Program(p: Program, P: Expr -> bool) : bool {
+    Seq.All(P, p.Exprs())
   }
 }
 
@@ -45,12 +41,16 @@ abstract module Base {
     !All_Expr(e, e' => !P(e'))
   }
 
+  function method LiftAll_(P: Expr -> bool) : Expr -> bool {
+    e => All_Expr(e, P)
+  }
+
   function method All_Entity(ent: Entity, P: Expr -> bool) : bool {
-    Shallow.All_Entity(ent, e => All_Expr(e, P))
+    Shallow.All_Entity(ent, LiftAll_(P))
   }
 
   function method All_Program(p: Program, P: Expr -> bool) : bool {
-    Shallow.All_Program(p, e => All_Expr(e, P))
+    Shallow.All_Program(p, LiftAll_(P))
   }
 
   //
@@ -192,8 +192,10 @@ module NonRec refines Base {
       All_Expr_True(e, f);
     }
   }
-
 }
+
+// DISCUSS: Add a fully non-recursive version of Base (with `All_Expr` defined
+// as `forall e <- e.SubExpressions() :: P(e)`?
 
 module Equiv {
   import Rec
@@ -215,9 +217,69 @@ module Equiv {
   }
 }
 }
+}
 
+module Bootstrap.AST.Predicates.Deep refines DeepImpl.NonRec
   // Both implementations of Deep should work, but NonRec can be somewhat
   // simpler to work with.  If needed, use ``DeepImpl.Equiv.All_Expr`` to
   // switch between implementations.
-module Deep refines DeepImpl.NonRec {}
+{
+  import opened Utils.Lib.Datatypes
+  import Utils.Lib.Seq
+  import Utils.Lib.Outcome.OfSeq
+
+  function method {:opaque} AllChildren_Expr_Outcome<E>(e: Expr, P: Expr -> Outcome<E>)
+    : (os: Outcome<seq<E>>)
+    decreases e.Depth(), 0
+    ensures os.Pass? <==> AllChildren_Expr(e, OfSeq.Squash(P))
+  {
+    var children := e.Children();
+    var os := OfSeq.AllSeq(children, e' requires e' in children => All_Expr_Outcome(e', P));
+    calc <==> {
+      AllChildren_Expr(e, OfSeq.Squash(P));
+      forall e' | e' in e.Children() :: All_Expr(e', OfSeq.Squash(P));
+      forall e' | e' in e.Children() :: All_Expr_Outcome(e', P).Pass?;
+      os.Pass?;
+    }
+    os
+  }
+
+  function method {:opaque} All_Expr_Outcome<E>(e: Expr, P: Expr -> Outcome<E>)
+    : (os: Outcome<seq<E>>)
+    decreases e.Depth(), 1
+    ensures os.Pass? <==> All_Expr(e, OfSeq.Squash(P))
+  {
+    var children := e.Children();
+    OfSeq.Cons(P(e), AllChildren_Expr_Outcome(e, P))
+  }
+
+  function method {:opaque} All_Entity_Outcome<E>(ent: Entity, P: Expr -> Outcome<E>)
+    : (os: Outcome<seq<E>>)
+    ensures os.Pass? <==> All_Entity(ent, OfSeq.Squash(P))
+  {
+    var os := OfSeq.AllSeq(ent.Exprs(), e => All_Expr_Outcome(e, P));
+    calc <==> {
+      All_Entity(ent, OfSeq.Squash(P));
+      Shallow.All_Entity(ent, LiftAll_(OfSeq.Squash(P)));
+      Seq.All(e => All_Expr(e, OfSeq.Squash(P)), ent.Exprs());
+      Seq.All(e => All_Expr_Outcome(e, P).Pass?, ent.Exprs());
+      os.Pass?;
+    }
+    os
+  }
+
+  function method {:opaque} All_Program_Outcome<E>(p: Program, P: Expr -> Outcome<E>)
+    : (os: Outcome<seq<E>>)
+    ensures os.Pass? <==> All_Program(p, OfSeq.Squash(P))
+  {
+    var os := OfSeq.AllSeq(p.Exprs(), e => All_Expr_Outcome(e, P));
+    calc <==> {
+      All_Program(p, OfSeq.Squash(P));
+      Shallow.All_Program(p, LiftAll_(OfSeq.Squash(P)));
+      Seq.All(e => All_Expr(e, OfSeq.Squash(P)), p.Exprs());
+      Seq.All(e => All_Expr_Outcome(e, P).Pass?, p.Exprs());
+      os.Pass?;
+    }
+    os
+  }
 }

@@ -363,6 +363,21 @@ module Utils.Lib.Outcome.OfSeq { // FIXME rename to Seq
   import Seq
   import opened Datatypes
 
+  function Squash<T, E>(P: T -> Outcome<E>): T -> bool {
+    t => P(t).Pass?
+  }
+
+  function method Cons<E>(o: Outcome<E>, os: Outcome<seq<E>>): (os': Outcome<seq<E>>)
+    ensures os'.Pass? <==> o.Pass? && os.Pass?
+  {
+    match o
+      case Pass => os
+      case Fail(e) =>
+        match os
+          case Pass => Fail([e])
+          case Fail(es) => Fail([e] + es)
+  }
+
   function method Combine<E>(so: seq<Outcome<E>>): (os: Outcome<seq<E>>)
     ensures os.Pass? <==> forall o | o in so :: o.Pass?
   {

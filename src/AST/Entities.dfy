@@ -722,6 +722,11 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       )
     }
 
+    function Exprs(): seq<Expr> {
+      var entities := registry.AllRecursiveTransitiveEntities();
+      Seq.Flatten(Seq.Map((e: Entity) => e.Exprs(), entities))
+    }
+
     predicate ValidDefaultModule?() {
       registry.HasKind(defaultModule, EModule)
     }
