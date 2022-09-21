@@ -537,7 +537,9 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
     decreases ASTHeight(p), 0
   {
-    var exprs :- Seq.MapResult(ListUtils.ToSeq(p.Args), TranslateExpression);
+    var args := ListUtils.ToSeq(p.Args);
+    var exprs :- Seq.MapResult(args, e reads * requires e in args =>
+      assume Decreases(e, p); TranslateExpression(e));
     Success(DE.Apply(DE.Eager(DE.Builtin(DE.Print)), exprs))
   }
 
@@ -583,6 +585,7 @@ module Bootstrap.AST.Translator.Expressions {
         None;
     match optPredTy {
       case Some(predTy) =>
+        assume Decreases(p.Expr, p);
         var e :- TranslateExpression(p.Expr);
         Success(DE.Apply(DE.Eager(DE.Builtin(DE.BuiltinFunction.Predicate(predTy))), [e]))
       case None =>
