@@ -2,6 +2,7 @@
 /// =============================================
 
 include "Names.dfy"
+include "Locations.dfy"
 include "Syntax.dfy"
 include "../Interop/CSharpInterop.dfy"
 include "../Utils/Library.dfy"
@@ -15,7 +16,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   import opened Names
   import opened Syntax.Exprs
   import opened Syntax.Types
-  import System
+  import opened Locations
   import opened Utils.Lib.Datatypes
   import Utils.Lib.SetSort
   import Utils.Lib.Str
@@ -77,18 +78,6 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | EType
     | EDefinition
     | EUnsupported
-
-  datatype Location =
-    Location(file: string, line: System.int32, column: System.int32)
-  {
-    static function EMPTY(): Location {
-      Location("<none>", 0, 0)
-    }
-
-    function ToString(): string {
-      file + "(" + Str.of_int(line as int) + "," + Str.of_int(column as int) + ")"
-    }
-  }
 
   type EntityInfo = e: EntityInfo_ | e.Valid?()
     witness EntityInfo_.EMPTY()

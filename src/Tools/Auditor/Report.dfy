@@ -1,8 +1,10 @@
+include "../../AST/Locations.dfy"
 include "../../AST/Entities.dfy"
 include "../../Utils/Library.dfy"
 
 module Bootstrap.Tools.AuditReport {
   import opened AST.Entities
+  import opened AST.Locations
   import opened Utils.Lib.Seq
 
 /// ## Data types for report

@@ -1,3 +1,4 @@
+include "Locations.dfy"
 include "Translator.Expressions.dfy"
 
 module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
@@ -6,6 +7,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   import opened Interop.CSharpInterop
   import opened Interop.CSharpDafnyInterop
   import opened Interop.CSharpDafnyASTInterop
+  import opened Locations
   import C = Interop.CSharpDafnyASTModel
   import E = Entities
   import N = Names
@@ -25,13 +27,13 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       Success(Seq.FoldL((n: N.Name, a: N.Atom) => N.Name(n, a), N.Anonymous, atoms))
   }
 
-  function TranslateLocation(tok: Microsoft.Boogie.IToken): E.Location
+  function TranslateLocation(tok: Microsoft.Boogie.IToken): Location
     reads *
   {
     var filename := if tok.FileName == null then "<none>" else TypeConv.AsString(tok.FileName);
-    var line := tok.Line;
-    var col := tok.Column;
-    E.Location(filename, line, col)
+    var line := tok.Line as int;
+    var col := tok.Column as int;
+    Location(filename, line, col)
   }
 
   function TranslateAttributeName(s: string): E.AttributeName {
