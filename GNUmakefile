@@ -58,16 +58,18 @@ dafny_verify := $(DAFNY) -compile:0  -trace -verifyAllModules -showSnippets:1 -v
 # Subprojects
 csharp := src/Backends/CSharp
 repl := src/REPL
+validator := src/Tools/Validator
 auditor := src/Tools/Auditor
 
 # Binaries
-plugin_dll := $(csharp)/bin/Debug/net6.0/CSharpCompiler.dll
+csharp_dll := $(csharp)/bin/Debug/net6.0/CSharpCompiler.dll
 repl_dll := $(repl)/bin/Release/net6.0/REPL.dll
+validator_dll := $(validator)/bin/Debug/net6.0/Validator.dll
 auditor_dll := $(auditor)/bin/Debug/net6.0/DafnyAuditor.dll
-dlls := $(plugin_dll) $(repl_dll) $(auditor_dll)
+dlls := $(csharp_dll) $(repl_dll) $(auditor_dll) $(validator_dll)
 
 # Entry points
-dfy_entry_points := $(repl)/Repl.dfy $(csharp)/Compiler.dfy $(auditor)/Auditor.dfy
+dfy_entry_points := $(repl)/Repl.dfy $(csharp)/Compiler.dfy $(auditor)/Auditor.dfy $(auditor)/Validator.dfy
 cs_entry_points := $(dfy_entry_points:.dfy=.cs)
 cs_roots := $(dir $(cs_entry_points))
 cs_objs := $(cs_roots:=bin) $(cs_roots:=obj)
@@ -105,21 +107,29 @@ $(csharp)/Compiler.cs: $(csharp)/Compiler.dfy $(dfy_models) $(dfy_interop) $(Daf
 	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
 	rm "$@.bak" # https://stackoverflow.com/questions/4247068/
 
+$(validator)/Validator.cs: $(validator)/Validator.dfy $(dfy_models) $(dfy_interop) $(DafnyRuntime)
+	$(dafny_codegen) $<
+	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
+	rm "$@.bak" # https://stackoverflow.com/questions/4247068/
+
 $(auditor)/Auditor.cs: $(auditor)/Auditor.dfy $(dfy_models) $(dfy_interop) $(DafnyRuntime)
 	$(dafny_codegen) $< || true
 	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
 	rm "$@.bak" # https://stackoverflow.com/questions/4247068/
 
 # Compile the resulting C# code
-$(plugin_dll): $(csharp)/Compiler.cs $(cs_interop)
+$(csharp_dll): $(csharp)/Compiler.cs $(cs_interop)
 	dotnet build $(csharp)/CSharpCompiler.csproj
+
+$(validator_dll): $(validator)/Validator.cs $(validator)/EntryPoint.cs $(cs_interop)
+	dotnet build $(validator)/Validator.csproj
 
 $(auditor_dll): $(auditor)/Auditor.cs $(auditor)/EntryPoint.cs $(cs_interop)
 	dotnet build $(auditor)/DafnyAuditor.csproj
 
 # Run it on tests
-test/%.cs: test/%.dfy $(plugin_dll) $(DafnyRuntime)
-	$(dafny_codegen) -plugin:$(plugin_dll) -compileTarget:cs "$<"
+test/%.cs: test/%.dfy $(csharp_dll) $(DafnyRuntime)
+	$(dafny_codegen) -plugin:$(csharp_dll) -compileTarget:cs "$<"
 
 # Compile the REPL
 # DISCUSS: Dependency tracking in Dafny
@@ -138,6 +148,8 @@ tests: $(cs_tests)
 
 repl: $(repl_dll) FORCE
 	dotnet exec $<
+
+validator: $(validator_dll) FORCE
 
 auditor: $(auditor_dll) FORCE
 
