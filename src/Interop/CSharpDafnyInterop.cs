@@ -37,11 +37,11 @@ namespace CSharpDafnyInterop {
 
     public static Dafny.ISequence<char> ObjectToString(object o) =>
       AsString((o ?? "null").ToString());
-  }
 
-  public static Boogie.IToken CreateToken(System.String file, int line, int col) {
-    var tok = new Token(line, col);
-    tok.Filename = filename;
-    return tok;
+    public static Microsoft.Dafny.Token CreateToken(System.String filename, int line, int col) {
+      var tok = new Microsoft.Dafny.Token(line, col);
+      tok.Filename = filename;
+      return tok;
+    }
   }
 }

@@ -8,7 +8,7 @@ abstract module {:options "-functionSyntax:4"} Bootstrap.Backends.CompilerAdapte
   import Interop.CSharpDafnyASTModel
   import opened Interop.CSharpDafnyInterop
 
-  trait CompilerAdapter {
+  trait DafnyCompiler {
     method Compile(program: Entities.Program, wr: SyntaxTreeAdapter)
     method EmitCallToMain(main: Entities.Entity, basename: string, st: SyntaxTreeAdapter)
   }
@@ -16,11 +16,11 @@ abstract module {:options "-functionSyntax:4"} Bootstrap.Backends.CompilerAdapte
   // DISCUSS: What would be a better design here?  I'd like to have a single
   // instance of EntryPoint (not one per module refinement), and to specify the
   // constructor (not a method).
-  method InitializeCompiler() returns (c: CompilerAdapter)
+  method InitializeCompiler() returns (c: DafnyCompiler)
     ensures fresh(c)
 
-  class {:extern} EntryPoint {
-    var c: CompilerAdapter
+  class {:extern} CompilerAdapter {
+    var c: DafnyCompiler
 
     constructor() {
       var c := InitializeCompiler();

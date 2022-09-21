@@ -4,7 +4,7 @@ using Bootstrap.Backends.CSharp.Adapter;
 namespace Microsoft.Dafny.Compilers.SelfHosting.CSharp;
 
 internal class SelfHostingCSharpCompiler : Plugins.Compiler {
-  private readonly DafnyCSharpCompiler compiler = new ();
+  private readonly CompilerAdapter compiler = new ();
 
   public override IReadOnlySet<string> SupportedExtensions => new HashSet<string> { ".cs", ".dll" };
 

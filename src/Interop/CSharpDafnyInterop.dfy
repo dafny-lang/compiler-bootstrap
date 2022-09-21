@@ -39,7 +39,7 @@ module {:extern "CSharpDafnyInterop"} Bootstrap.Interop.CSharpDafnyInterop {
     }
 
     static method {:extern} CreateToken(file: System.String?, line: System.int32, col: System.int32)
-      returns (tok: Boogie.IToken)
+      returns (tok: Dafny.IToken)
       ensures fresh(tok)
   }
 

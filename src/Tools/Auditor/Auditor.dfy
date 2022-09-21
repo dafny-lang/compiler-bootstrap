@@ -109,6 +109,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     }
 
     method WarnReport(reporter: Microsoft.Dafny.ErrorReporter, rpt: Report) {
+      var adapter := new Locations.ReporterAdapter(reporter);
       for i := 0 to |rpt.assumptions| {
         var a := rpt.assumptions[i];
         var descs := AssumptionDescription(a.tags);
@@ -123,14 +124,14 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     method AuditWarnings(reporter: Microsoft.Dafny.ErrorReporter, p: CSharpDafnyASTModel.Program)
     {
       var res := E.TranslateProgram(p, includeCompileModules := false);
-      var adapter := new Locations.ReporterAdapter(reporter);
       match res {
         case Success(p') =>
           var rpt := GenerateAuditReport(p'.registry);
           WarnReport(reporter, rpt);
         case Failure(err) =>
-          var tok := p.DefaultModuleDef.tok;
+          var tok: Boogie.IToken := p.DefaultModuleDef.tok;
           var msg := StringUtils.ToCString("Failed to translate program. " + err.ToString());
+          assume tok is Dafny.IToken; // IToken is duplicated to avoid cyclic dependencies
           reporter.Message(Dafny.MessageSource.Rewriter, Dafny.ErrorLevel.Error, tok, msg);
       }
     }

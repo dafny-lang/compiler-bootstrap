@@ -37,8 +37,12 @@ module {:extern "Microsoft.Dafny"} {:compile false} Microsoft.Dafny {
     static const {:extern} Rewriter: MessageSource;
   }
 
+  trait {:extern} {:compile false} IToken extends Boogie.IToken
+    // Duplicated here from `CSharpDafnyASTModel` to avoid a recursive dependency.
+  {}
+
   class {:extern} {:compile false} ErrorReporter {
-    method {:extern} Message(src: MessageSource, err: ErrorLevel, tok: Boogie.IToken, str: System.String)
+    method {:extern} Message(src: MessageSource, err: ErrorLevel, tok: IToken, str: System.String)
   }
 }
 

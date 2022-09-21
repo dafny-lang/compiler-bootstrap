@@ -296,7 +296,7 @@ module {:extern "Bootstrap.Backends.CSharp.Adapter"} Bootstrap.Backends.CSharp.A
     }
   }
 
-  class DafnyCSharpCompiler extends CompilerAdapter {
+  class DafnyCSharpCompiler extends DafnyCompiler {
     constructor() {
     }
 
@@ -325,7 +325,7 @@ module {:extern "Bootstrap.Backends.CSharp.Adapter"} Bootstrap.Backends.CSharp.A
     }
   }
 
-  method InitializeCompiler() returns (c: CompilerAdapter) {
+  method InitializeCompiler() returns (c: DafnyCompiler) {
     c := new DafnyCSharpCompiler();
   }
 }
