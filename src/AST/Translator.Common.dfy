@@ -21,7 +21,7 @@ module Bootstrap.AST.Translator.Common {
         case Invalid(msg) =>
           "Invalid term: " + msg
         case UnsupportedMember(decl) =>
-          "Unsupported declaration: " + TypeConv.AnyToString(decl)
+          "Unsupported declaration: " + TypeConv.ObjectToString(decl)
     }
   }
 
@@ -43,6 +43,6 @@ module Bootstrap.AST.Translator.Common {
         var d := o as C.Declaration; TranslateLocation(d.tok)
       else
         Locations.Location.EMPTY();
-    Debug.Unsupported(TypeConv.AnyToString(o), descr, loc)
+    Debug.Unsupported(TypeConv.ObjectToString(o), descr, loc)
   }
 }

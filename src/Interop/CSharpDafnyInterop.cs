@@ -35,8 +35,8 @@ namespace CSharpDafnyInterop {
     public static BigInteger Numerator(Dafny.BigRational r) => r.num;
     public static BigInteger Denominator(Dafny.BigRational r) => r.den;
 
-    public static Dafny.ISequence<char> AnyToString(object? o) =>
-      AsString(o is null ? "null" : o.ToString());
+    public static Dafny.ISequence<char> ObjectToString(object o) =>
+      AsString((o ?? "null").ToString());
   }
 
   public static Boogie.IToken CreateToken(System.String file, int line, int col) {

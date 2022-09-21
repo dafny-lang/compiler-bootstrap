@@ -30,7 +30,7 @@ module {:extern "CSharpDafnyInterop"} Bootstrap.Interop.CSharpDafnyInterop {
       (TypeConv.Numerator(r), TypeConv.Denominator(r))
     }
 
-    static function method {:extern} AnyToString(a: object?) : string
+    static function method {:extern} ObjectToString(o: object?) : string
 
     static function method ClampInt32(x: int): System.int32 {
       if x < -0x7fff_ffff then -0x7fff_ffff
