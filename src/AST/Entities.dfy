@@ -303,7 +303,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     {
       var names := SortedNames();
       var validate := nm requires Contains(nm) => ValidateEntry(nm, entities[nm]);
-      var os := OS.CombineSeq(Seq.Map(validate, names));
+      var os := OS.AllSeq(names, validate);
       calc <==> {
         os.Pass?;
         forall o <- Seq.Map(validate, names) :: o.Pass?;

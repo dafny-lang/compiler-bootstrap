@@ -384,6 +384,22 @@ module Utils.Lib.Outcome.OfSeq { // FIXME rename to Seq
       assert fails[0] in so;
       Fail(Seq.Flatten(Seq.Map((x: Outcome<seq<E>>) requires x.Fail? => x.error, fails)))
   }
+
+  function method All<T, E>(ts: seq<T>, P: T ~> Outcome<E>): (os: Outcome<seq<E>>)
+    reads P.reads
+    requires forall t | t in ts :: P.requires(t)
+    ensures os.Pass? <==> forall t | t in ts :: P(t).Pass?
+  {
+    Combine(Seq.Map(P, ts))
+  }
+
+  function method AllSeq<T, E>(ts: seq<T>, P: T ~> Outcome<seq<E>>): (os: Outcome<seq<E>>)
+    reads P.reads
+    requires forall t | t in ts :: P.requires(t)
+    ensures os.Pass? <==> forall t | t in ts :: P(t).Pass?
+  {
+    CombineSeq(Seq.Map(P, ts))
+  }
 }
 
 module Utils.Lib.Str {
