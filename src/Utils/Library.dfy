@@ -50,6 +50,12 @@ module Utils.Lib.Datatypes {
     }
   }
 
+  function method OptionOfNullable(o: object?): (opt: Option<object>)
+    ensures opt.Some? ==> opt.value == o
+  {
+    if o == null then None else Some(o)
+  }
+
   datatype Result<+T, +R> = | Success(value: T) | Failure(error: R) {
     predicate method IsFailure() {
       Failure?

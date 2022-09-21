@@ -1,16 +1,17 @@
 include "Locations.dfy"
+include "../Utils/Library.dfy"
 include "../Interop/CSharpDafnyInterop.dfy"
 
 module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Location {
   import opened Interop.CSharpDafnyInterop
+  import System
   import opened Locations
+  import opened Utils.Lib.Datatypes
 
   function TranslateLocation(tok: Microsoft.Boogie.IToken): Location
     reads *
   {
-    var filename := if tok.FileName == null then "<none>" else TypeConv.AsString(tok.FileName);
-    var line := tok.Line as int;
-    var col := tok.Column as int;
-    Location(filename, line, col)
+    var fnOpt: Option<System.String> := OptionOfNullable(tok.FileName);
+    Location(fnOpt.Map(s => TypeConv.AsString(s)), tok.Line as int, tok.Column as int)
   }
 }

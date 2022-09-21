@@ -123,10 +123,11 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
             for j := 0 to |descs| {
               var desc := descs[j];
               var msg := AssumptionWarning(a, desc);
-              var line := a.location.line;
-              var col := a.location.column;
-              AuditorExterns.Auditor.Warning(reporter, StringUtils.ToCString(loc.file),
-                                          line, col, StringUtils.ToCString(msg));
+              var line, col := a.location.line, a.location.column;
+              AuditorExterns.Auditor.Warning(
+                reporter, loc.file.Map(StringUtils.ToCString).UnwrapOr(null),
+                TypeConv.ClampInt32(line), TypeConv.ClampInt32(col),
+                StringUtils.ToCString(msg));
             }
           }
         case Failure(err) =>
