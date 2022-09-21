@@ -1,5 +1,18 @@
 include "../Interop/CSharpDafnyASTModel.dfy"
 include "../Utils/Library.dfy"
+include "Locations.dfy"
+
+module Bootstrap.AST.Syntax.Debug {
+  import opened Locations
+
+  datatype Unsupported =
+    Unsupported(obj: string, prefix: string, loc: Location)
+  {
+    function method Message(): string {
+      prefix + (if |prefix| > 0 then ": " else "") + obj
+    }
+  }
+}
 
 module Bootstrap.AST.Syntax {
   import Utils.Lib.Math
@@ -9,6 +22,7 @@ module Bootstrap.AST.Syntax {
 
 module Types {
   import C = Interop.CSharpDafnyASTModel
+  import opened Debug
 
   type Path = seq<string>
 
@@ -31,8 +45,7 @@ module Types {
     | Collection(finite: bool, kind: CollectionKind, eltType: Type)
     | Function(args: seq<Type>, ret: Type) // TODO
     | Class(classType: ClassType)
-    // TODO: change string to indicate C# class and include location
-    | Unsupported(description: string)
+    | Unsupported(un: Unsupported)
   {
     // TODO: remove?
     predicate method NoLeftFunction()
@@ -190,6 +203,7 @@ module Exprs {
   import UnaryOps
   import BinaryOps
   import TernaryOps
+  import opened Debug
   import C = Interop.CSharpDafnyASTModel
 
   // FIXME should literals just be Values.T?
@@ -261,7 +275,7 @@ module Exprs {
     | Bind(vars: seq<string>, vals: seq<Expr>, body: Expr)
     | If(cond: Expr, thn: Expr, els: Expr) // DISCUSS: Lazy op node?
     // TODO: change string to indicate C# class and include location
-    | Unsupported(description: string, children: seq<Expr>)
+    | Unsupported(un: Unsupported, children: seq<Expr>)
   {
     function method Depth() : nat {
       1 + match this {
@@ -303,7 +317,11 @@ module Exprs {
     }
   }
 
-  function method WellFormed(e: Expr): bool {
+  predicate method Supported(e: Expr) {
+    !e.Unsupported?
+  }
+
+  predicate method WellFormed(e: Expr) {
     match e {
       case Apply(Lazy(_), es) =>
         |es| == 2
@@ -339,9 +357,9 @@ module Exprs {
         e'.If?
       case Bind(vars, vals, body) =>
         e'.Bind? && |vars| == |e'.vars| && |vals| == |e'.vals|
-      case Unsupported(description, children) =>
+      case Unsupported(un, children) =>
         e'.Unsupported? &&
-        e'.description == description &&
+        e'.un == un &&
         |e'.children| == |children|
     }
   }

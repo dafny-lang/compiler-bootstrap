@@ -7,6 +7,7 @@ include "Entities.dfy"
 include "Syntax.dfy"
 include "Predicates.dfy"
 include "Translator.Common.dfy"
+include "Translator.Location.dfy"
 
 module Bootstrap.AST.Translator.Expressions {
   import opened Utils.Lib
@@ -17,8 +18,11 @@ module Bootstrap.AST.Translator.Expressions {
   import opened Interop.CSharpDafnyInterop
   import opened Interop.CSharpDafnyInterop.Microsoft
   import opened Interop.CSharpDafnyASTInterop
+  import Locations
+  import L = Location
   import C = Interop.CSharpDafnyASTModel
   import D = Syntax
+  import Syntax.Debug
   import DE = Syntax.Exprs
   import DT = Syntax.Types
   import E = Entities
@@ -80,7 +84,7 @@ module Bootstrap.AST.Translator.Expressions {
       var eltTy :- TranslateType(ty.Arg);
       Success(DT.Collection(true, DT.CollectionKind.Seq, eltTy))
     else
-      Success(DT.Unsupported(TypeConv.AnyToString(ty)))
+      Success(DT.Unsupported(Common.TranslateUnsupported(ty, "")))
   }
 
   const GhostUnaryOps: set<C.UnaryOpExpr__ResolvedOpcode> :=
@@ -631,9 +635,9 @@ module Bootstrap.AST.Translator.Expressions {
 
   function method TranslateUnsupported(o: object?, children: seq<Expr>, prefix: string)
     : (e: TranslationResult<Expr>)
+    reads *
   {
-    var msg := prefix + (if |prefix| > 0 then ": " else "") + TypeConv.AnyToString(o);
-    Success(DE.Unsupported(msg, children))
+    Success(DE.Unsupported(Common.TranslateUnsupported(o, prefix), children))
   }
 
   // TODO: adapt auto-generated AST to include some nullable fields
