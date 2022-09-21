@@ -630,7 +630,7 @@ module Bootstrap.AST.Translator.Expressions {
     : (e: TranslationResult<Expr>)
   {
     var msg := prefix + (if |prefix| > 0 then ": " else "") + TypeConv.AnyToString(o);
-    Success(DE.Unsupported(TypeConv.AnyToString(o), children))
+    Success(DE.Unsupported(msg, children))
   }
 
   // TODO: adapt auto-generated AST to include some nullable fields
