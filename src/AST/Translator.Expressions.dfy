@@ -36,6 +36,14 @@ module Bootstrap.AST.Translator.Expressions {
     ASTHeight(u) < ASTHeight(v)
   }
 
+  predicate method IsNull(o: object?)
+    // Check if an object `o` is null.  Using this function allows us to silence
+    // warnings about comparisons to `null` for non-nullable objects.
+    // BUG(https://github.com/dafny-lang/dafny/issues/2724).
+  {
+    o == null
+  }
+
   function method TranslateType(ty: C.Type)
     : TranslationResult<DT.Type>
     reads *
@@ -249,7 +257,7 @@ module Bootstrap.AST.Translator.Expressions {
     decreases ASTHeight(obj), 3
   {
     var fname := TypeConv.AsString(fullName);
-    if obj.Type == null then
+    if IsNull(obj.Type) then
       // This occasionally happens, and causes obj.Resolved to trigger an assertion failure.
       TranslateUnsupportedExpression(obj)
     else if obj.Resolved is C.StaticReceiverExpr then
@@ -345,7 +353,7 @@ module Bootstrap.AST.Translator.Expressions {
     ensures e.Success? ==> P.All_Expr(e.value, DE.WellFormed)
   { // FIXME: The models that we generate do not allow for `null`
     var ty :- TranslateType(se.Seq.Type);
-    :- Need(se.SelectOne ==> se.E0 != null && se.E1 == null,
+    :- Need(se.SelectOne ==> !IsNull(se.E0) && IsNull(se.E1),
         Invalid("Inconsistent values for `SelectOne` and E1 in SeqSelect."));
     if || !ty.Collection?
        || ty.kind.Set?
@@ -358,13 +366,13 @@ module Bootstrap.AST.Translator.Expressions {
       match ty.kind { // FIXME AST gen should produce `Expression?` not `Expression`
         case Seq() =>
           if se.SelectOne then
-            assert se.E1 == null;
+            assert IsNull(se.E1);
             var e0 :- TranslateExpression(se.E0);
             eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqSelect)), [recv, e0])
-          else if se.E1 == null then
+          else if IsNull(se.E1) then
             var e0 :- TranslateExpression(se.E0);
             eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqDrop)), [recv, e0])
-          else if se.E0 == null then
+          else if IsNull(se.E0) then
             var e1 :- TranslateExpression(se.E1);
             eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqTake)), [recv, e1])
           else
@@ -372,11 +380,11 @@ module Bootstrap.AST.Translator.Expressions {
             var e1 :- TranslateExpression(se.E1);
             eager(DE.TernaryOp(DE.TernaryOps.Sequences(DE.TernaryOps.SeqSubseq)), [recv, e0, e1])
         case Map(_) =>
-          assert se.SelectOne && se.E1 == null;
+          assert se.SelectOne && IsNull(se.E1);
           var e0 :- TranslateExpression(se.E0);
           eager(DE.BinaryOp(DE.BinaryOps.Maps(DE.BinaryOps.MapSelect)), [recv, e0])
         case Multiset() =>
-          assert se.SelectOne && se.E1 == null;
+          assert se.SelectOne && IsNull(se.E1);
           var e0 :- TranslateExpression(se.E0);
           eager(DE.BinaryOp(DE.BinaryOps.Multisets(DE.BinaryOps.MultisetSelect)), [recv, e0])
       }
@@ -421,7 +429,7 @@ module Bootstrap.AST.Translator.Expressions {
     var lhss := ListUtils.ToSeq(le.LHSs);
     if !le.Exact then
       TranslateUnsupportedExpression(le, "Inexact let expression")
-    else if !Seq.All((pat: C.CasePattern<C.BoundVar>) reads * => pat.Var != null, lhss) then
+    else if !Seq.All((pat: C.CasePattern<C.BoundVar>) reads * => !IsNull(pat.Var), lhss) then
       TranslateUnsupportedExpression(le, "Let expression with null bound variable")
     else
       var rhss := ListUtils.ToSeq(le.RHSs);
@@ -507,7 +515,7 @@ module Bootstrap.AST.Translator.Expressions {
     decreases ASTHeight(ue), 0, ()
   {
     var children :-
-      if ue == null then
+      if IsNull(ue) then
         Success([])
       else
         var exprs := EnumerableUtils.ToSeq(ue.SubExpressions);
@@ -517,14 +525,12 @@ module Bootstrap.AST.Translator.Expressions {
   }
 
   // TODO: adapt auto-generated AST to include some nullable fields
-  function method TranslateOptionalExpression(e: C.Expression?): TranslationResult<Option<Expr>>
+  function method TranslateOptionalExpression(e: C.Expression?)
+    : TranslationResult<Option<Expr>>
     reads *
   {
-    if e == null then
-      Success(None)
-    else
-      var e' :- TranslateExpression(e);
-      Success(Some(e'))
+    if e == null then Success(None)
+    else var e' :- TranslateExpression(e); Success(Some(e'))
   }
 
   function method TranslatePrintStmt(p: C.PrintStmt)
@@ -633,10 +639,7 @@ module Bootstrap.AST.Translator.Expressions {
     : TranslationResult<Option<Expr>>
     reads *
   {
-    if s == null then
-      Success(None)
-    else
-      var s' :- TranslateStatement(s);
-      Success(Some(s'))
+    if s == null then Success(None)
+    else var s' :- TranslateStatement(s); Success(Some(s'))
   }
 }
