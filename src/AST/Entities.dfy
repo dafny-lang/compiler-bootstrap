@@ -420,11 +420,22 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       if name.Anonymous? then AddRoot(name, entity) else AddMember(name, entity)
     }
 
-    function Map(f: EntityTransformer): Registry
+    function Map(f: EntityTransformer): (r': Registry)
       requires Valid?()
       requires forall e <- entities.Values :: f.requires(e)
+      ensures r'.MappedFrom?(this) // FIXME
     {
-      Registry(map name | name in entities :: f(entities[name]))
+      var entities' := map name | name in entities :: f(entities[name]);
+      Registry(entities')
+    }
+
+    ghost predicate MappedFrom?(r0: Registry)
+    {
+      && entities.Keys == r0.entities.Keys
+      && forall name <- entities ::
+          && entities[name].kind == r0.entities[name].kind
+          && entities[name].ei.name == r0.entities[name].ei.name
+          && entities[name].ei.members == r0.entities[name].ei.members
     }
 
     function {:opaque} AllNames(): set<Name>
