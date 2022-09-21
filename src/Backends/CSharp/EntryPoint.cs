@@ -1,5 +1,5 @@
 using System.Collections.ObjectModel;
-using Bootstrap.Backends.CSharp;
+using Bootstrap.Backends.CSharp.Adapter;
 
 namespace Microsoft.Dafny.Compilers.SelfHosting.CSharp;
 

@@ -6,20 +6,9 @@ include "../../Passes/EliminateNegatedBinops.dfy"
 include "../../Transforms/BottomUp.dfy"
 include "../../Utils/Library.dfy"
 include "../../Utils/StrTree.dfy"
+include "../CompilerAdapterPlugin.dfy"
 
-module {:extern "Bootstrap.Backends.CSharp"} Bootstrap.Backends.CSharp {
-  import Interop.CSharpDafnyASTModel
-  import opened Interop.CSharpDafnyInterop
-  import opened Microsoft.Dafny
-  import Utils.StrTree
-  import AST.Predicates
-  import AST.Translator
-  import AST.Translator.Entity
-  import Transforms.BottomUp
-  import Passes.EliminateNegatedBinops
-  import opened AST.Predicates.Deep
-
-module Compiler {
+module Bootstrap.Backends.CSharp.Compiler {
   import opened StrTree_ = Utils.StrTree
   import opened Interop.CSharpDafnyInterop
   import E = AST.Entities
@@ -284,6 +273,14 @@ module Compiler {
   }
 }
 
+module {:extern "Bootstrap.Backends.CSharp.Adapter"} Bootstrap.Backends.CSharp.Adapter
+  refines CompilerAdapterPlugin
+{
+  import Compiler
+  import Utils.StrTree
+  import Passes.EliminateNegatedBinops
+  import AST.Predicates.Deep
+
   method WriteAST(wr: CSharpDafnyInterop.SyntaxTreeAdapter, ast: StrTree.StrTree) {
     match ast {
       case Str(s) =>
@@ -299,46 +296,36 @@ module Compiler {
     }
   }
 
-  class {:extern} DafnyCSharpCompiler {    
+  class DafnyCSharpCompiler extends CompilerAdapter {
     constructor() {
     }
 
-    method Compile(dafnyProgram: CSharpDafnyASTModel.Program,
-                   wr: ConcreteSyntaxTree) {
-      var st := new CSharpDafnyInterop.SyntaxTreeAdapter(wr);
-      match Entity.TranslateProgram(dafnyProgram, includeCompileModules := true) {
-        case Success(translated) =>
-          var lowered := EliminateNegatedBinops.Apply(translated);
+    method Compile(program: Entities.Program, st: SyntaxTreeAdapter) {
+      var lowered := EliminateNegatedBinops.Apply(program);
 
-          // Because of the imprecise encoding of functions, we need to call a weakening
-          // lemma. We could also use ``EliminateNegatedBinops.Tr_Expr_Post`` everywhere,
-          // but it seems cleaner to state that we need ``NotANegatedBinopExpr`` in the
-          // preconditions, as it is more precise and ``Tr_Expr_Post`` might be expanded
-          // in the future.
-          // TODO: need to redo this for all the entities in the program
-          /*
-          AllChildren_Expr_weaken(
-            lowered.mainMethod.methodBody,
-            EliminateNegatedBinops.Tr_Expr_Post,
-            EliminateNegatedBinops.NotANegatedBinopExpr);
-          */
-          assume Deep.All_Program(lowered, EliminateNegatedBinops.NotANegatedBinopExpr);
+      // Because of the imprecise encoding of functions, we need to call a weakening
+      // lemma. We could also use ``EliminateNegatedBinops.Tr_Expr_Post`` everywhere,
+      // but it seems cleaner to state that we need ``NotANegatedBinopExpr`` in the
+      // preconditions, as it is more precise and ``Tr_Expr_Post`` might be expanded
+      // in the future.
+      // TODO: need to redo this for all the entities in the program
+      /*
+      AllChildren_Expr_weaken(
+        lowered.mainMethod.methodBody,
+        EliminateNegatedBinops.Tr_Expr_Post,
+        EliminateNegatedBinops.NotANegatedBinopExpr);
+      */
+      assume Deep.All_Program(lowered, EliminateNegatedBinops.NotANegatedBinopExpr);
 
-          var compiled := Compiler.AlwaysCompileProgram(lowered);
-          WriteAST(st, compiled);
-        case Failure(err) => // FIXME return an error
-          st.Write("!! Translation error: " + err.ToString());
-      }
-      st.Write("\n");
+      var compiled := Compiler.AlwaysCompileProgram(lowered);
+      WriteAST(st, compiled);
     }
 
-    method EmitCallToMain(mainMethod: CSharpDafnyASTModel.Method,
-                          baseName: System.String,
-                          wr: ConcreteSyntaxTree) {
-      // var st := new SyntaxTreeAdapter(wr);
-      // var sClass := st.NewBlock("class __CallToMain");
-      // var sBody := sClass.NewBlock("public static void Main(string[] args)");
-      // sBody.WriteLine("DafnyRuntime.Helpers.WithHaltHandling(_module.Main);");
+    method EmitCallToMain(main: Entities.Entity, basename: string, st: SyntaxTreeAdapter) {
     }
+  }
+
+  method InitializeCompiler() returns (c: CompilerAdapter) {
+    c := new DafnyCSharpCompiler();
   }
 }
