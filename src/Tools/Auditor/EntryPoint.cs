@@ -65,8 +65,8 @@ public class Auditor : Plugins.Rewriter {
         Format.HTML => GenerateHTMLReport(program),
         Format.Markdown => auditor.AuditMarkdown(program).ToString(),
         Format.Text => auditor.AuditText(program).ToString(),
+        _ => ""
       };
-
       File.WriteAllText(filename, text);
     }
   }

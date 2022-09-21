@@ -9,7 +9,6 @@ include "../../Utils/Library.dfy"
 include "Report.dfy"
 
 module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootstrap.Tools.Auditor {
-
   import opened AST.Entities
   import opened AST.Names
   import opened AST.Predicates
