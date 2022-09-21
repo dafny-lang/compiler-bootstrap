@@ -32,7 +32,13 @@ module Utils.Lib.Datatypes {
         case None() => Failure(f)
     }
 
-    function method All(P: T -> bool) : bool {
+    function method ToSeq(): seq<T> {
+      match this
+        case Some(v) => [v]
+        case None() => []
+    }
+
+    predicate method All(P: T -> bool) {
       match this {
         case Some(v) => P(v)
         case None => true

@@ -26,26 +26,39 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 
   datatype Module =
     Module()
+  { function Exprs(): seq<Expr> { [] } }
 
   datatype ExportSet =
     ExportSet(provided: set<Name>, revealed: set<Name>)
+  { function Exprs(): seq<Expr> { [] } }
 
   datatype Import =
     Import(localName: Atom, target: Name)
+  { function Exprs(): seq<Expr> { [] } }
 
   datatype SubsetType =
     SubsetType(boundVar: string, ty: Types.Type, pred: Expr, witnessExpr: Option<Expr>, isNewType: bool)
+  {
+    function Exprs(): seq<Expr> {
+      [pred] + witnessExpr.ToSeq()
+    }
+  }
 
   datatype TypeAlias =
     TypeAlias(base: Types.Type, isNewType: bool)
+  { function Exprs(): seq<Expr> { [] } }
   datatype AbstractType =
     AbstractType()
+  { function Exprs(): seq<Expr> { [] } }
   datatype TraitType =
     TraitType(parentTypes: seq<Name>)
+  { function Exprs(): seq<Expr> { [] } }
   datatype ClassType =
     ClassType(parentTypes: seq<Name>)
+  { function Exprs(): seq<Expr> { [] } }
   datatype DataType =
     DataType()
+  { function Exprs(): seq<Expr> { [] } }
 
   datatype Type =
     | SubsetType(st: SubsetType)
@@ -55,21 +68,50 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     | ClassType(ct: ClassType)
     | DataType(dt: DataType)
     | Unsupported(desc: string)
+  {
+    function Exprs(): seq<Expr> {
+      match this
+        case SubsetType(st) => st.Exprs()
+        case TypeAlias(ta) => ta.Exprs()
+        case AbstractType(at) => at.Exprs()
+        case TraitType(tt) => tt.Exprs()
+        case ClassType(ct) => ct.Exprs()
+        case DataType(dt) => dt.Exprs()
+        case Unsupported(_) => []
+    }
+  }
 
   datatype FieldKind =
     Const | Var
   datatype Field =
     Field(kind: FieldKind, body: Option<Expr>)
+  {
+    function Exprs(): seq<Expr> {
+      body.ToSeq()
+    }
+  }
 
   datatype Callable =
     // TODO: should all these fields be part of Callable, instead?
     | Method(req: seq<Expr>, ens: seq<Expr>, body: Option<Expr>)
     | Function(req: seq<Expr>, ens: seq<Expr>, body: Option<Expr>)
     | Constructor(req: seq<Expr>, ens: seq<Expr>, body: Option<Expr>)
+  {
+    function Exprs(): seq<Expr> {
+      req + ens + body.ToSeq()
+    }
+  }
 
   datatype Definition =
     | Field(fi: Field)
     | Callable(ci: Callable)
+  {
+    function Exprs(): seq<Expr> {
+      match this
+        case Field(fi) => fi.Exprs()
+        case Callable(ci) => ci.Exprs()
+    }
+  }
 
   datatype EntityKind =
     | EModule
@@ -103,6 +145,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
     function ToString(): string {
       name.ToString() + " -> " + Seq.Flatten(Seq.Interleave(", ", Seq.Map((n: Name) => n.ToString(), members)))
     }
+
+    function Exprs(): seq<Expr> {
+      Seq.Flatten(Seq.Map((a: Attribute) => a.Exprs(), attrs))
+    }
   }
 
   datatype Entity =
@@ -121,6 +167,17 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
         case Type(ei, t) => EType
         case Definition(ei, d) => EDefinition
         case Unsupported(ei, desc) => EUnsupported
+
+    function Exprs(): seq<Expr> {
+      ei.Exprs() +
+      match this
+        case Module(_, m) => m.Exprs()
+        case ExportSet(_, e) => e.Exprs()
+        case Import(_, i) => i.Exprs()
+        case Type(_, t) => t.Exprs()
+        case Definition(_, d) => d.Exprs()
+        case Unsupported(_, desc) => []
+    }
   }
 
   datatype AttributeName =
@@ -141,6 +198,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   {
     function ToString(): string {
       "{:" + name.ToString() + (if args != [] then " ..." else "") + "}"
+    }
+
+    function Exprs(): seq<Expr> {
+      args
     }
   }
 

@@ -7,18 +7,8 @@ module Shallow {
   import opened Entities
   import opened Syntax
 
-  function method All_Callable(c: Callable, P: Expr -> bool) : bool {
-    && Seq.All(P, c.req)
-    && Seq.All(P, c.ens)
-    && c.body.All(P)
-  }
-
   function method All_Entity(e: Entity, P: Expr -> bool) : bool {
-    match e {
-      case Definition(_, d) => d.Callable? ==> All_Callable(d.ci, P)
-      // TODO: add fields once they contain expressions
-      case _ => true
-    }
+    Seq.All(P, e.Exprs())
   }
 
   function method All_Program(p: Program, P: Expr -> bool) : (r: bool)
@@ -33,7 +23,6 @@ module Shallow {
 
 module DeepImpl {
 abstract module Base {
-  import opened Utils.Lib
   import opened Entities
   import opened Syntax
   import Shallow
