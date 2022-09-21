@@ -1,21 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>DafnyAuditor</AssemblyName>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <DAFNY_ROOT Condition="'$(DAFNY_ROOT)' == ''">..\..\..\..\</DAFNY_ROOT>
-  </PropertyGroup>
-
-  <!-- TODO: get DafnyPipeline from NuGet when we can -->
   <ItemGroup>
-    <ProjectReference Include="$(DAFNY_ROOT)\Source\Dafny\DafnyPipeline.csproj" />
     <Compile Include="..\..\Interop\CSharpInterop.cs" />
     <Compile Include="..\..\Interop\CSharpDafnyInterop.cs" />
     <Compile Include="..\..\Interop\CSharpDafnyASTInterop.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- TODO: it would be nice to use this eventually, and no longer
+    need a Makefile -->
+    <!-- <PackageReference Include="dafny.msbuild" Version="1.0.0" /> -->
+    <PackageReference Include="DafnyPipeline" Version="3.8.1.40901" />
   </ItemGroup>
 
   <ItemGroup>
