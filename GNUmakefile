@@ -131,6 +131,10 @@ $(auditor_dll): $(auditor)/Auditor.cs $(auditor)/EntryPoint.cs $(cs_interop)
 test/%.cs: test/%.dfy $(csharp_dll) $(DafnyRuntime)
 	$(dafny_codegen) -plugin:$(csharp_dll) -compileTarget:cs "$<"
 
+%.v: %.dfy $(validator_dll)
+	$(dafny_typecheck) -plugin:$(validator_dll) "$<" | \
+		sed -E -e 's/(.*)[(]([-0-9]+), *([-0-9]+)[)]:/\1:\2:\3:/g'
+
 # Compile the REPL
 # DISCUSS: Dependency tracking in Dafny
 $(repl)/Repl.cs: $(repl)/Repl.dfy $(ast_model) $(dfy_models) $(dfy_interop) $(DafnyRuntime)
