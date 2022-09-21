@@ -50,6 +50,14 @@ module Utils.Lib.Datatypes {
     }
   }
 
+  predicate method IsNull(o: object?)
+    // Check if an object `o` is null.  Using this function allows us to silence
+    // warnings about comparisons to `null` for non-nullable objects.
+    // BUG(https://github.com/dafny-lang/dafny/issues/2724).
+  {
+    o == null
+  }
+
   function method OptionOfNullable(o: object?): (opt: Option<object>)
     ensures opt.Some? ==> opt.value == o
   {

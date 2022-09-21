@@ -36,14 +36,6 @@ module Bootstrap.AST.Translator.Expressions {
     ASTHeight(u) < ASTHeight(v)
   }
 
-  predicate method IsNull(o: object?)
-    // Check if an object `o` is null.  Using this function allows us to silence
-    // warnings about comparisons to `null` for non-nullable objects.
-    // BUG(https://github.com/dafny-lang/dafny/issues/2724).
-  {
-    o == null
-  }
-
   function method TranslateType(ty: C.Type)
     : TranslationResult<DT.Type>
     reads *

@@ -41,7 +41,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     reads *
     decreases ASTHeight(attrs)
   {
-    if attrs == null then
+    if IsNull(attrs) then
       Success([])
     else
       var name := TypeConv.AsString(attrs.Name);
@@ -140,7 +140,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     reads *
   {
     var ty :- Expr.TranslateType(nt.BaseType);
-    if nt.Var == null || nt.Constraint == null then
+    if IsNull(nt.Var) || IsNull(nt.Constraint) then
       Success(E.Type.TypeAlias(E.TypeAlias.TypeAlias(ty, true)))
     else
       var x := TypeConv.AsString(nt.Var.Name);
@@ -273,7 +273,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     var rootEI := E.EntityInfo.EntityInfo(N.Name.Anonymous, location := Location.EMPTY(), attrs := [], members := topNames);
     var root := E.Entity.Module(rootEI, E.Module.Module());
     var regMap := Seq.FoldL((m:map<N.Name, E.Entity>, e: E.Entity) => m + map[e.ei.name := e], map[], [root] + inclEntities);
-    var mainMethodName :- if p.MainMethod == null then
+    var mainMethodName :- if IsNull(p.MainMethod) then
                             Success(None)
                           else
                             var methodName :- TranslateName(p.MainMethod.FullName);
