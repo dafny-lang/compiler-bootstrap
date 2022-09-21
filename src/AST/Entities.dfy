@@ -18,6 +18,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
   import opened Syntax.Types
   import opened Locations
   import opened Utils.Lib.Datatypes
+  import Utils.Lib
   import Utils.Lib.SetSort
   import Utils.Lib.Str
   import OS = Utils.Lib.Outcome.OfSeq
@@ -319,6 +320,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 /// Core API
 /// ~~~~~~~~
 
+    predicate Empty?() {
+      entities == map[]
+    }
+
     predicate Contains(name: Name) {
       name in entities
     }
@@ -341,6 +346,17 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       ensures Contains(name.TruncateTo(length))
     {
       NthParent_Contains(name, name.Length() - length);
+    }
+
+    lemma NonEmpty_ContainsRoot()
+      requires Valid?()
+      requires !Empty?()
+      ensures Contains(Anonymous)
+    {
+      var name :| name in entities;
+      var root := name.TruncateTo(0);
+      assert root == Anonymous;
+      assert Contains(root) by { TruncateTo_Contains(name, 0); }
     }
 
     function Get(name: Name): Entity
@@ -431,6 +447,13 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
 
     function {:opaque} TransitiveMembers(prefix: Name): set<Name> {
       set name <- entities | name.ExtensionOf(prefix)
+    }
+
+    lemma TransitiveMembers_All()
+      ensures TransitiveMembers(Anonymous) == AllNames()
+    {
+      forall name <- entities { name.ExtensionOf_Anonymous(); }
+      reveal TransitiveMembers();
     }
 
     function {:opaque} TransitiveMembersOfMany(prefixes: seq<Name>): set<Name> {
@@ -663,6 +686,26 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Entities
       }
     }
 
+    function AllRecursiveTransitiveNames(): (ns: seq<Name>)
+      requires Valid?()
+      ensures forall n :: n in ns <==> Contains(n)
+    {
+      if Empty?() then []
+      else
+        NonEmpty_ContainsRoot();
+        RecursiveTransitiveMembers_Eq(Anonymous);
+        TransitiveMembers_All();
+        RecursiveTransitiveMembers(Anonymous)
+    }
+
+    function AllRecursiveTransitiveEntities(): (es: seq<Entity>)
+      requires Valid?()
+      ensures forall e :: e in es <==> e in entities.Values
+    {
+      var names := AllRecursiveTransitiveNames();
+      Lib.Map.AllKeysAllValues(entities, names);
+      Seq.Map(Lib.Map.Get(entities), names)
+    }
   }
 
   type Program = p: Program_ | p.Valid?() witness Program.EMPTY()

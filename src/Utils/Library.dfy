@@ -522,6 +522,19 @@ module Utils.Lib.Multiset {
   }
 }
 
+module Utils.Lib.Map {
+  import Seq
+
+  function method Get<K, V>(m: map<K, V>): K --> V {
+    k requires k in m => m[k]
+  }
+
+  lemma AllKeysAllValues<K(!new), V>(m: map<K, V>, ks: seq<K>)
+    requires forall k :: k in ks <==> k in m
+    ensures forall v :: v in Seq.Map(Get(m), ks) <==> v in m.Values
+  {}
+}
+
 module Utils.Lib.Array {
   import Set
   import Multiset

@@ -115,6 +115,14 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
       || StrictPrefixOf(child)
     }
 
+    static lemma PrefixOf_Anonymous(child: Name)
+      ensures Anonymous.PrefixOf(child)
+    {
+      if child.Name? {
+        PrefixOf_Anonymous(child.parent);
+      }
+    }
+
     static lemma {:induction n2} PrefixOf_Transitive(n0: Name, n1: Name, n2: Name)
       requires n0.PrefixOf(n1) && n1.PrefixOf(n2)
       ensures n0.PrefixOf(n2)
@@ -147,6 +155,12 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
       ensures ExtensionOf(parent) ==> Length() >= parent.Length()
     {
       parent.PrefixOf(this)
+    }
+
+    lemma ExtensionOf_Anonymous()
+      ensures this.ExtensionOf(Anonymous)
+    {
+      PrefixOf_Anonymous(this);
     }
 
     static lemma {:induction n2} ExtensionOf_Transitive(n0: Name, n1: Name, n2: Name)
