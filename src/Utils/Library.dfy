@@ -669,12 +669,27 @@ module Utils.Lib.Math {
     ensures y <= m
     ensures x == m || y == m
   {
-    if (x <= y) then y else x
+    if x <= y then y else x
+  }
+
+  function method {:opaque} Min(x: int, y: int) : (m: int)
+    ensures x >= m
+    ensures y >= m
+    ensures x == m || y == m
+  {
+    if x >= y then y else x
   }
 
   function method {:opaque} IntPow(x: int, n: nat) : int {
     if n == 0 then 1
     else x * IntPow(x, n - 1)
+  }
+
+  function method Clamp(x: int, low: int, high: int): (y: int)
+    requires low <= high
+    ensures low <= y <= high
+  {
+    Max(low, Min(x, high))
   }
 }
 

@@ -11,7 +11,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Locations
   import opened Utils.Lib.Datatypes
 
   datatype Location =
-    Location(file: Option<string>, line: int, column: int)
+    Location(file: Option<string>, line: nat, column: nat)
   {
     static function EMPTY(): Location {
       Location(None, 1, 0)
