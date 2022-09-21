@@ -234,6 +234,14 @@ module Bootstrap.AST.Translator.Expressions {
       TranslateUnsupportedExpression(l)
   }
 
+  function method TranslateThis(l: C.ThisExpr)
+    : (e: TranslationResult<Expr>)
+    reads *
+    decreases ASTHeight(l), 1
+  {
+    Success(DE.Literal(DE.LitThis))
+  }
+
   function method TranslateApplyExpr(ae: C.ApplyExpr)
     : (e: TranslationResult<Expr>)
     reads *
@@ -478,6 +486,8 @@ module Bootstrap.AST.Translator.Expressions {
       TranslateBinary(c as C.BinaryExpr)
     else if c is C.LiteralExpr then
       TranslateLiteral(c as C.LiteralExpr)
+    else if c is C.ThisExpr then
+      TranslateThis(c as C.ThisExpr)
     else if c is C.ApplyExpr then
       TranslateApplyExpr(c as C.ApplyExpr)
     else if c is C.MemberSelectExpr then
