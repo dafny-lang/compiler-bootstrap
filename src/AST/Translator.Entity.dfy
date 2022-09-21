@@ -1,5 +1,6 @@
 include "Locations.dfy"
 include "Translator.Expressions.dfy"
+include "Translator.Location.dfy"
 
 module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   import opened Utils.Lib
@@ -8,6 +9,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   import opened Interop.CSharpDafnyInterop
   import opened Interop.CSharpDafnyASTInterop
   import opened Locations
+  import L = Location
   import C = Interop.CSharpDafnyASTModel
   import E = Entities
   import N = Names
@@ -25,15 +27,6 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       assert forall s | s in parts :: s != "" && '.' !in s;
       var atoms : seq<N.Atom> := parts;
       Success(Seq.FoldL((n: N.Name, a: N.Atom) => N.Name(n, a), N.Anonymous, atoms))
-  }
-
-  function TranslateLocation(tok: Microsoft.Boogie.IToken): Location
-    reads *
-  {
-    var filename := if tok.FileName == null then "<none>" else TypeConv.AsString(tok.FileName);
-    var line := tok.Line as int;
-    var col := tok.Column as int;
-    Location(filename, line, col)
   }
 
   function TranslateAttributeName(s: string): E.AttributeName {
@@ -63,7 +56,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   {
     var name :- TranslateName(md.FullName);
     var attrs :- TranslateAttributes(md.Attributes);
-    var loc := TranslateLocation(md.tok);
+    var loc := L.TranslateLocation(md.tok);
     Success(E.EntityInfo(name, location := loc, attrs := attrs, members := []))
   }
 
@@ -183,7 +176,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   {
     var name :- TranslateName(tl.FullName);
     var attrs :- TranslateAttributes(tl.Attributes);
-    var loc := TranslateLocation(tl.tok);
+    var loc := L.TranslateLocation(tl.tok);
     Success(E.EntityInfo(name, location := loc, attrs := attrs, members := []))
   }
 
@@ -192,7 +185,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   {
     var name :- TranslateName(tl.FullName);
     var attrs :- TranslateAttributes(tl.Attributes);
-    var loc := TranslateLocation(tl.tok);
+    var loc := L.TranslateLocation(tl.tok);
     var memberDecls := ListUtils.ToSeq(tl.Members);
     var members :- Seq.MapResult(memberDecls, d reads * => TranslateMemberDecl(d));
     var memberNames := Seq.Map((m: E.Entity) => m.ei.name, members);
@@ -248,7 +241,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     else
       var name :- TranslateName(def.FullName);
       var attrs :- TranslateAttributes(def.Attributes);
-      var loc := TranslateLocation(def.tok);
+      var loc := L.TranslateLocation(def.tok);
       var includes := ListUtils.ToSeq(def.Includes);
       var topLevels := ListUtils.ToSeq(def.TopLevelDecls);
       var topDecls :- Seq.MapResult(topLevels,
@@ -277,7 +270,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     var names := Seq.Map((e: E.Entity) => e.ei.name, inclEntities);
     var topNames := Seq.Filter(names, (n:N.Name) => n.Name? && n.parent.Anonymous?);
     :- Need(forall nm <- topNames :: nm.ChildOf(N.Anonymous), Invalid("Malformed name at top level"));
-    var rootEI := E.EntityInfo.EntityInfo(N.Name.Anonymous, location := E.Location.EMPTY(), attrs := [], members := topNames);
+    var rootEI := E.EntityInfo.EntityInfo(N.Name.Anonymous, location := Location.EMPTY(), attrs := [], members := topNames);
     var root := E.Entity.Module(rootEI, E.Module.Module());
     var regMap := Seq.FoldL((m:map<N.Name, E.Entity>, e: E.Entity) => m + map[e.ei.name := e], map[], [root] + inclEntities);
     var mainMethodName :- if p.MainMethod == null then
