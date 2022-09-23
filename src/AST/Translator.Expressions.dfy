@@ -305,7 +305,8 @@ module Bootstrap.AST.Translator.Expressions {
     var args := ListUtils.ToSeq(dtv.Arguments);
     var args :- Seq.MapResult(args, e requires e in args reads * =>
       assume Decreases(e, dtv); TranslateExpression(e));
-    Success(DE.Apply(DE.Eager(DE.DataConstructor([n], typeArgs)), args)) // TODO: proper path
+    var name := assume N.Atom?(n); N.Name(N.Anonymous, n); // TODO: proper path
+    Success(DE.Apply(DE.Eager(DE.DataConstructor(name, typeArgs)), args))
   }
 
   function method TranslateDisplayExpr(de: C.DisplayExpression)

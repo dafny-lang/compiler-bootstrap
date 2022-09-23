@@ -8,9 +8,13 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Names {
   import StrCmp = Utils.Lib.Str.Comparison
   import DerivedCmp = Utils.Lib.Sort.DerivedComparison
 
+  predicate Atom?(s: string) {
+    s != "" && '.' !in s
+  }
+
   type Atom =
     // An individual component of a Dafny name.
-    s: string | s != "" && '.' !in s witness "n"
+    s: string | Atom?(s) witness "n"
 
   datatype Name =
     | Anonymous

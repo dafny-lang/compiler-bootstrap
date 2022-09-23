@@ -1,6 +1,7 @@
 include "../Interop/CSharpDafnyASTModel.dfy"
 include "../Utils/Library.dfy"
 include "Locations.dfy"
+include "Names.dfy"
 
 module Bootstrap.AST.Syntax.Debug {
   import opened Locations
@@ -23,10 +24,9 @@ module Bootstrap.AST.Syntax {
 module Types {
   import C = Interop.CSharpDafnyASTModel
   import opened Debug
+  import opened Names
 
-  type Path = seq<string>
-
-  datatype ClassType = ClassType(className: Path, typeArgs: seq<Type>)
+  datatype ClassType = ClassType(className: Name, typeArgs: seq<Type>)
 
   datatype CollectionKind =
     | Seq
@@ -199,6 +199,7 @@ module Exprs {
   import Utils.Lib.Seq
 
   import Types
+  import Names
   import UnaryOps
   import BinaryOps
   import TernaryOps
@@ -236,7 +237,7 @@ module Exprs {
     | Builtin(builtin: BuiltinFunction)
     | FunctionCall() // First argument is expression that resolves to function or method
     | MemberSelect(member: string)
-    | DataConstructor(name: Types.Path, typeArgs: seq<Types.Type>)
+    | DataConstructor(name: Names.Name, typeArgs: seq<Types.Type>)
 
   datatype LazyOp =
     | And
