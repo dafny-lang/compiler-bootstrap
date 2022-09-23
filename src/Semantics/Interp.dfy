@@ -18,13 +18,14 @@ module Bootstrap.Semantics.Interp {
 
   predicate method EagerOpSupportsInterp(op: Exprs.EagerOp) {
     match op {
-      case UnaryOp(uop) => !uop.MemberSelect?
+      case UnaryOp(uop) => true
       case BinaryOp(bop) => !bop.BV? && !bop.Datatypes?
       case TernaryOp(top) => true
       case Builtin(Display(_)) => true
       case Builtin(Print()) => false
       case Builtin(Predicate(_)) => false
       case FunctionCall() => true
+      case MemberSelect(member) => Debug.TODO(false)
       case DataConstructor(name, typeArgs) => Debug.TODO(false)
     }
   }
@@ -440,7 +441,6 @@ module Bootstrap.Semantics.Interp {
 
   function method {:opaque} InterpUnaryOp(expr: Expr, op: Syntax.UnaryOp, v0: Value)
     : PureInterpResult<Value>
-    requires !op.MemberSelect?
   {
     match op
       case BVNot => :- Need(v0.BitVector?, Invalid(expr));

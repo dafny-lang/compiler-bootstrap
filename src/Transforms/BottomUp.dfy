@@ -644,7 +644,6 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
   lemma EqInterp_Expr_UnaryOp_CanBeMapLifted(
     e: Interp.Expr, e': Interp.Expr, op: UnaryOp, v: WV, v': WV
   )
-    requires !op.MemberSelect?
     requires EqValue(v, v')
     ensures EqPureInterpResultValue(InterpUnaryOp(e, op, v), InterpUnaryOp(e', op, v'))
   {

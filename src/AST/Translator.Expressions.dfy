@@ -268,7 +268,7 @@ module Bootstrap.AST.Translator.Expressions {
       Success(DE.Var(fname))
     else
       var obj :- TranslateExpression(obj);
-      Success(DE.Apply(DE.Eager(DE.UnaryOp(DE.UnaryOps.MemberSelect(fname))), [obj]))
+      Success(DE.Apply(DE.Eager(DE.MemberSelect(fname)), [obj]))
   }
 
   function method TranslateMemberSelectExpr(me: C.MemberSelectExpr)

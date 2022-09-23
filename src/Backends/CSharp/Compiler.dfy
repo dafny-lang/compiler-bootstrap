@@ -92,7 +92,6 @@ module Bootstrap.Backends.CSharp.Compiler {
       case SetCard() => Unsupported
       case MultisetCard() => Unsupported
       case MapCard() => Unsupported
-      case MemberSelect(_) => Unsupported
     }
   }
 
@@ -215,6 +214,7 @@ module Bootstrap.Backends.CSharp.Compiler {
             Unsupported
           case Eager(Builtin(Print)) =>
             Concat("\n", Lib.Seq.Map(e requires e in es => CompilePrint(e), es))
+          case Eager(MemberSelect(member)) => Unsupported
           case Eager(DataConstructor(name, typeArgs)) => Unsupported
           case Eager(FunctionCall()) => Unsupported
         }

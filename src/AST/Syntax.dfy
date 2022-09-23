@@ -185,7 +185,6 @@ module UnaryOps {
     | SetCard
     | MultisetCard
     | MapCard
-    | MemberSelect(name: string)
     // Ghost operators
     // | Fresh
     // | Allocated
@@ -236,6 +235,7 @@ module Exprs {
     | TernaryOp(top: TernaryOps.T)
     | Builtin(builtin: BuiltinFunction)
     | FunctionCall() // First argument is expression that resolves to function or method
+    | MemberSelect(member: string)
     | DataConstructor(name: Types.Path, typeArgs: seq<Types.Type>)
 
   datatype LazyOp =
