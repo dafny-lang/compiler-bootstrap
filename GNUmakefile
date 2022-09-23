@@ -69,7 +69,7 @@ auditor_dll := $(auditor)/bin/Debug/net6.0/DafnyAuditor.dll
 dlls := $(csharp_dll) $(repl_dll) $(auditor_dll) $(validator_dll)
 
 # Entry points
-dfy_entry_points := $(repl)/Repl.dfy $(csharp)/Compiler.dfy $(auditor)/Auditor.dfy $(auditor)/Validator.dfy
+dfy_entry_points := $(repl)/Repl.dfy $(csharp)/Compiler.dfy $(auditor)/Auditor.dfy $(validator)/Validator.dfy
 cs_entry_points := $(dfy_entry_points:.dfy=.cs)
 cs_roots := $(dir $(cs_entry_points))
 cs_objs := $(cs_roots:=bin) $(cs_roots:=obj)
