@@ -12,9 +12,10 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Location {
   function TranslateLocation(tok: Microsoft.Boogie.IToken): Location
     reads *
   {
-    var fnOpt: Option<System.String> := OptionOfNullable(tok.FileName);
+    var fnOpt := OptionOfNullable(tok.FileName);
     Location(
-      fnOpt.Map(s => TypeConv.AsString(s)),
+      // FIXME: Using Option.Map leads to a type error in the compiled C# code
+      if fnOpt.Some? then Some(TypeConv.AsString(fnOpt.value)) else None,
       Math.Max(tok.Line as int, 1),
       Math.Max(tok.Column as int, 0))
   }

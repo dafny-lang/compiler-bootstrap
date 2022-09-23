@@ -35,7 +35,7 @@ namespace CSharpDafnyInterop {
     public static BigInteger Numerator(Dafny.BigRational r) => r.num;
     public static BigInteger Denominator(Dafny.BigRational r) => r.den;
 
-    public static Dafny.ISequence<char> AnyToString<A>(a: A) =>
-      AsString((o ?? "null").ToString());
+    public static Dafny.ISequence<char> AnyToString(object? o) =>
+      AsString(o is null ? "null" : o.ToString());
   }
 }
