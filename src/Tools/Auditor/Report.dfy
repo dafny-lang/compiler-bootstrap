@@ -66,8 +66,8 @@ module Bootstrap.Tools.AuditReport {
   }
 
   predicate method IsExplicitAssumption(ts: set<Tag>) {
-    || HasAxiomAttribute in ts
-    || HasAssumeInBody in ts
+    HasAxiomAttribute in ts
+    // Add `assume {:axiom}` once it's fully supported
   }
 
 /// ## Report rendering
@@ -81,32 +81,35 @@ module Bootstrap.Tools.AuditReport {
   }
 
   function method AssumptionDescription(ts: set<Tag>): seq<(string, string)> {
-    MaybeElt(IsCallable in ts && MissingBody in ts && IsGhost in ts,
-      ("Ghost declaration has no body.",
-       "Provide a body or add `{:axiom}`.")) +
-    MaybeElt(IsCallable in ts && MissingBody in ts && !(IsGhost in ts),
-      ("Compiled declaration has no body.",
-       "Provide a body or add `{:axiom}`.")) +
-    MaybeElt(HasExternAttribute in ts && HasRequiresClause in ts,
-      ("Declaration with `{:extern}` has precondition.",
-       "Extensively test client code.")) +
-    MaybeElt(HasExternAttribute in ts && HasEnsuresClause in ts,
-      ("Declaration with `{:extern}` has postcondition.",
-       "Extensively test against external code.")) +
-       /*
-    MaybeElt(IsSubsetType in ts && MissingWitness in ts,
-      ("Subset type has no witness and could be empty.",
-       "Provide a witness.")) +
-       */
-    MaybeElt(HasAxiomAttribute in ts,
-      ("Declaration has explicit `{:axiom}` attribute.",
-       "Attempt to provide a proof or test.")) +
-    MaybeElt(MayNotTerminate in ts,
-      ("Method may not terminate (uses `decreases *`).",
-       "Provide a valid `decreases` clause.")) +
-    MaybeElt(HasAssumeInBody in ts,
-      ("Definition has `assume` statement in body.",
-      "Try to replace with `assert` and prove or add `{:axiom}`."))
+    if HasAxiomAttribute in ts then
+      [("Declaration has explicit `{:axiom}` attribute.",
+        "Attempt to provide a proof or test.")]
+    else
+      MaybeElt(IsCallable in ts && MissingBody in ts && IsGhost in ts,
+        ("Ghost declaration has no body" +
+         if HasEnsuresClause in ts then " and has an ensures clause." else ".",
+         "Provide a body or add `{:axiom}`.")) +
+      MaybeElt(IsCallable in ts && MissingBody in ts && !(IsGhost in ts),
+        ("Compiled declaration has no body" +
+         if HasEnsuresClause in ts then " and has an ensures clause." else ".",
+         "Provide a body or add `{:axiom}`.")) +
+      MaybeElt(HasExternAttribute in ts && HasRequiresClause in ts,
+        ("Declaration with `{:extern}` has a requires clause.",
+         "Extensively test client code.")) +
+      MaybeElt(HasExternAttribute in ts && HasEnsuresClause in ts,
+        ("Declaration with `{:extern}` has an ensures clause.",
+         "Extensively test against external code.")) +
+         /*
+      MaybeElt(IsSubsetType in ts && MissingWitness in ts,
+        ("Subset type has no witness and could be empty.",
+         "Provide a witness.")) +
+         */
+      MaybeElt(MayNotTerminate in ts,
+        ("Method may not terminate (uses `decreases *`).",
+         "Provide a valid `decreases` clause.")) +
+      MaybeElt(HasAssumeInBody in ts,
+        ("Definition has `assume` statement in body.",
+         "Try to replace with `assert` and prove or add `{:axiom}`."))
   }
 
   lemma AllAssumptionsDescribed(ts: set<Tag>)
