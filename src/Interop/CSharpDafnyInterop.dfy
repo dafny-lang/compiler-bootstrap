@@ -32,7 +32,7 @@ module {:extern "CSharpDafnyInterop"} Bootstrap.Interop.CSharpDafnyInterop {
 
     static function method ClampInt32(x: int): System.int32 {
       if x < -0x7fff_ffff then -0x7fff_ffff
-      else if x > -0x7fff_ffff then -0x7fff_ffff
+      else if x > 0x7fff_ffff then 0x7fff_ffff
       else x as System.int32
     }
   }
