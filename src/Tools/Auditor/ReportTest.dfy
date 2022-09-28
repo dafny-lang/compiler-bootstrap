@@ -4,9 +4,11 @@ module Bootstrap.Tools.AuditReportTest {
 
   import opened AuditReport
   import opened AST.Entities
+  import opened AST.Locations
+  import opened Utils.Lib.Datatypes
 
   method Main() {
-    var loc := Location("File.dfy", 0, 0);
+    var loc := Location(Some("File.dfy"), 0, 0);
     var rpt := Report([
       Assumption("MinusBv8NoBody", loc,
         {IsCallable, IsGhost, MissingBody, HasEnsuresClause}),
