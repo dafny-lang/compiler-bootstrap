@@ -110,30 +110,35 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
       r := Audit(RenderAuditReportText, p);
     }
 
+    method WarnReport(reporter: Microsoft.Dafny.ErrorReporter, rpt: Report) {
+      for i := 0 to |rpt.assumptions| {
+        var a := rpt.assumptions[i];
+        var loc := a.location;
+        var descs := AssumptionDescription(a.tags);
+        for j := 0 to |descs| {
+          var msg := AssumptionWarning(a, descs[j]);
+          var line, col := loc.line, loc.column;
+          var file := loc.file.UnwrapOr("<no file>");
+          AuditorExterns.Auditor.Warning(
+            reporter, StringUtils.ToCString(file),
+            TypeConv.ClampInt32(line), TypeConv.ClampInt32(col),
+            StringUtils.ToCString(msg));
+        }
+      }
+    }
+
     method AuditWarnings(reporter: Microsoft.Dafny.ErrorReporter, p: CSharpDafnyASTModel.Program)
     {
       var res := E.TranslateProgram(p, includeCompileModules := false);
       match res {
         case Success(p') =>
           var rpt := GenerateAuditReport(p'.registry);
-          for i := 0 to |rpt.assumptions| {
-            var a := rpt.assumptions[i];
-            var loc := a.location;
-            var descs := AssumptionDescription(a.tags);
-            for j := 0 to |descs| {
-              var desc := descs[j];
-              var msg := AssumptionWarning(a, desc);
-              var line, col := a.location.line, a.location.column;
-              AuditorExterns.Auditor.Warning(
-                reporter, loc.file.Map(StringUtils.ToCString).UnwrapOr(null),
-                TypeConv.ClampInt32(line), TypeConv.ClampInt32(col),
-                StringUtils.ToCString(msg));
-            }
-          }
+          WarnReport(reporter, rpt);
         case Failure(err) =>
           var tok := p.DefaultModuleDef.tok;
           var msg := StringUtils.ToCString("Failed to translate program. " + err.ToString());
-          AuditorExterns.Auditor.Error(reporter, tok.FileName, tok.Line, tok.Column, msg);
+          var file := if tok.FileName == null then StringUtils.ToCString("<no file>") else tok.FileName;
+          AuditorExterns.Auditor.Error(reporter, file, tok.Line, tok.Column, msg);
       }
     }
   }
