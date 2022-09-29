@@ -2,6 +2,7 @@ include "../AST/Syntax.dfy"
 
 module Bootstrap.Transforms.Generic {
   import opened AST.Syntax
+  import Utils.Lib.Seq
 
   function IsMap<T(!new), T'>(f: T --> T') : T' -> bool {
     y => exists x | f.requires(x) :: y == f(x)

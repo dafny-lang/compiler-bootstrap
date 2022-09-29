@@ -16,12 +16,14 @@ module Bootstrap.AST.Syntax.Debug {
 }
 
 module Bootstrap.AST.Syntax {
-  import Utils.Lib.Math
-  import Utils.Lib.Seq
-  import Microsoft.Boogie
-  import C = Interop.CSharpDafnyASTModel
+  type Type = Types.T
+  type BinaryOp = BinaryOps.T
+  type TernaryOp = TernaryOps.T
+  type UnaryOp = UnaryOps.T
+  type Expr = Exprs.T
+}
 
-module Types {
+module Bootstrap.AST.Syntax.Types {
   import C = Interop.CSharpDafnyASTModel
   import opened Debug
   import opened Names
@@ -109,12 +111,7 @@ module Types {
   type T(!new,00,==) = Type
 }
 
-  type Type = Types.T
-
-  datatype Tokd<T> =
-    Tokd(tok: Boogie.IToken, val: T)
-
-module BinaryOps {
+module Bootstrap.AST.Syntax.BinaryOps {
   datatype Logical =
     Iff // And, Or, and Imp are in LazyOp
   datatype Eq =
@@ -155,9 +152,7 @@ module BinaryOps {
   type T(!new,00,==) = BinaryOp
 }
 
-  type BinaryOp = BinaryOps.T
-
-module TernaryOps {
+module Bootstrap.AST.Syntax.TernaryOps {
   import Types
 
   datatype Sequences =
@@ -175,9 +170,7 @@ module TernaryOps {
   type T(!new,00,==) = TernaryOp
 }
 
-  type TernaryOp = TernaryOps.T
-
-module UnaryOps {
+module Bootstrap.AST.Syntax.UnaryOps {
   datatype UnaryOp =
     | BVNot
     | BoolNot
@@ -192,9 +185,7 @@ module UnaryOps {
   type T(!new,00,==) = UnaryOp
 }
 
-  type UnaryOp = UnaryOps.T
-
-module Exprs {
+module Bootstrap.AST.Syntax.Exprs {
   import Utils.Lib.Math
   import Utils.Lib.Seq
 
@@ -366,7 +357,4 @@ module Exprs {
   }
 
   type T(!new,00,==) = Expr
-}
-
-  type Expr = Exprs.T
 }

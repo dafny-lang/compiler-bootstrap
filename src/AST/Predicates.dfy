@@ -1,12 +1,12 @@
 include "Entities.dfy"
 include "Syntax.dfy"
 
-module Bootstrap.AST.Predicates {
-module Shallow {
+module Bootstrap.AST.Predicates.Shallow {
   import opened Utils.Lib.Datatypes
   import Utils.Lib.Outcome.OfSeq
   import opened Entities
   import opened Syntax
+  import Utils.Lib.Seq
 
   function method All_Entity(ent: Entity, P: Expr -> bool) : bool {
     Seq.All(P, ent.Exprs())
@@ -17,8 +17,7 @@ module Shallow {
   }
 }
 
-module DeepImpl {
-abstract module Base {
+abstract module Bootstrap.AST.Predicates.DeepImpl.Base {
   import opened Entities
   import opened Syntax
   import Shallow
@@ -89,7 +88,9 @@ abstract module Base {
     ensures forall e :: All_Expr(e, f)
 }
 
-  module Rec refines Base { // DISCUSS
+module Bootstrap.AST.Predicates.DeepImpl.Rec refines Base { // DISCUSS
+  import Utils.Lib.Seq
+
     function method All_Expr(e: Expr, P: Expr -> bool) : (b: bool) {
       P(e) &&
       // BUG(https://github.com/dafny-lang/dafny/issues/2107)
@@ -155,10 +156,9 @@ abstract module Base {
         All_Expr_True(e, f);
       }
     }
+}
 
-  }
-
-module NonRec refines Base {
+module Bootstrap.AST.Predicates.DeepImpl.NonRec refines Base {
   // BUG(https://github.com/dafny-lang/dafny/issues/2107)
   // BUG(https://github.com/dafny-lang/dafny/issues/2109)
   function method All_Expr(e: Expr, P: Expr -> bool) : (b: bool) {
@@ -197,7 +197,7 @@ module NonRec refines Base {
 // DISCUSS: Add a fully non-recursive version of Base (with `All_Expr` defined
 // as `forall e <- e.SubExpressions() :: P(e)`?
 
-module Equiv {
+module Bootstrap.AST.Predicates.DeepImpl.Equiv {
   import Rec
   import NonRec
   import opened Syntax
@@ -215,8 +215,6 @@ module Equiv {
   {
     AllChildren_Expr(e, P);
   }
-}
-}
 }
 
 module Bootstrap.AST.Predicates.Deep refines DeepImpl.NonRec
