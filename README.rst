@@ -120,4 +120,4 @@ Project hierarchy
 .. _Compiler.dfy: ./src/Backends/CSharp/Compiler.dfy
 
 .. |DafnyAst.cs| replace:: ``DafnyAst.cs``
-.. _DafnyAst.cs: https://github.com/dafny-lang/dafny/blob/dind/Source/Dafny/AST/DafnyAst.cs
+.. _DafnyAst.cs: https://github.com/dafny-lang/dafny/blob/dind/Source/Dafny/AST/DafnyAst.cs 
