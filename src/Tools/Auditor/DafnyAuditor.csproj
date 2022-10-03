@@ -18,7 +18,7 @@
     <!-- TODO: it would be nice to use this eventually, and no longer
     need a Makefile -->
     <!-- <PackageReference Include="dafny.msbuild" Version="1.0.0" /> -->
-    <PackageReference Include="DafnyPipeline" Version="3.8.1.40901" />
+    <PackageReference Include="DafnyPipeline" Version="3.9.0.41003" />
   </ItemGroup>
 
   <ItemGroup>

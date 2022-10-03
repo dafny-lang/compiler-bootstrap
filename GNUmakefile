@@ -48,7 +48,7 @@ DafnyAST = $(dafny_Source)/Dafny/AST/DafnyAst
 DafnyRuntime := $(dafny_Source)/DafnyRuntime/DafnyRuntime.cs
 
 DAFNY ?= dotnet run --project $(DafnyDriver).csproj $(DAFNY_DOTNET_RUN_FLAGS) --
-dafny_codegen := $(DAFNY) -spillTargetCode:3 -compile:0 -noVerify -useRuntimeLib
+dafny_codegen := $(DAFNY) -spillTargetCode:3 -compile:0 -noVerify
 dafny_typecheck := $(DAFNY) -dafnyVerify:0
 dafny_verify := $(DAFNY) -compile:0  -trace -verifyAllModules -showSnippets:1 -vcsCores:8
 
