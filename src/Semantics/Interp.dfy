@@ -34,7 +34,7 @@ module Bootstrap.Semantics.Interp {
     Exprs.WellFormed(e) &&
     match e {
       case Var(_) => true
-      case Literal(lit) => true
+      case Literal(lit) => lit != Exprs.LitThis
       case Abs(vars, body) => true
       case Apply(Lazy(op), args) => true
       case Apply(Eager(op), args) => EagerOpSupportsInterp(op)
@@ -236,7 +236,7 @@ module Bootstrap.Semantics.Interp {
         LiftPureResult(ctx, InterpVar(v, ctx, env))
       case Abs(vars, body) =>
         var cv: V.T := V.Closure(ctx.locals, vars, body);
-        assert WellFormedValue(cv); // TODO: prove
+        assert WellFormedValue(cv);
         Success(Return(cv, ctx))
       case Literal(lit) =>
         Success(Return(InterpLiteral(lit), ctx))
