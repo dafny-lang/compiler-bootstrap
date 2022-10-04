@@ -13,7 +13,6 @@ module
   import AST.Translator.Entity
   import P = AST.Predicates.Deep
   import opened Utils.Lib.Datatypes
-  import Interop.CSharpDafnyASTModel
 
   predicate Supported(e: Expr) {
     !e.Unsupported?
@@ -25,7 +24,7 @@ module
         if e.Unsupported? then Fail(e.un) else Pass)
     }
 
-    static method ValidateProgram(reporter: Dafny.ErrorReporter, program: CSharpDafnyASTModel.Program) {
+    static method ValidateProgram(reporter: Dafny.ErrorReporter, program: Dafny.Program) {
       var adapter := new Locations.ReporterAdapter(reporter);
       // FIXME: Why does the entity store not validate with `includeCompileModules := true`?
       match Entity.TranslateProgram(program, includeCompileModules := false) {

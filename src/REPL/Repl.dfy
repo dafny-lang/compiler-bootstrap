@@ -4,7 +4,7 @@ include "../AST/Translator.Expressions.dfy"
 include "../Semantics/Printer.dfy"
 include "../Utils/Library.dfy"
 include "../Interop/CSharpInterop.dfy"
-include "../Interop/CSharpDafnyASTModel.dfy"
+include "../Interop/CSharpDafnyModel.dfy"
 include "../Interop/CSharpDafnyInterop.dfy"
 include "../Interop/CSharpModel.dfy"
 
@@ -17,12 +17,12 @@ module Bootstrap.REPL {
   import opened Utils.Lib
   import opened Utils.Lib.Datatypes
   import opened Interop.CSharpDafnyInterop
-  import C = Interop.CSharpDafnyASTModel
+  import C = Microsoft.Dafny
 
 module {:extern "REPLInterop"} {:compile false} REPLInterop {
   // BUG(TODO)
   import System
-  import C = Interop.CSharpDafnyASTModel
+  import C = Microsoft.Dafny
 
   class {:compile false} {:extern} Utils {
     constructor {:extern} () requires false

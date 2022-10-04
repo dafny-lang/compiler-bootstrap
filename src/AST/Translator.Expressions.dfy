@@ -1,4 +1,4 @@
-include "../Interop/CSharpDafnyASTModel.dfy"
+include "../Interop/CSharpDafnyModel.dfy"
 include "../Interop/CSharpInterop.dfy"
 include "../Interop/CSharpDafnyInterop.dfy"
 include "../Interop/CSharpDafnyASTInterop.dfy"
@@ -13,14 +13,14 @@ module Bootstrap.AST.Translator.Expressions {
   import opened Utils.Lib
   import opened Utils.Lib.Datatypes
   import opened Utils.Lib.ControlFlow
+  import opened System
+  import opened Microsoft
   import opened Interop.CSharpInterop
-  import opened Interop.CSharpInterop.System
   import opened Interop.CSharpDafnyInterop
-  import opened Interop.CSharpDafnyInterop.Microsoft
   import opened Interop.CSharpDafnyASTInterop
   import Locations
   import L = Location
-  import C = Interop.CSharpDafnyASTModel
+  import C = Microsoft.Dafny
   import D = Syntax
   import Syntax.Debug
   import DE = Syntax.Exprs

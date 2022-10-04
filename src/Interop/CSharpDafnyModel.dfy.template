@@ -4,6 +4,19 @@ module {:extern "Microsoft.BaseTypes"} {:compile false} Microsoft.BaseTypes {
   class {:extern} {:compile false} BigDec {}
 }
 
+module {:extern "Microsoft.Boogie"} {:compile false} Microsoft.Boogie {
+  import System
+
+  trait {:compile false} {:extern} {:termination false} IToken {
+    var {:extern "filename"} FileName: System.String?
+    var {:extern "line"} Line: System.int32
+    var {:extern "col"} Column: System.int32
+  }
+
+  class {:extern} {:compile false} Expr {}
+  class {:extern} {:compile false} Function {}
+}
+
 module {:extern "Microsoft.Dafny"} {:compile false} Microsoft.Dafny {
   import System
   import Boogie
@@ -38,23 +51,9 @@ module {:extern "Microsoft.Dafny"} {:compile false} Microsoft.Dafny {
     static const {:extern} Compiler: MessageSource;
   }
 
-  trait {:extern} {:compile false} IToken extends Boogie.IToken
-    // Duplicated here from `CSharpDafnyASTModel` to avoid a recursive dependency.
-  {}
-
   class {:extern} {:compile false} ErrorReporter {
     method {:extern} Message(src: MessageSource, err: ErrorLevel, tok: IToken, str: System.String)
   }
-}
 
-module {:extern "Microsoft.Boogie"} {:compile false} Microsoft.Boogie {
-  import System
-
-  trait {:compile false} {:extern} {:termination false} IToken {
-    var {:extern "filename"} FileName: System.String?
-    var {:extern "line"} Line: System.int32
-    var {:extern "col"} Column: System.int32
-  }
-  class {:extern} {:compile false} Expr {}
-  class {:extern} {:compile false} Function {}
+  {{{AutoExtern}}}
 }

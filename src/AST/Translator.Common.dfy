@@ -1,4 +1,4 @@
-include "../Interop/CSharpDafnyASTModel.dfy"
+include "../Interop/CSharpDafnyModel.dfy"
 include "../Interop/CSharpDafnyInterop.dfy"
 include "../Utils/Library.dfy"
 include "Locations.dfy"
@@ -8,7 +8,7 @@ include "Translator.Location.dfy"
 module Bootstrap.AST.Translator.Common {
   import opened Utils.Lib.Datatypes
   import opened Interop.CSharpDafnyInterop
-  import C = Interop.CSharpDafnyASTModel
+  import C = Microsoft.Dafny
   import opened L = Location
   import Syntax.Debug
 

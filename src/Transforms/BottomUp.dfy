@@ -1,4 +1,4 @@
-include "../Interop/CSharpDafnyASTModel.dfy"
+include "../Interop/CSharpDafnyModel.dfy"
 include "../Interop/CSharpInterop.dfy"
 include "../Interop/CSharpDafnyInterop.dfy"
 include "../Interop/CSharpDafnyASTInterop.dfy"

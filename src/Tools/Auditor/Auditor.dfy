@@ -2,7 +2,7 @@ include "../../AST/Entities.dfy"
 include "../../AST/Names.dfy"
 include "../../AST/Syntax.dfy"
 include "../../AST/Translator.Entity.dfy"
-include "../../Interop/CSharpDafnyASTModel.dfy"
+include "../../Interop/CSharpDafnyModel.dfy"
 include "../../Interop/CSharpDafnyInterop.dfy"
 include "../../Interop/CSharpModel.dfy"
 include "../../Utils/Library.dfy"
@@ -80,7 +80,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
     constructor() {
     }
 
-    method Audit(render: Report -> string, p: CSharpDafnyASTModel.Program) returns (r: string)
+    method Audit(render: Report -> string, p: Dafny.Program) returns (r: string)
     {
       var res := E.TranslateProgram(p, includeCompileModules := false);
       match res {
@@ -92,22 +92,22 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
       }
     }
 
-    method AuditHTML(p: CSharpDafnyASTModel.Program) returns (r: string)
+    method AuditHTML(p: Dafny.Program) returns (r: string)
     {
       r := Audit(RenderAuditReportHTML, p);
     }
 
-    method AuditMarkdown(p: CSharpDafnyASTModel.Program) returns (r: string)
+    method AuditMarkdown(p: Dafny.Program) returns (r: string)
     {
       r := Audit(RenderAuditReportMarkdown, p);
     }
 
-    method AuditText(p: CSharpDafnyASTModel.Program) returns (r: string)
+    method AuditText(p: Dafny.Program) returns (r: string)
     {
       r := Audit(RenderAuditReportText, p);
     }
 
-    method WarnReport(reporter: Microsoft.Dafny.ErrorReporter, rpt: Report) {
+    method WarnReport(reporter: Dafny.ErrorReporter, rpt: Report) {
       var adapter := new Locations.ReporterAdapter(reporter);
       for i := 0 to |rpt.assumptions| {
         var a := rpt.assumptions[i];
@@ -120,7 +120,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
       }
     }
 
-    method AuditWarnings(reporter: Microsoft.Dafny.ErrorReporter, p: CSharpDafnyASTModel.Program)
+    method AuditWarnings(reporter: Dafny.ErrorReporter, p: Dafny.Program)
     {
       var res := E.TranslateProgram(p, includeCompileModules := false);
       match res {

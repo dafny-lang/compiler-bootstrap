@@ -77,8 +77,8 @@ cs_objs := $(cs_roots:=bin) $(cs_roots:=obj)
 # Model files (contain traits that give type signatures of existing C# and Dafny/Boogie classes)
 interop := src/Interop
 csharp_model := $(interop)/CSharpModel.dfy
-ast_model := $(interop)/CSharpDafnyASTModel.dfy
-dfy_models := $(csharp_model) $(interop)/CSharpDafnyModel.dfy $(ast_model)
+dafny_model := $(interop)/CSharpDafnyModel.dfy
+dfy_models := $(csharp_model) $(dafny_model)
 
 # Interop files (contain Dafny functions implemented in C# that help interop with the models)
 dfy_interop := $(interop)/CSharpInterop.dfy $(interop)/CSharpDafnyInterop.dfy $(interop)/CSharpDafnyASTInterop.dfy
@@ -92,9 +92,10 @@ cs_tests := $(dfy_tests:.dfy=.cs)
 # =====
 
 # Auto-generate a model of DafnyAST.cs
-$(ast_model): $(DafnyPipeline).csproj $(DafnyAST).cs $(ast_model).template $(AutoExtern)/Program.cs
+$(dafny_model): $(DafnyPipeline).csproj $(DafnyAST).cs $(dafny_model).template $(AutoExtern)/Program.cs
 	dotnet run --project $(AutoExtern)/AutoExtern.csproj -- \
-		$(DafnyPipeline).csproj "Microsoft.Dafny" "$(ast_model).template" "" "$@" \
+		$(DafnyPipeline).csproj "Microsoft.Dafny" "$(dafny_model).template" "" "$@" \
+		--rewrite "Microsoft.Boogie:Boogie" \
 		$(DafnyAST).cs
 
 # Copy basic C# model into current directory (to make it easier to refer to it from Dafny)
@@ -104,18 +105,12 @@ $(csharp_model): $(AutoExtern)/CSharpModel.dfy
 # Translate the compiler from Dafny to C#
 $(csharp)/Compiler.cs: $(csharp)/Compiler.dfy $(dfy_models) $(dfy_interop) $(DafnyRuntime)
 	$(dafny_codegen) $<
-	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
-	rm "$@.bak" # https://stackoverflow.com/questions/4247068/
 
 $(validator)/Validator.cs: $(validator)/Validator.dfy $(dfy_models) $(dfy_interop) $(DafnyRuntime)
 	$(dafny_codegen) $<
-	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
-	rm "$@.bak" # https://stackoverflow.com/questions/4247068/
 
 $(auditor)/Auditor.cs: $(auditor)/Auditor.dfy $(dfy_models) $(dfy_interop) $(DafnyRuntime)
-	$(dafny_codegen) $< || true
-	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
-	rm "$@.bak" # https://stackoverflow.com/questions/4247068/
+	$(dafny_codegen) $<
 
 # Compile the resulting C# code
 $(csharp_dll): $(csharp)/Compiler.cs $(cs_interop)
@@ -137,7 +132,7 @@ test/%.cs: test/%.dfy $(csharp_dll) $(DafnyRuntime)
 
 # Compile the REPL
 # DISCUSS: Dependency tracking in Dafny
-$(repl)/Repl.cs: $(repl)/Repl.dfy $(ast_model) $(dfy_models) $(dfy_interop) $(DafnyRuntime)
+$(repl)/Repl.cs: $(repl)/Repl.dfy $(dafny_model) $(dfy_models) $(dfy_interop) $(DafnyRuntime)
 	$(dafny_codegen) "$<"
 	sed -i.bak -e 's/__AUTOGEN__//g' "$@"
 	rm "$@.bak"
@@ -166,4 +161,4 @@ verify: $(dfy_models)
 build: $(dlls)
 
 clean:
-	rm -fr $(cs_entry_points) $(ast_model) $(cs_objs)
+	rm -fr $(cs_entry_points) $(dafny_model) $(cs_objs)

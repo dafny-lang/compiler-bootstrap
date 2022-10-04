@@ -1,4 +1,4 @@
-include "../Interop/CSharpDafnyASTModel.dfy"
+include "../Interop/CSharpDafnyModel.dfy"
 include "../Utils/Library.dfy"
 include "Locations.dfy"
 include "Names.dfy"
@@ -24,7 +24,7 @@ module Bootstrap.AST.Syntax {
 }
 
 module Bootstrap.AST.Syntax.Types {
-  import C = Interop.CSharpDafnyASTModel
+  import C = Microsoft.Dafny
   import opened Debug
   import opened Names
 
@@ -195,7 +195,7 @@ module Bootstrap.AST.Syntax.Exprs {
   import BinaryOps
   import TernaryOps
   import opened Debug
-  import C = Interop.CSharpDafnyASTModel
+  import C = Microsoft.Dafny
 
   // FIXME should literals just be Values.T?
   datatype Literal =

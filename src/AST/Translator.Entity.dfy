@@ -10,7 +10,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
   import opened Interop.CSharpDafnyASTInterop
   import opened Locations
   import L = Location
-  import C = Interop.CSharpDafnyASTModel
+  import C = Microsoft.Dafny
   import E = Entities
   import N = Names
   import Expr = Expressions

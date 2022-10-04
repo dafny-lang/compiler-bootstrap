@@ -5,7 +5,6 @@ abstract module {:options "-functionSyntax:4"} Bootstrap.Backends.CompilerAdapte
   import Microsoft.Dafny
   import AST.Entities
   import AST.Translator.Entity
-  import Interop.CSharpDafnyASTModel
   import opened Interop.CSharpDafnyInterop
 
   trait DafnyCompiler {
@@ -27,7 +26,7 @@ abstract module {:options "-functionSyntax:4"} Bootstrap.Backends.CompilerAdapte
       this.c := c;
     }
 
-    method Compile(dafnyProgram: CSharpDafnyASTModel.Program,
+    method Compile(dafnyProgram: Dafny.Program,
                    wr: Dafny.ConcreteSyntaxTree)
     {
       var st := new CSharpDafnyInterop.SyntaxTreeAdapter(wr);
@@ -40,7 +39,7 @@ abstract module {:options "-functionSyntax:4"} Bootstrap.Backends.CompilerAdapte
       st.Write("\n");
     }
 
-    method EmitCallToMain(mainMethod: CSharpDafnyASTModel.Method,
+    method EmitCallToMain(mainMethod: Dafny.Method,
                           baseName: System.String,
                           wr: Dafny.ConcreteSyntaxTree)
     {

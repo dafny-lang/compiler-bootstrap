@@ -12,7 +12,7 @@ Clone this repository as part of the ``compiler-bootstrap`` branch of the main D
 Overview
 ========
 
-- First we generate definitions to model the existing |DafnyAst.cs|_ in Dafny.  The result is ``src/Interop/CSharpDafnyASTModel.dfy``.
+- First we generate definitions to model the existing |DafnyAst.cs|_ in Dafny.  The result is ``src/Interop/CSharpDafnyModel.dfy``.
 
 - Then we write a compiler in Dafny against this interface in |Compiler.dfy|_.
 
@@ -94,10 +94,8 @@ Project hierarchy
       Extern declarations for functions that deal with C# types and cannot be implemented in pure Dafny
     ``CSharpInterop.cs``
       Implementations for ``CSharpInterop.dfy``
-    ``CSharpDafnyASTModel.dfy.template``
-      Template used by ``AutoExtern`` to generate a Dafny model from ``DafnyAST.cs``
-    ``CSharpDafnyModel.dfy``
-      Extern declarations for existing C# functions from Dafny's codebase
+    ``CSharpDafnyModel.dfy.template``
+      Template used by ``AutoExtern`` to generate a Dafny model from ``DafnyAST.cs``.  This includes extern declarations for existing C# functions from Dafny's codebase.
     ``CSharpModel.dfy``
       Extern declarations for C#'s standard library (automatically copied from ``AutoExtern``)
   ``Tools/``
