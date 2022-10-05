@@ -48,7 +48,7 @@ DafnyAST = $(dafny_Source)/Dafny/AST/DafnyAst
 DafnyRuntime := $(dafny_Source)/DafnyRuntime/DafnyRuntime.cs
 
 DAFNY ?= dotnet run --project $(DafnyDriver).csproj $(DAFNY_DOTNET_RUN_FLAGS) --
-dafny_codegen := $(DAFNY) -spillTargetCode:3 -compile:0 -noVerify
+dafny_codegen := $(DAFNY) -spillTargetCode:3 -compile:0 -noVerify -useRuntimeLib
 dafny_typecheck := $(DAFNY) -dafnyVerify:0
 dafny_verify := $(DAFNY) -compile:0  -trace -verifyAllModules -showSnippets:1 -vcsCores:8
 
@@ -62,10 +62,10 @@ validator := src/Tools/Validator
 auditor := src/Tools/Auditor
 
 # Binaries
-csharp_dll := $(csharp)/bin/Debug/net6.0/CSharpCompiler.dll
-repl_dll := $(repl)/bin/Release/net6.0/REPL.dll
-validator_dll := $(validator)/bin/Debug/net6.0/Validator.dll
-auditor_dll := $(auditor)/bin/Debug/net6.0/DafnyAuditor.dll
+csharp_dll := $(csharp)/output/CSharpCompiler.dll
+repl_dll := $(repl)/output/REPL.dll
+validator_dll := $(validator)/output/Validator.dll
+auditor_dll := $(auditor)/output/DafnyAuditor.dll
 dlls := $(csharp_dll) $(repl_dll) $(auditor_dll) $(validator_dll)
 
 # Entry points
@@ -114,13 +114,13 @@ $(auditor)/Auditor.cs: $(auditor)/Auditor.dfy $(dfy_models) $(dfy_interop) $(Daf
 
 # Compile the resulting C# code
 $(csharp_dll): $(csharp)/Compiler.cs $(cs_interop)
-	dotnet build $(csharp)/CSharpCompiler.csproj
+	dotnet publish -o $(csharp)/output $(csharp)/CSharpCompiler.csproj
 
 $(validator_dll): $(validator)/Validator.cs $(validator)/EntryPoint.cs $(cs_interop)
-	dotnet build $(validator)/Validator.csproj
+	dotnet publish -o $(validator)/output $(validator)/Validator.csproj
 
 $(auditor_dll): $(auditor)/Auditor.cs $(auditor)/EntryPoint.cs $(cs_interop)
-	dotnet build $(auditor)/DafnyAuditor.csproj
+	dotnet publish -o $(auditor)/output $(auditor)/DafnyAuditor.csproj
 
 # Run it on tests
 test/%.cs: test/%.dfy $(csharp_dll) $(DafnyRuntime)
@@ -138,7 +138,7 @@ $(repl)/Repl.cs: $(repl)/Repl.dfy $(dafny_model) $(dfy_models) $(dfy_interop) $(
 	rm "$@.bak"
 
 $(repl_dll): $(repl)/Repl.cs $(repl)/REPLInterop.cs $(cs_interop)
-	dotnet build --configuration=Release $(repl)/REPL.csproj
+	dotnet publish -o $(repl)/output --configuration=Release $(repl)/REPL.csproj
 
 # Entry points
 # ============

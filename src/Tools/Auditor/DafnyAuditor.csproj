@@ -19,6 +19,7 @@
     need a Makefile -->
     <!-- <PackageReference Include="dafny.msbuild" Version="1.0.0" /> -->
     <PackageReference Include="DafnyPipeline" Version="3.9.0.41003" />
+    <PackageReference Include="DafnyRuntime" Version="3.9.0.41003" />
   </ItemGroup>
 
   <ItemGroup>
