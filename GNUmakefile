@@ -67,6 +67,7 @@ repl_dll := $(repl)/publish/REPL.dll
 validator_dll := $(validator)/publish/Validator.dll
 auditor_dll := $(auditor)/publish/DafnyAuditor.dll
 dlls := $(csharp_dll) $(repl_dll) $(auditor_dll) $(validator_dll)
+publish_dirs := $(csharp)/publish $(repl)/publish $(validator)/publish $(auditor)/publish
 
 # Entry points
 dfy_entry_points := $(repl)/Repl.dfy $(csharp)/Compiler.dfy $(auditor)/Auditor.dfy $(validator)/Validator.dfy
@@ -161,4 +162,4 @@ verify: $(dfy_models)
 build: $(dlls)
 
 clean:
-	rm -fr $(cs_entry_points) $(dafny_model) $(cs_objs)
+	rm -fr $(cs_entry_points) $(dafny_model) $(cs_objs) $(publish_dirs)
