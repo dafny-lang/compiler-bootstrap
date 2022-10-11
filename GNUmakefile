@@ -62,10 +62,10 @@ validator := src/Tools/Validator
 auditor := src/Tools/Auditor
 
 # Binaries
-csharp_dll := $(csharp)/output/CSharpCompiler.dll
-repl_dll := $(repl)/output/REPL.dll
-validator_dll := $(validator)/output/Validator.dll
-auditor_dll := $(auditor)/output/DafnyAuditor.dll
+csharp_dll := $(csharp)/publish/CSharpCompiler.dll
+repl_dll := $(repl)/publish/REPL.dll
+validator_dll := $(validator)/publish/Validator.dll
+auditor_dll := $(auditor)/publish/DafnyAuditor.dll
 dlls := $(csharp_dll) $(repl_dll) $(auditor_dll) $(validator_dll)
 
 # Entry points
@@ -114,13 +114,13 @@ $(auditor)/Auditor.cs: $(auditor)/Auditor.dfy $(dfy_models) $(dfy_interop) $(Daf
 
 # Compile the resulting C# code
 $(csharp_dll): $(csharp)/Compiler.cs $(cs_interop)
-	dotnet publish -o $(csharp)/output $(csharp)/CSharpCompiler.csproj
+	dotnet publish -o $(csharp)/publish $(csharp)/CSharpCompiler.csproj
 
 $(validator_dll): $(validator)/Validator.cs $(validator)/EntryPoint.cs $(cs_interop)
-	dotnet publish -o $(validator)/output $(validator)/Validator.csproj
+	dotnet publish -o $(validator)/publish $(validator)/Validator.csproj
 
 $(auditor_dll): $(auditor)/Auditor.cs $(auditor)/EntryPoint.cs $(cs_interop)
-	dotnet publish -o $(auditor)/output $(auditor)/DafnyAuditor.csproj
+	dotnet publish -o $(auditor)/publish $(auditor)/DafnyAuditor.csproj
 
 # Run it on tests
 test/%.cs: test/%.dfy $(csharp_dll) $(DafnyRuntime)
@@ -138,7 +138,7 @@ $(repl)/Repl.cs: $(repl)/Repl.dfy $(dafny_model) $(dfy_models) $(dfy_interop) $(
 	rm "$@.bak"
 
 $(repl_dll): $(repl)/Repl.cs $(repl)/REPLInterop.cs $(cs_interop)
-	dotnet publish -o $(repl)/output --configuration=Release $(repl)/REPL.csproj
+	dotnet publish -o $(repl)/publish --configuration=Release $(repl)/REPL.csproj
 
 # Entry points
 # ============
