@@ -24,9 +24,7 @@ module {:extern "Microsoft.Dafny"} {:compile false} Microsoft.Dafny {
   class {:extern} {:compile false} FreshIdGenerator {}
   class {:extern} {:compile false} Graph<T> {}
   class {:extern} {:compile false} Translator {}
-  class {:extern} {:compile false} VisibilityScope {}
   class {:extern} {:compile false} TypeConstraint {}
-  class {:extern} {:compile false} BuiltIns {}
   trait {:extern} {:compile false} {:termination false} Cloner {}
 
   class {:extern} {:compile false} Resolver {}

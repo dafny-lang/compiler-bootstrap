@@ -43,8 +43,9 @@ FORCE:
 # Where to find various dependencies from Dafny's sources
 AutoExtern = $(dafny_Source)/AutoExtern
 DafnyDriver = $(dafny_Source)/DafnyDriver/DafnyDriver
-DafnyPipeline = $(dafny_Source)/Dafny/DafnyPipeline
-DafnyAST = $(dafny_Source)/Dafny/AST/DafnyAst
+DafnyCore = $(dafny_Source)/DafnyCore/DafnyCore
+DafnyASTRoot = $(dafny_Source)/DafnyCore/AST
+DafnyAST = $(wildcard $(DafnyASTRoot)/*.cs $(DafnyASTRoot)/Expressions/*.cs $(DafnyASTRoot)/Statements/*.cs)
 DafnyRuntime := $(dafny_Source)/DafnyRuntime/DafnyRuntime.cs
 
 DAFNY ?= dotnet run --project $(DafnyDriver).csproj $(DAFNY_DOTNET_RUN_FLAGS) --
@@ -93,11 +94,11 @@ cs_tests := $(dfy_tests:.dfy=.cs)
 # =====
 
 # Auto-generate a model of DafnyAST.cs
-$(dafny_model): $(DafnyPipeline).csproj $(DafnyAST).cs $(dafny_model).template $(AutoExtern)/Program.cs
+$(dafny_model): $(DafnyCore).csproj $(DafnyAST) $(dafny_model).template $(AutoExtern)/Program.cs
 	dotnet run --project $(AutoExtern)/AutoExtern.csproj -- \
-		$(DafnyPipeline).csproj "Microsoft.Dafny" "$(dafny_model).template" "" "$@" \
+		$(DafnyCore).csproj "Microsoft.Dafny" "$(dafny_model).template" "" "$@" \
 		--rewrite "Microsoft.Boogie:Boogie" \
-		$(DafnyAST).cs
+		$(DafnyAST)
 
 # Copy basic C# model into current directory (to make it easier to refer to it from Dafny)
 $(csharp_model): $(AutoExtern)/CSharpModel.dfy
