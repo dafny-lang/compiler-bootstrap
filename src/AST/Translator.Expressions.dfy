@@ -221,10 +221,13 @@ module Bootstrap.AST.Translator.Expressions {
     else if l.Value is BaseTypes.BigDec then
       Success(DE.Literal(DE.LitReal(TypeConv.AsReal(l.Value)))) // TODO test
     else if l.Value is String then
-      var str := ListUtils.ToSeq(ExprUtils.UnescapedCharacters(l));
+      var codepoints := ListUtils.ToSeq(ExprUtils.UnescapedCharacters(l));
+      var str :- Seq.MapResult(codepoints, cp requires cp in codepoints =>
+        :- Need(cp <= 65535, Invalid("Char literals over 65535 not supported."));
+        Success(cp as char));
       if l is C.CharLiteralExpr then
-        :- Need(|str| == 1, Invalid("CharLiteralExpr must contain a single character."));
-        Success(DE.Literal(DE.LitChar(str[0])))
+        :- Need(|codepoints| == 1, Invalid("CharLiteralExpr must contain a single character."));
+        Success(DE.Literal(DE.LitChar(codepoints[0] as char)))
       else if l is C.StringLiteralExpr then
         var sl := l as C.StringLiteralExpr;
         Success(DE.Literal(DE.LitString(str, sl.IsVerbatim)))
