@@ -143,7 +143,7 @@ module Bootstrap.Semantics.Equiv {
     // Rk.: we could write the predicate in a simpler manner by using `==` in case the values are not
     // closures, but we prepare the terrain for a more general handling of collections.
     //
-    // Rk.: for now, we assume the termination. This function terminates because the size of the
+    // Rk.: for now, we assume {:axiom} the termination. This function terminates because the size of the
     // type of the values decreases, the interesting case being the closures (see ``EqValue_Closure``).
     // Whenever we find a closure `fn_ty = (ty_0, ..., ty_n) -> ret_ty`, we need to call ``EqValue``
     // on valid inputs (with types `ty_i < fn_ty`) and on its output (with type `ret_ty < fn_ty`).
@@ -226,11 +226,11 @@ module Bootstrap.Semantics.Equiv {
       // match rather than using an auxiliary function like `EqPureInterpResult`.
       match (res, res') {
         case (Success(ov), Success(ov')) =>
-          // We need to assume those assertions to prove termination: the value returned by a closure
+          // We need to assume {:axiom} those assertions to prove termination: the value returned by a closure
           // has a type which is smaller than the closure type (its type is given by the closure return
           // type)
-          assume ValueTypeHeight(ov) < ValueTypeHeight(v);
-          assume ValueTypeHeight(ov') < ValueTypeHeight(v');
+          assume {:axiom} ValueTypeHeight(ov) < ValueTypeHeight(v);
+          assume {:axiom} ValueTypeHeight(ov') < ValueTypeHeight(v');
           EqValue(ov, ov')
         case (Failure(_), _) =>
           true
@@ -297,7 +297,7 @@ module Bootstrap.Semantics.Equiv {
   {
     // The proof should be similar to ``EqInterp_Expr_CanBeMapLifted`` (and actually
     // simpler), but I'm not sure how to efficiently factorize the two.
-    assume false; // TODO: prove
+    assume {:axiom} false; // TODO: prove
   }
 
   lemma EqValue_Refl(v: WV)
@@ -463,13 +463,13 @@ module Bootstrap.Semantics.Equiv {
         var res0 := InterpCallFunctionBody(v0, env, argvs0);
         var res2 := InterpCallFunctionBody(v2, env, argvs2);
 
-        // Termination issue: we need to assume that the arguments' types have the
+        // Termination issue: we need to assume {:axiom} that the arguments' types have the
         // proper height. In practice, if the program is properly type checked, we
         // have:
         // - `TypeOf(v0) == TypeOf(v1) == TypeOf(v2)`
         // - `forall i, TypeOf(argvs0[i]) == TypeOf(argvs2[i])1
         // so the assumption is trivially true.
-        assume (forall i | 0 <= i < |vars0| :: ValueTypeHeight(argvs0[i]) < ValueTypeHeight(v1));
+        assume {:axiom} (forall i | 0 <= i < |vars0| :: ValueTypeHeight(argvs0[i]) < ValueTypeHeight(v1));
 
         forall i | 0 <= i < |vars0| ensures EqValue(argvs0[i], argvs0[i]) {
           EqValue_Refl(argvs0[i]);
@@ -483,7 +483,7 @@ module Bootstrap.Semantics.Equiv {
 
           // Termination - same as above: if the program is well-typed, this is
           // trivially true.
-          assume ValueTypeHeight(ov0) < ValueTypeHeight(v0);
+          assume {:axiom} ValueTypeHeight(ov0) < ValueTypeHeight(v0);
 
           EqValue_Trans(ov0, ov1, ov2);
 

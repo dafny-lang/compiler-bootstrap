@@ -46,7 +46,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
     else
       var name := TypeConv.AsString(attrs.Name);
       var args :- Seq.MapResult(ListUtils.ToSeq(attrs.Args), Expr.TranslateExpression);
-      assume ASTHeight(attrs.Prev) < ASTHeight(attrs);
+      assume {:axiom} {:axiom} ASTHeight(attrs.Prev) < ASTHeight(attrs);
       var rest :- TranslateAttributes(attrs.Prev);
       Success([E.Attribute.Attribute(TranslateAttributeName(name), args)] + rest)
   }
@@ -227,7 +227,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       TranslateTypeSynonymDecl(tl)
     else if tl is C.LiteralModuleDecl then
       var md := tl as C.LiteralModuleDecl;
-      assume ASTHeight(md.ModuleDef) < ASTHeight(tl);
+      assume {:axiom} {:axiom} ASTHeight(md.ModuleDef) < ASTHeight(tl);
       TranslateModule(md.ModuleDef)
     else
       var ei :- TranslateTopLevelEntityInfo(tl);
@@ -259,7 +259,7 @@ module {:options "-functionSyntax:4"} Bootstrap.AST.Translator.Entity {
       var topLevels := ListUtils.ToSeq(def.TopLevelDecls);
       var topDecls :- Seq.MapResult(topLevels,
         (tl: C.TopLevelDecl) reads * =>
-          assume ASTHeight(tl) < ASTHeight(def);
+          assume {:axiom} {:axiom} ASTHeight(tl) < ASTHeight(def);
           TranslateTopLevelDecl(tl));
       var topDecls' := Seq.Flatten(topDecls);
       var topAndBelowNames := Seq.Map((d: E.Entity) => d.ei.name, topDecls');

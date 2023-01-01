@@ -63,24 +63,24 @@ module Bootstrap.AST.Translator.Expressions {
     // TODO: the following could be simplified
     else if ty is C.MapType then
       var ty := ty as C.MapType;
-      assume Decreases(ty.Domain, ty);
-      assume Decreases(ty.Range, ty);
+      assume {:axiom} Decreases(ty.Domain, ty);
+      assume {:axiom} Decreases(ty.Range, ty);
       var domainTy :- TranslateType(ty.Domain);
       var rangeTy :- TranslateType(ty.Range);
       Success(DT.Collection(ty.Finite, DT.CollectionKind.Map(domainTy), rangeTy))
     else if ty is C.SetType then
       var ty := ty as C.SetType;
-      assume Decreases(ty.Arg, ty);
+      assume {:axiom} Decreases(ty.Arg, ty);
       var eltTy :- TranslateType(ty.Arg);
       Success(DT.Collection(ty.Finite, DT.CollectionKind.Set, eltTy))
     else if ty is C.MultiSetType then
       var ty := ty as C.MultiSetType;
-      assume Decreases(ty.Arg, ty);
+      assume {:axiom} Decreases(ty.Arg, ty);
       var eltTy :- TranslateType(ty.Arg);
       Success(DT.Collection(true, DT.CollectionKind.Multiset, eltTy))
     else if ty is C.SeqType then
       var ty := ty as C.SeqType;
-      assume Decreases(ty.Arg, ty);
+      assume {:axiom} Decreases(ty.Arg, ty);
       var eltTy :- TranslateType(ty.Arg);
       Success(DT.Collection(true, DT.CollectionKind.Seq, eltTy))
     else
@@ -187,7 +187,7 @@ module Bootstrap.AST.Translator.Expressions {
     if op !in UnaryOpMap then
       TranslateUnsupportedExpression(u, "Unexpected unary operator")
     else
-      assume Decreases(e, u);
+      assume {:axiom} Decreases(e, u);
       var te :- TranslateExpression(e);
       Success(DE.Apply(DE.Eager(DE.UnaryOp(UnaryOpMap[op])), [te]))
   }
@@ -201,8 +201,8 @@ module Bootstrap.AST.Translator.Expressions {
     if op !in BinaryOpCodeMap then
       TranslateUnsupportedExpression(b, "Unexpected binary operator")
     else
-      assume Decreases(e0, b);
-      assume Decreases(e1, b);
+      assume {:axiom} Decreases(e0, b);
+      assume {:axiom} Decreases(e1, b);
       var t0 :- TranslateExpression(e0);
       var t1 :- TranslateExpression(e1);
       // LATER b.AccumulatesForTailRecursion
@@ -247,11 +247,11 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
     decreases ASTHeight(ae), 0
   {
-    assume Decreases(ae.Function, ae);
+    assume {:axiom} Decreases(ae.Function, ae);
     var fn :- TranslateExpression(ae.Function);
     var args := ListUtils.ToSeq(ae.Args);
     var args :- Seq.MapResult(args, e requires e in args reads * =>
-      assume Decreases(e, ae); TranslateExpression(e));
+      assume {:axiom} Decreases(e, ae); TranslateExpression(e));
     Success(DE.Apply(DE.Eager(DE.FunctionCall()), [fn] + args))
   }
 
@@ -276,7 +276,7 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
     decreases ASTHeight(me), 0
   {
-    assume Decreases(me.Obj, me);
+    assume {:axiom} Decreases(me.Obj, me);
     TranslateMemberSelect(me.Obj, me.Member.FullName)
   }
 
@@ -285,11 +285,11 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
     decreases ASTHeight(fce), 0
   {
-    assume Decreases(fce.Receiver, fce);
+    assume {:axiom} Decreases(fce.Receiver, fce);
     var fn :- TranslateMemberSelect(fce.Receiver, fce.Function.FullName);
     var args := ListUtils.ToSeq(fce.Args);
     var args :- Seq.MapResult(args, e requires e in args reads * =>
-      assume Decreases(e, fce); TranslateExpression(e));
+      assume {:axiom} Decreases(e, fce); TranslateExpression(e));
     Success(DE.Apply(DE.Eager(DE.FunctionCall()), [fn] + args))
   }
 
@@ -304,8 +304,8 @@ module Bootstrap.AST.Translator.Expressions {
     // TODO: also include formals in the following, and filter out ghost arguments
     var args := ListUtils.ToSeq(dtv.Arguments);
     var args :- Seq.MapResult(args, e requires e in args reads * =>
-      assume Decreases(e, dtv); TranslateExpression(e));
-    var name := assume N.Atom?(n); N.Name(N.Anonymous, n); // TODO: proper path
+      assume {:axiom} Decreases(e, dtv); TranslateExpression(e));
+    var name := assume {:axiom} N.Atom?(n); N.Name(N.Anonymous, n); // TODO: proper path
     Success(DE.Apply(DE.Eager(DE.DataConstructor(name, typeArgs)), args))
   }
 
@@ -317,7 +317,7 @@ module Bootstrap.AST.Translator.Expressions {
     var ty :- TranslateType(de.Type);
     var elems := ListUtils.ToSeq(de.Elements);
     var elems :- Seq.MapResult(elems, e requires e in elems reads * =>
-      assume Decreases(e, de); TranslateExpression(e));
+      assume {:axiom} Decreases(e, de); TranslateExpression(e));
     if !ty.Collection? then
       TranslateUnsupportedExpression(de)
     else if !ty.finite then
@@ -349,7 +349,7 @@ module Bootstrap.AST.Translator.Expressions {
     :- Need(ty.Collection? && ty.kind.Map? && ty.finite, Invalid("`MapDisplayExpr` must be a map."));
     var elems := ListUtils.ToSeq(mde.Elements);
     var elems :- Seq.MapResult(elems, (ep: C.ExpressionPair) requires ep in elems reads * =>
-      assume Math.Max(ASTHeight(ep.A), ASTHeight(ep.B)) < ASTHeight(mde);
+      assume {:axiom} Math.Max(ASTHeight(ep.A), ASTHeight(ep.B)) < ASTHeight(mde);
       TranslateExpressionPair(mde, ep));
     Success(DE.Apply(DE.Eager(DE.Builtin(DE.Display(ty))), elems))
   }
@@ -367,7 +367,7 @@ module Bootstrap.AST.Translator.Expressions {
        || (!se.SelectOne && (!ty.Collection? || !ty.kind.Seq?)) then
       TranslateUnsupportedExpression(se)
     else
-      assume Math.Max(ASTHeight(se.Seq), Math.Max(ASTHeight(se.E0), ASTHeight(se.E1))) < ASTHeight(se);
+      assume {:axiom} Math.Max(ASTHeight(se.Seq), Math.Max(ASTHeight(se.E0), ASTHeight(se.E1))) < ASTHeight(se);
       var recv :- TranslateExpression(se.Seq);
       var eager := (op, args) => Success(DE.Apply(DE.Eager(op), args));
       match ty.kind { // FIXME AST gen should produce `Expression?` not `Expression`
@@ -405,7 +405,7 @@ module Bootstrap.AST.Translator.Expressions {
     var ty :- TranslateType(se.Type);
     :- Need(ty.Collection? && ty.kind != DT.Set(),
             Invalid("`SeqUpdate` must be a map, sequence, or multiset."));
-    assume Math.Max(ASTHeight(se.Seq), Math.Max(ASTHeight(se.Index), ASTHeight(se.Value))) < ASTHeight(se);
+    assume {:axiom} Math.Max(ASTHeight(se.Seq), Math.Max(ASTHeight(se.Index), ASTHeight(se.Value))) < ASTHeight(se);
     var tSeq :- TranslateExpression(se.Seq);
     var tIndex :- TranslateExpression(se.Index);
     var tValue :- TranslateExpression(se.Value);
@@ -423,7 +423,7 @@ module Bootstrap.AST.Translator.Expressions {
   {
     var bvars := Seq.Map((bv: C.BoundVar) reads * => TypeConv.AsString(bv.Name),
       ListUtils.ToSeq(le.BoundVars));
-    assume Decreases(le.Term, le);
+      assume {:axiom} Decreases(le.Term, le);
     var body :- TranslateExpression(le.Term);
     Success(DE.Abs(bvars, body))
   }
@@ -441,8 +441,8 @@ module Bootstrap.AST.Translator.Expressions {
     else
       var rhss := ListUtils.ToSeq(le.RHSs);
       var elems :- Seq.MapResult(rhss, e requires e in rhss reads * =>
-        assume Decreases(e, le); TranslateExpression(e));
-      assume Decreases(le.Body, le);
+        assume {:axiom} Decreases(e, le); TranslateExpression(e));
+        assume {:axiom} Decreases(le.Body, le);
       var body :- TranslateExpression(le.Body);
       var bvs := Seq.Map((pat: C.CasePattern<C.BoundVar>) reads * =>
         TypeConv.AsString(pat.Var.Name), lhss);
@@ -455,7 +455,7 @@ module Bootstrap.AST.Translator.Expressions {
     reads *
     decreases ASTHeight(ce), 0
   {
-    assume Decreases(ce.ResolvedExpression, ce);
+    assume {:axiom} Decreases(ce.ResolvedExpression, ce);
     TranslateExpression(ce.ResolvedExpression)
   }
 
@@ -465,9 +465,9 @@ module Bootstrap.AST.Translator.Expressions {
     decreases ASTHeight(ie), 0
   {
     // TODO: look at i.IsBindingGuard
-    assume Decreases(ie.Test, ie);
-    assume Decreases(ie.Thn, ie);
-    assume Decreases(ie.Els, ie);
+    assume {:axiom} Decreases(ie.Test, ie);
+    assume {:axiom} Decreases(ie.Thn, ie);
+    assume {:axiom} Decreases(ie.Els, ie);
     var cond :- TranslateExpression(ie.Test);
     var thn :- TranslateExpression(ie.Thn);
     var els :- TranslateExpression(ie.Els);
@@ -527,12 +527,12 @@ module Bootstrap.AST.Translator.Expressions {
       else
         var exprs := EnumerableUtils.ToSeq(ue.SubExpressions);
         Seq.MapResult(exprs, e requires e in exprs reads * =>
-          assume Decreases(e, ue); TranslateExpression(e));
+          assume {:axiom} Decreases(e, ue); TranslateExpression(e));
     var stmt :-
       if ue is C.StmtExpr then
         var us := ue as C.StmtExpr;
         var s := us.S;
-        var tr :- assume Decreases(s, ue); TranslateStatement(s);
+        var tr :- assume {:axiom} Decreases(s, ue); TranslateStatement(s);
         Success([tr])
       else Success([]);
     TranslateUnsupported(ue, stmt + children, prefix)
@@ -554,7 +554,7 @@ module Bootstrap.AST.Translator.Expressions {
   {
     var args := ListUtils.ToSeq(p.Args);
     var exprs :- Seq.MapResult(args, e reads * requires e in args =>
-      assume Decreases(e, p); TranslateExpression(e));
+      assume {:axiom} Decreases(e, p); TranslateExpression(e));
     Success(DE.Apply(DE.Eager(DE.Builtin(DE.Print)), exprs))
   }
 
@@ -565,7 +565,7 @@ module Bootstrap.AST.Translator.Expressions {
   {
     var stmts := ListUtils.ToSeq(b.Body);
     var stmts' :- Seq.MapResult(stmts, s' requires s' in stmts reads * =>
-      assume Decreases(s', b); TranslateStatement(s'));
+      assume {:axiom} Decreases(s', b); TranslateStatement(s'));
     Success(DE.Block(stmts'))
   }
 
@@ -575,9 +575,9 @@ module Bootstrap.AST.Translator.Expressions {
     decreases ASTHeight(i), 0
   {
     // TODO: look at i.IsBindingGuard
-    assume Decreases(i.Guard, i);
-    assume Decreases(i.Thn, i);
-    assume Decreases(i.Els, i);
+    assume {:axiom} Decreases(i.Guard, i);
+    assume {:axiom} Decreases(i.Thn, i);
+    assume {:axiom} Decreases(i.Els, i);
     var cond :- TranslateExpression(i.Guard);
     var thn :- TranslateStatement(i.Thn);
     var els :- TranslateStatement(i.Els);
@@ -600,7 +600,7 @@ module Bootstrap.AST.Translator.Expressions {
         None;
     match optPredTy {
       case Some(predTy) =>
-        assume Decreases(p.Expr, p);
+        assume {:axiom} Decreases(p.Expr, p);
         var e :- TranslateExpression(p.Expr);
         Success(DE.Apply(DE.Eager(DE.Builtin(DE.BuiltinFunction.Predicate(predTy))), [e]))
       case None =>
@@ -637,9 +637,9 @@ module Bootstrap.AST.Translator.Expressions {
         var subexprs := EnumerableUtils.ToSeq(us.SubExpressions);
         var substmts := EnumerableUtils.ToSeq(us.SubStatements);
         var subexprs' :- Seq.MapResult(subexprs, e requires e in subexprs reads * =>
-          assume Decreases(e, us); TranslateExpression(e));
+          assume {:axiom} Decreases(e, us); TranslateExpression(e));
         var substmts' :- Seq.MapResult(substmts, s requires s in substmts reads * =>
-          assume Decreases(s, us); TranslateStatement(s));
+          assume {:axiom} Decreases(s, us); TranslateStatement(s));
         Success(subexprs' + substmts');
     TranslateUnsupported(us, children, prefix)
   }

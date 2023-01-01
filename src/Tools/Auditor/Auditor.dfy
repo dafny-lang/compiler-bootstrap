@@ -130,7 +130,7 @@ module {:extern "Bootstrap.Tools.Auditor"} {:options "-functionSyntax:4"} Bootst
         case Failure(err) =>
           var tok: Boogie.IToken := p.DefaultModuleDef.tok;
           var msg := StringUtils.ToCString("Failed to translate program. " + err.ToString());
-          assume tok is Dafny.IToken; // IToken is duplicated to avoid cyclic dependencies
+          assume {:axiom} tok is Dafny.IToken; // IToken is duplicated to avoid cyclic dependencies
           reporter.Message(Dafny.MessageSource.Rewriter, Dafny.ErrorLevel.Error, tok, msg);
       }
     }

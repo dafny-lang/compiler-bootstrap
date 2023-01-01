@@ -79,7 +79,7 @@ module Bootstrap.Semantics.Pure {
       case Apply(Eager(op), args) =>
         InterpExpr_Eager_IsPure_SameState(e, env, ctx);
       case Bind(vars, exprs, body) =>
-        assume false; // TODO: prove
+        assume {:axiom} false; // TODO: prove
       case Block(stmts) =>
         InterpExpr_Block_IsPure_SameState(e, env, ctx);
       case If(cond, thn, els) =>

@@ -132,7 +132,7 @@ module Bootstrap.Transforms.Shallow {
   lemma Map_EntityIsEntityTransformer(tr: ExprTransformer)
     ensures EntityTransformer?(Map_EntityTransformer(tr))
   {
-    assume EntityTransformer?(Map_EntityTransformer(tr));
+    assume {:axiom} EntityTransformer?(Map_EntityTransformer(tr));
   }
 
   function method {:opaque} Map_Registry(r: Registry, tr: ExprTransformer) : (r': Registry)

@@ -442,9 +442,9 @@ module Utils.Lib.SetSort { // TODO rename to Sort.Set when it becomes possible
     ensures st == Set.OfSeq(sq)
     ensures cmp.Sorted(sq)
   {
-    assume false; [] // TODO
+    assume {:axiom} false; [] // TODO
   } by method {
-    assume false; // TODO
+    assume {:axiom} false; // TODO
     sq := QuickSort(st, cmp);
   }
 }

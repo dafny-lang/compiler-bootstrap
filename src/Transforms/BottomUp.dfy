@@ -146,7 +146,7 @@ module Bootstrap.Transforms.BottomUp {
         assert Exprs.ConstructorsMatch(e, e');
         e'
       case Bind(vars, vals, body) =>
-        assume TODO();
+        assume {:axiom} TODO();
         var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
         var e' := Expr.Bind(vars, vals', Map_Expr(body, tr));
@@ -209,7 +209,7 @@ module Bootstrap.Transforms.BottomUp {
         assert Exprs.ConstructorsMatch(e, e');
         e'
       case Bind(vars, vals, body) =>
-        assume TODO();
+        assume {:axiom} TODO();
         var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
         Map_All_IsMap(e requires e in vals => Map_Expr_WithRel(e, tr, rel), vals);
@@ -414,7 +414,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
         EqInterp_Expr_If_CanBeMapLifted(e, e', env, ctx, ctx');
       }
       case Bind(_, _, _) => {
-        assume TODO();
+        assume {:axiom} TODO();
       }
       case Block(_) => {
         EqInterp_Expr_Block_CanBeMapLifted(e, e', env, ctx, ctx');
@@ -441,7 +441,7 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
     reveal TryGetVariable();
     reveal GEqCtx();
 
-    assume TODO();
+    assume {:axiom} TODO();
   }
 
   // FIXME(CPC): Can this lemma and the following ones use Interp.Expr?
@@ -975,8 +975,8 @@ module Bootstrap.Transforms.Proofs.BottomUp_ {
         // captured by ``EqValue_Closure``. We do the assumption that, if one of the calls succeedeed,
         // then the arguments are "not too big" and we can apply the equivalence. This would be true
         // if the program was successfully type-checked.
-        assume (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs[i]) < ValueTypeHeight(f));
-        assume (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs'[i]) < ValueTypeHeight(f'));
+        assume {:axiom} (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs[i]) < ValueTypeHeight(f));
+        assume {:axiom} (forall i | 0 <= i < |vars| :: ValueTypeHeight(argvs'[i]) < ValueTypeHeight(f'));
         EqValue_Closure_EqInterp_FunctionCall(f, f', argvs, argvs', env.(fuel := env.fuel - 1));
       }
 

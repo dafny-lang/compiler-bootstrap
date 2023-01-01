@@ -254,7 +254,7 @@ module Bootstrap.Backends.CSharp.Compiler {
     var names := p.registry.SortedNames();
     var entities := Seq.Map(p.registry.Get, names);
     // TODO: prove
-    assume forall e | e in entities ::
+    assume {:axiom} forall e | e in entities ::
       Deep.All_Entity(e, EliminateNegatedBinops.NotANegatedBinopExpr) &&
       Deep.All_Entity(e, Exprs.WellFormed);
     var strs := Seq.Map(CompileEntity, entities);
@@ -315,7 +315,7 @@ module {:extern "Bootstrap.Backends.CSharp.Adapter"} Bootstrap.Backends.CSharp.A
         EliminateNegatedBinops.Tr_Expr_Post,
         EliminateNegatedBinops.NotANegatedBinopExpr);
       */
-      assume Deep.All_Program(lowered, EliminateNegatedBinops.NotANegatedBinopExpr);
+      assume {:axiom} Deep.All_Program(lowered, EliminateNegatedBinops.NotANegatedBinopExpr);
 
       var compiled := Compiler.AlwaysCompileProgram(lowered);
       WriteAST(st, compiled);
