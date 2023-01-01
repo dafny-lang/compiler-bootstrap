@@ -98,6 +98,7 @@ $(dafny_model): $(DafnyCore).csproj $(DafnyAST) $(dafny_model).template $(AutoEx
 	dotnet run --project $(AutoExtern)/AutoExtern.csproj -- \
 		$(DafnyCore).csproj "Microsoft.Dafny" "$(dafny_model).template" "" "$@" \
 		--rewrite "Microsoft.Boogie:Boogie" \
+		--skip-interface "Microsoft.Dafny.ICloneable" \
 		$(DafnyAST)
 
 # Copy basic C# model into current directory (to make it easier to refer to it from Dafny)
