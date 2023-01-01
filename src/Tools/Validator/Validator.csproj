@@ -12,7 +12,8 @@
 
   <!-- TODO: get DafnyPipeline from NuGet when we can -->
   <ItemGroup>
-    <ProjectReference Include="$(DAFNY_ROOT)\Source\Dafny\DafnyPipeline.csproj" />
+    <ProjectReference Include="$(DAFNY_ROOT)\Source\DafnyCore\DafnyCore.csproj" />
+    <ProjectReference Include="$(DAFNY_ROOT)\Source\DafnyRuntime\DafnyRuntime.csproj" />
     <Compile Include="..\..\Interop\CSharpInterop.cs" />
     <Compile Include="..\..\Interop\CSharpDafnyInterop.cs" />
     <Compile Include="..\..\Interop\CSharpDafnyASTInterop.cs" />
